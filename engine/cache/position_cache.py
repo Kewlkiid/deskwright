@@ -76,8 +76,14 @@ class PositionCache:
             point: tuple[float, float] | None = None):
         key = norm_target(target)
         sh = screen_hash(img)
-        # Replace an entry for the same view instead of piling up duplicates.
-        for r in self.db.query("SELECT id, screen_hash FROM cache WHERE window = ? AND target = ?", (window, key)):
+        # Replace an entry for the same view (same window size, similar screen) instead of piling up duplicates.
+        # A different window size is a different layout: its entry is kept alongside, so going back to that size
+        # still hits.
+        for r in self.db.query("SELECT id, screen_hash, frame FROM cache WHERE window = ? AND target = ?", (window, key)):
+            if r["frame"]:
+                fw, fh = json.loads(r["frame"])
+                if abs(fw - img.width) > FRAME_TOLERANCE or abs(fh - img.height) > FRAME_TOLERANCE:
+                    continue
             if hamming(sh, r["screen_hash"]) <= SCREEN_HASH_MAX_DIST:
                 self.db.execute("DELETE FROM cache WHERE id = ?", (r["id"],))
         self.db.execute(

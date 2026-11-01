@@ -257,3 +257,13 @@ def test_cache_survives_a_moved_window_but_not_a_resized_one(tmp_path):
     assert cache.lookup("App|Win", window.copy(), "Save button").point == (280, 175)
     resized = ui_image().crop((200, 150, 1300, 900))  # 100 px narrower: layout may have reflowed
     assert cache.lookup("App|Win", resized, "Save button") is None
+
+
+def test_cache_keeps_one_entry_per_window_size(tmp_path):
+    cache = PositionCache(DB(tmp_path / "c.db"))
+    big = ui_image().crop((200, 150, 1400, 900))
+    small = ui_image().crop((200, 150, 1300, 900))
+    cache.put("App|Win", big, "Save button", [200, 150, 360, 200], point=(280, 175))
+    cache.put("App|Win", small, "Save button", [200, 150, 360, 200], point=(281, 176))
+    assert cache.lookup("App|Win", big, "Save button").point == (280, 175)  # the first size still hits
+    assert cache.lookup("App|Win", small, "Save button").point == (281, 176)
