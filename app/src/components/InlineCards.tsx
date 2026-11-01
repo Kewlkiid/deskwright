@@ -26,7 +26,6 @@ export function TasksCard({
   }
   return (
     <div className="space-y-2">
-      <div className="text-[14px]">Your saved tasks</div>
       <div className="divide-y divide-line-soft overflow-hidden rounded-xl border border-line">
         {tasks.map((t) => {
           const runs = t.runs.filter((r) => r.status !== "running");
@@ -291,9 +290,8 @@ export function PermissionsList() {
   };
 
   return (
-    <div className="rounded-2xl border border-line p-3.5 text-left">
-      <div className="text-[14px] font-medium">Permissions</div>
-      <div className="mt-0.5 text-[12.5px] text-fg-2">What macOS lets Deskwright do. Changes to Screen Recording and Accessibility apply after a restart.</div>
+    <div className="text-left">
+      <div className="text-[12.5px] text-fg-2">What macOS lets Deskwright do. Changes to Screen Recording and Accessibility apply after a restart.</div>
       <div className="mt-2.5 divide-y divide-line-soft">
         {rows.map((r) => (
           <div key={r.kind} className="flex items-center gap-2.5 py-2">

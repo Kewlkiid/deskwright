@@ -134,9 +134,12 @@ let docking = false;
 function dock(animate = false) {
   if (!win) return;
   docking = true;
-  win.setResizable(mode === "panel");
-  win.setMinimumSize(mode === "panel" ? PANEL_MIN : MINI.width, 60); // the panel's minimum would stop the bar shrinking
+  // Order matters: raising the minimum size while the window is still small makes macOS widen it from its left edge
+  // for a frame (the corner bar jumps left, then snaps back). Lower the minimum before shrinking, raise it after growing.
+  win.setMinimumSize(MINI.width, 60);
   win.setBounds(mode === "pill" ? pillBounds() : mode === "mini" ? pillBounds(MINI) : panelBounds(), animate && IS_MAC);
+  if (mode === "panel") win.setMinimumSize(PANEL_MIN, 60);
+  win.setResizable(mode === "panel");
   // Animated resizes emit "resize" events afterwards; keep ignoring them until the animation is over.
   setTimeout(() => {
     docking = false;

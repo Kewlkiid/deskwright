@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3, GraduationCap, KeyRound, LayoutList, ListChecks, Mic, MoreHorizontal, PanelRightClose, Power, ShieldOff,
   SquarePen, Volume2,
@@ -15,6 +15,7 @@ import { MetricsCard, PermissionsCard, PermissionsList, TasksCard } from "./comp
 import { Logo } from "./components/Logo";
 import { Menu } from "./components/Menu";
 import { Pill } from "./components/Pill";
+import { Sheet } from "./components/Sheet";
 import { ResultCard } from "./components/ResultCard";
 import { RunActivity } from "./components/RunActivity";
 import { ScriptView } from "./components/ScriptView";
@@ -129,16 +130,18 @@ export default function App() {
   }, [s.items.length, s.runs]);
 
   const add = (item: ChatItem) => dispatch({ type: "add", item });
+  // Saved tasks, metrics and permissions open in a sheet over the chat (closed with ×), not as chat messages.
+  const [sheet, setSheet] = useState<null | "tasks" | "metrics" | "permissions">(null);
   const showTasks = () => {
     engine.send({ type: "list_tasks" });
-    add({ id: uid(), kind: "tasks" });
+    setSheet("tasks");
   };
-  const showMetrics = () => add({ id: uid(), kind: "metrics" });
+  const showMetrics = () => setSheet("metrics");
   const clearChat = () => {
     dispatch({ type: "clearChat" });
     engine.send({ type: "clear_chat" }); // the engine's conversation memory too
   };
-  const showPermissions = () => add({ id: uid(), kind: "permissions" });
+  const showPermissions = () => setSheet("permissions");
   const send = (text: string) => {
     add({ id: uid(), kind: "user", text });
     if (TASKS_RE.test(text.trim())) return showTasks();
@@ -327,7 +330,7 @@ export default function App() {
       initial={{ opacity: 0, x: 32 }}
       animate={mode === "closing" ? { opacity: 0, x: 32 } : { opacity: 1, x: 0 }}
       transition={{ duration: TRANSITION_MS / 1000, ease: [0.2, 0.8, 0.2, 1] }}
-      className="flex h-full flex-col border-l border-line bg-white text-fg"
+      className="relative flex h-full flex-col border-l border-line bg-white text-fg"
     >
       {/* Header */}
       <div className={`flex h-12 shrink-0 items-center gap-2 px-3 transition-shadow ${scrolled ? "shadow-[0_1px_0_#efefef]" : ""}`}>
@@ -413,22 +416,6 @@ export default function App() {
             </div>
             <div className="space-y-4">
               <PermissionsCard />
-              {s.tasks.length > 0 && (
-                <div>
-                  <div className="mb-1.5 px-1 text-[12px] text-fg-3">Saved tasks</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {s.tasks.slice(0, 4).map((t) => (
-                      <button
-                        key={t.id}
-                        onClick={() => runSaved(t.id)}
-                        className="rounded-full border border-line px-3 py-1.5 text-[13px] hover:bg-surface"
-                      >
-                        {t.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         ) : (
@@ -477,6 +464,35 @@ export default function App() {
         onToggleReview={toggleReview}
         onClear={() => clearChat()}
       />
+      <AnimatePresence>
+        {sheet && (
+          <Sheet
+            title={sheet === "tasks" ? "Saved tasks" : sheet === "metrics" ? "Run metrics" : "Permissions"}
+            onClose={() => setSheet(null)}
+          >
+            {sheet === "tasks" && (
+              <TasksCard
+                tasks={s.tasks}
+                running={s.running}
+                onRun={(id) => {
+                  setSheet(null);
+                  runSaved(id);
+                }}
+                onDelete={(id) => engine.send({ type: "delete_task", task_id: id })}
+              />
+            )}
+            {sheet === "metrics" && (
+              <MetricsCard
+                metrics={s.metrics}
+                totals={s.totals}
+                tasks={s.tasks}
+                onClearCache={() => engine.send({ type: "clear_cache" })}
+              />
+            )}
+            {sheet === "permissions" && <PermissionsList />}
+          </Sheet>
+        )}
+      </AnimatePresence>
     </motion.div>
       )}
       {bar}

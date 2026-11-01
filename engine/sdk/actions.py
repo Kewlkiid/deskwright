@@ -334,12 +334,28 @@ def _browser_type(ctx: RunContext, b: Browser, target: str, text: str, expect: s
     return True
 
 
-def type_into(target: str, text, expect: str | None = None, confirm: bool = False, clear: bool = False) -> None:
-    """Click the described text field and type `text` into it. clear=True empties the field first.
+# Single-line fields where typing should replace what's there; never documents, where select-all + delete would wipe
+# the user's work.
+FIELD_WORDS = re.compile(r"\b(search|field|input|box|bar|url|address|query|name|email|e-mail|password|title|subject|"
+                         r"recipient|to|amount|price|quantity|code|filter|find|phone|number|username)\b", re.I)
+DOCUMENT_WORDS = re.compile(r"\b(document|doc|body|note|notes|editor|page|canvas|text area|textarea|content|"
+                            r"paragraph|essay|draft|story|post body|description)\b", re.I)
+
+
+def _replaces(target: str) -> bool:
+    return bool(FIELD_WORDS.search(target)) and not DOCUMENT_WORDS.search(target)
+
+
+def type_into(target: str, text, expect: str | None = None, confirm: bool = False, clear: bool | None = None,
+              append: bool = False) -> None:
+    """Click the described text field and type `text` into it. In a field (search box, input, address bar...) it
+    replaces what's there, so a search box that still holds the last search doesn't end up "notionnotion"; in a
+    document it adds at the cursor. clear=True/False forces either; append=True always keeps the existing text.
     Long text is typed in chunks; if focus moves away mid-entry the field is re-focused, and if the field
     changed, FieldChangedError is raised instead of typing into the wrong place."""
     ctx = current()
     text = "" if text is None else str(text)
+    clear = (_replaces(target) if clear is None else clear) and not append
     with ACTION_LOCK:
         ctx.check_stop()
         b = browser_for(ctx)
