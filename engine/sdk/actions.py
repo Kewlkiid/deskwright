@@ -395,8 +395,24 @@ def drag(from_target: str, to_target: str, expect: str | None = None, confirm: b
         ctx.push_metrics()
 
 
+def point_at_content(ctx: RunContext, only_if_outside: bool = False):
+    """Scrolling happens under the pointer. After clicking a sidebar search field the pointer still sits on the
+    sidebar, so the main content never moves: put it in the middle of the app's window first."""
+    from ..screen.windows import app_window_bounds
+
+    bounds = app_window_bounds(ctx.scope_app) if ctx.scope_app and not config.fake_screen else None
+    if not bounds:
+        return
+    x, y, w, h = bounds
+    if only_if_outside:
+        mx, my = inp.mouse_position()
+        if x <= mx <= x + w and y <= my <= y + h:
+            return
+    run_input(inp.move, x + w * 0.6, y + h * 0.55)  # a bit right of centre: past a typical left sidebar
+
+
 def scroll_until(target: str, direction: str = "down", max_scrolls: int = 15) -> None:
-    """Scroll (at the current mouse position) until the described element is visible.
+    """Scroll the app's main content (the middle of its window) until the described element is visible.
     Raises ElementNotFoundError if it never appears or the content stops moving."""
     ctx = current()
     amount = -5 if direction.lower().startswith("d") else 5
@@ -405,6 +421,7 @@ def scroll_until(target: str, direction: str = "down", max_scrolls: int = 15) ->
         if b and browser_find(ctx, b, target, "scroll to") is not None:  # the page scrolls it into view
             ctx.pending = None
             return
+        point_at_content(ctx)
         for _ in range(max_scrolls):
             ctx.check_stop()
             f = find(ctx, target, "scroll to", raise_missing=False)

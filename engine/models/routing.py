@@ -2,7 +2,8 @@
 as the backup.
 
   auto (default): try SAM; if it can't find the element or errors, retry the same step with the grid. After
-                  SAM_STRIKES failures in one run, the grid goes first for the rest of that run.
+                  SAM_STRIKES elements in one run that the grid found but SAM missed, the grid goes first for the
+                  rest of that run. (A miss by both means the element isn't there, not that SAM is worse.)
   sam / grid:     use only that method. Scripts and the repair module switch with use_grounding("grid").
 
 Each run starts back in auto with a clean failure count (reset() is called when a run starts).
@@ -68,9 +69,9 @@ class GroundingRouter:
             except Exception as e:  # a grounder bug or API error must not end the step if a backup exists
                 result = Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False, reason=f"{label} failed: {e}")
             result.label = self.last_label = label
-            if g is self.sam:
-                self.sam_failures += 0 if result.found else 1
             if result.found:
+                if g is self.grid and any(t.startswith(getattr(self.sam, "label", "SAM")) for t in tried):
+                    self.sam_failures += 1  # the grid found what SAM missed
                 return result
             tried.append(f"{label}: {result.reason}")
         result.reason = " / ".join(tried)

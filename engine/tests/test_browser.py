@@ -46,6 +46,8 @@ class FakeBridge:
         self.connected = True
         self.info = {}
         self.port = 0
+        self.active_tab = 1
+        self.navigations = []  # (url, new_tab)
 
     def by_ref(self, p):
         if p.get("index") is not None:
@@ -55,7 +57,12 @@ class FakeBridge:
     def call(self, type, timeout=15.0, **d):
         self.calls.append((type, d.get("cmd"), d.get("params")))
         if type == "status":
-            return {"connected": True, "focused": True, "tab": {"id": 1, "url": URL, "title": "Invoices"}}
+            return {"connected": True, "focused": True, "tab": {"id": self.active_tab, "url": URL, "title": "Invoices"}}
+        if type == "navigate":
+            self.navigations.append((d["url"], d["new_tab"]))
+            if d["new_tab"]:
+                self.active_tab += 1
+            return {"id": self.active_tab, "url": d["url"], "status": "complete"}
         if type == "page":
             return self.page_cmd(d["cmd"], d.get("params") or {})
         if type in ("net_start", "net_mark"):
@@ -361,3 +368,11 @@ def test_extension_config_is_written_only_when_it_changes(tmp_path):
     assert "ws://127.0.0.1:8777" in (tmp_path / "config.js").read_text()
     assert "'tok'" in (tmp_path / "config.js").read_text()
     assert not write_extension_config(8777, "tok", tmp_path)
+
+
+def test_open_url_never_replaces_the_users_tab(screen, chrome, agent_factory):
+    agent, _ = agent_factory()
+    out = agent.run_task("open", 'open_url("http://a.test")\nopen_url("http://b.test")\nopen_url("http://c.test", new_tab=True)')
+    assert out["status"] == "succeeded", out
+    # The user's tab (1) is left alone; the second URL reuses the tab the run opened; new_tab=True opens another.
+    assert chrome.navigations == [("http://a.test", True), ("http://b.test", False), ("http://c.test", True)]

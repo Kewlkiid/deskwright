@@ -102,6 +102,9 @@ def scroll(amount: int) -> None:
     """Scroll at the current mouse position. Negative scrolls down, positive scrolls up (about 3 lines per unit)."""
     with ACTION_LOCK:
         _before_raw(commits=False)
+        from .actions import point_at_content
+
+        point_at_content(current(), only_if_outside=True)
         current().status(f"Scrolling {'down' if amount < 0 else 'up'}")
         run_input(inp.scroll, int(amount))
         _after_raw(f"scroll({amount})")

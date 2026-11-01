@@ -5,7 +5,8 @@ from .context import ACTION_LOCK, current
 
 
 def open_url(url: str, new_tab: bool = False) -> None:
-    """Open a URL in Google Chrome and wait for the page to load (new_tab=True opens it in a new tab).
+    """Open a URL in Google Chrome and wait for the page to load. Opens a new tab, except that a tab this run
+    already opened is reused (new_tab=True always opens another). Never navigates away from one of the user's tabs.
     Works without the extension too, by typing into Chrome's address bar."""
     from ..browser.bridge import get_bridge
 
@@ -15,16 +16,22 @@ def open_url(url: str, new_tab: bool = False) -> None:
         ctx.status(f"Opening {url}")
         bridge = get_bridge()
         if bridge is not None and bridge.connected:
+            # Reuse the active tab only if this run opened it: the user's own tabs may hold unsaved work.
+            active = (bridge.call("status", timeout=5).get("tab") or {}).get("id")
+            reuse = not new_tab and active is not None and active in ctx.agent_tabs
             # The extension's own window comes to the front (open_app could pick a different Chrome).
-            r = bridge.call("navigate", timeout=30, url=url, new_tab=new_tab, focus=not ctx.dry_run)
+            r = bridge.call("navigate", timeout=30, url=url, new_tab=not reuse, focus=not ctx.dry_run)
+            if r.get("id") is not None:
+                ctx.agent_tabs.add(r["id"])
             ctx.browser_used = True
-            ctx.log(f"open_url({url!r}) -> {r.get('url')} ({r.get('status')})")
+            ctx.log(f"open_url({url!r}) -> {r.get('url')} ({r.get('status')}){'' if reuse else ' in a new tab'}")
         else:
             from .apps import open_app
             from .raw import hotkey, press, type_text
 
             open_app("Google Chrome")
-            if new_tab:
+            if new_tab or not ctx.agent_tabs:  # without the extension, every run's first page gets its own tab
+                ctx.agent_tabs.add(-1)
                 hotkey("cmd", "t")
             hotkey("cmd", "l")
             type_text(url)

@@ -313,3 +313,12 @@ def test_debug_folder_records_events_calls_and_annotated_images(tmp_path):
     calls = sorted((d.dir / "calls").iterdir())
     assert any(p.suffix == ".py" for p in calls) and any("vision" in p.name for p in calls)
     assert "data:" not in (d.dir / "events.jsonl").read_text()  # images never go into the log
+
+
+def test_router_strikes_only_count_when_the_grid_found_what_sam_missed():
+    from engine.models.routing import SAM_STRIKES, GroundingRouter
+    sam, grid = _StubGrounder("SAM 3.1", False), _StubGrounder("Spark grid", False)
+    r = GroundingRouter(sam, grid)
+    for _ in range(SAM_STRIKES + 2):
+        r.locate(Image.new("RGB", (100, 100)), "Something that isn't on screen")
+    assert r.sam_failures == 0 and r.label == "SAM 3.1"

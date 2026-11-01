@@ -119,6 +119,7 @@ class RunContext:
     # Approval safety (sdk/safety.py): a failed step that needed approval leaves it owed to whatever replaces it;
     # typed_target is the field text was just typed into (Enter there may send it).
     owed_confirm: str | None = None
+    agent_tabs: set = field(default_factory=set)  # Chrome tab ids this run opened (open_url may reuse only these)
     typed_target: str | None = None
     _window: tuple[str, float] = ("", 0.0)
 

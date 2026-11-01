@@ -37,6 +37,10 @@ with it, and call it again whenever the task moves to a different app.
 - To get results to the user, use show(...) with a string, a table from make_table(...), or a summarize(...) result.
 - Prefer few, robust steps. Use wait_for(condition) after actions that load something.
 - Use ask_user only when information is genuinely missing.
+- When the task names a specific thing (an app, product, person, file, page), check that what you open or read from \
+is that exact thing before reporting about it (e.g. read the title and the developer or author with ask(...)). \
+Search results often show lookalikes first. If only similar things exist, say so in the result instead of reporting \
+a lookalike as the real one.
 
 """ + UNTRUSTED + """
 
