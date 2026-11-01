@@ -29,27 +29,42 @@ const OVERLAY_EVENTS = new Set([
 const TASKS_RE = /^(show |list |open )?(my )?(saved )?tasks\??$/i;
 const METRICS_RE = /^(show )?(the )?(run )?(metrics|stats|statistics)\??$/i;
 
+const TRANSITION_MS = 240;
+
 export default function App() {
   const [s, dispatch] = useReducer(reducer, initialState);
   // "panel": full-height column. "pill": compact bar in the top-right corner (during tasks, or collapsed by hand).
-  const [mode, setModeState] = useState<"panel" | "pill">("panel");
-  const modeRef = useRef(mode);
+  // panel <-> corner bar. The window itself resizes instantly (the bar sits at the same screen spot in both sizes,
+  // so nothing visibly moves); all the motion is in the page: the panel slides while the bar fades in or out.
+  const [mode, setModeState] = useState<"panel" | "closing" | "pill" | "opening">("panel");
+  const modeRef = useRef<"panel" | "pill">("panel");
   const runningRef = useRef(false);
   const pillSize = useRef<"pill" | "mini">("pill");
+  const timer = useRef<ReturnType<typeof setTimeout>>();
   const goPill = useCallback(() => {
     // Running: the status bar. Collapsed while idle: only the icon and the open button.
     const size = runningRef.current ? "pill" : "mini";
-    if (modeRef.current === "pill" && pillSize.current === size) return;
+    if (modeRef.current === "pill") {
+      if (pillSize.current !== size) window.agent?.setMode(size);
+      pillSize.current = size;
+      return;
+    }
     modeRef.current = "pill";
     pillSize.current = size;
-    setModeState("pill"); // render the pill first (anchored top-right), then shrink the window around it
-    window.agent?.setMode(size);
+    clearTimeout(timer.current);
+    setModeState("closing"); // slide the panel away and fade the bar in, then shrink the window around the bar
+    timer.current = setTimeout(() => {
+      window.agent?.setMode(size);
+      setModeState("pill");
+    }, TRANSITION_MS);
   }, []);
   const goPanel = useCallback(() => {
     if (modeRef.current === "panel") return;
     modeRef.current = "panel";
-    window.agent?.setMode("panel"); // grow the window first, then slide the panel in
-    setTimeout(() => setModeState("panel"), 200);
+    clearTimeout(timer.current);
+    window.agent?.setMode("panel"); // grow the window first (transparent, the bar stays put), then slide the panel in
+    requestAnimationFrame(() => setModeState("opening"));
+    timer.current = setTimeout(() => setModeState("panel"), TRANSITION_MS + 40);
   }, []);
   const bottom = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -230,19 +245,26 @@ export default function App() {
     else turns.push({ agent: [item] });
   }
 
-  if (mode === "pill") {
-    return (
-      <Pill running={s.running} status={s.status} metrics={s.metrics} connected={s.connected} onOpen={goPanel} />
-    );
-  }
-
   const empty = s.items.length === 0;
+  const bar =
+    mode === "panel" ? null : (
+      <Pill
+        running={s.running}
+        status={s.status}
+        metrics={s.metrics}
+        connected={s.connected}
+        visible={mode !== "opening"}
+        onOpen={goPanel}
+      />
+    );
 
   return (
+    <>
+      {mode !== "pill" && (
     <motion.div
-      initial={{ opacity: 0, x: 24 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }}
+      initial={{ opacity: 0, x: 32 }}
+      animate={mode === "closing" ? { opacity: 0, x: 32 } : { opacity: 1, x: 0 }}
+      transition={{ duration: TRANSITION_MS / 1000, ease: [0.2, 0.8, 0.2, 1] }}
       className="flex h-full flex-col border-l border-line bg-white text-fg"
     >
       {/* Header */}
@@ -392,5 +414,8 @@ export default function App() {
         onClear={() => dispatch({ type: "clearChat" })}
       />
     </motion.div>
+      )}
+      {bar}
+    </>
   );
 }

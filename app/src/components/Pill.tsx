@@ -10,23 +10,25 @@ export function Pill({
   status,
   metrics,
   connected,
+  visible = true,
   onOpen,
 }: {
   running: boolean;
   status: string;
   metrics: Metrics | null;
   connected: boolean;
+  visible?: boolean;
   onOpen: () => void;
 }) {
   if (!running) {
     return (
-      <div className="fixed inset-0 flex items-start justify-end p-[6px]">
+      <div className="pointer-events-none fixed right-[12px] top-[12px]">
         <motion.div
-          initial={{ opacity: 0, scale: 0.94, y: -6 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
+          initial={{ opacity: 0, scale: 0.92 }}
+          animate={visible ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.92 }}
           transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
           style={{ transformOrigin: "top right" }}
-          className="flex h-[58px] w-full items-center justify-between rounded-[20px] border border-black/[.06] bg-white/95 pl-3 pr-2 shadow-[0_2px_6px_rgba(0,0,0,.06),0_10px_28px_rgba(0,0,0,.14)] backdrop-blur"
+          className="pointer-events-auto flex h-[58px] w-[86px] items-center justify-between rounded-[20px] border border-black/[.06] bg-white/95 pl-3 pr-2 shadow-[0_2px_6px_rgba(0,0,0,.06),0_10px_28px_rgba(0,0,0,.14)] backdrop-blur"
         >
           <Logo size={26} />
           <button
@@ -41,13 +43,13 @@ export function Pill({
     );
   }
   return (
-    <div className="fixed inset-0 flex items-start justify-end p-[6px]">
+    <div className="pointer-events-none fixed right-[12px] top-[12px]">
       <motion.div
-        initial={{ opacity: 0, scale: 0.94, y: -6 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
+        initial={{ opacity: 0, scale: 0.92 }}
+        animate={visible ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.92 }}
         transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
         style={{ transformOrigin: "top right" }}
-        className="flex h-[58px] w-full items-center gap-3 rounded-[20px] border border-black/[.06] bg-white/95 pl-3 pr-4 shadow-[0_2px_6px_rgba(0,0,0,.06),0_10px_28px_rgba(0,0,0,.14)] backdrop-blur"
+        className="pointer-events-auto flex h-[58px] w-[374px] items-center gap-3 rounded-[20px] border border-black/[.06] bg-white/95 pl-3 pr-4 shadow-[0_2px_6px_rgba(0,0,0,.06),0_10px_28px_rgba(0,0,0,.14)] backdrop-blur"
       >
         <span className="relative flex h-7 w-7 shrink-0 items-center justify-center">
           <span className="absolute inset-0 animate-ping rounded-full bg-focus/20" />

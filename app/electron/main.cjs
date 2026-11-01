@@ -29,9 +29,10 @@ const IS_LINUX = process.platform === "linux";
 const PANEL_WIDTH = 420;
 const PANEL_MIN = 360;
 const PANEL_MAX = 640;
-const PILL = { width: 392, height: 76 }; // includes a transparent margin for the CSS shadow
-const MINI = { width: 104, height: 76 }; // collapsed by hand, nothing running: just the icon and the open button
-const PILL_MARGIN = 6;
+// The corner bar is drawn 12px in from the top-right corner (Pill.tsx), in these windows and over the panel alike,
+// so resizing between them moves nothing on screen. The sizes include that margin and room for the CSS shadow.
+const PILL = { width: 398, height: 82 };
+const MINI = { width: 110, height: 82 }; // collapsed by hand, nothing running: just the icon and the open button
 
 let win = null;
 let overlay = null;
@@ -122,8 +123,8 @@ function panelBounds() {
 function pillBounds(size = PILL) {
   const { workArea } = screen.getPrimaryDisplay();
   return {
-    x: workArea.x + workArea.width - size.width - PILL_MARGIN,
-    y: workArea.y + PILL_MARGIN,
+    x: workArea.x + workArea.width - size.width,
+    y: workArea.y,
     width: size.width,
     height: size.height,
   };
@@ -146,7 +147,7 @@ function dock(animate = false) {
 function setMode(next) {
   if (!win || !["panel", "pill", "mini"].includes(next) || next === mode) return;
   mode = next;
-  dock(true);
+  dock(false); // instant: the page animates the change (App.tsx), a native resize animation would fight it
 }
 
 function sendBounds() {
