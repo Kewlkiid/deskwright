@@ -65,12 +65,28 @@ export function Composer({
   const slash = text.startsWith("/") ? commands.filter((c) => c.name.startsWith(text.slice(1).trim().toLowerCase())) : [];
 
   useEffect(() => setSel(0), [text]);
-  useEffect(() => {
+  // Fit the box to its text. Measure again when its width changes: the panel can mount while the window is still
+  // the narrow corner bar, where the placeholder wraps onto many lines.
+  const fit = () => {
     const el = ta.current;
     if (!el) return;
     el.style.height = "0px";
     el.style.height = Math.min(168, el.scrollHeight) + "px";
-  }, [text]);
+  };
+  useEffect(fit, [text]);
+  useEffect(() => {
+    const el = ta.current;
+    if (!el) return;
+    let width = el.clientWidth;
+    const ro = new ResizeObserver(() => {
+      if (el.clientWidth !== width) {
+        width = el.clientWidth;
+        fit();
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const submit = () => {
     if (slash.length) {
