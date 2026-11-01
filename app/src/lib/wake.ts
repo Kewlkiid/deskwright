@@ -61,12 +61,15 @@ function save(on: boolean) {
 
 /** `speaking`: Deskwright is talking. Listening goes on meanwhile (so "stop" or the start word can cut it off); the
  * engine removes its own words from what the mic heard. */
-export function useWakeWord(send: (msg: Record<string, unknown>) => void, speaking: boolean) {
+export function useWakeWord(send: (msg: Record<string, unknown>) => void, speaking: boolean, answering = false) {
   const [on, setOn] = useState(load);
   const [state, setState] = useState<WakeState>("off");
   const commandUntil = useRef(0);
   const speakingRef = useRef(speaking);
   speakingRef.current = speaking;
+  // A question from the task is waiting: the next thing said is the answer (no "agent input" needed).
+  const answeringRef = useRef(answering);
+  answeringRef.current = answering;
 
   useEffect(() => {
     if (!on) {
@@ -141,7 +144,7 @@ export function useWakeWord(send: (msg: Record<string, unknown>) => void, speaki
             }
             if (isCommand) commandUntil.current = 0;
             send({ type: "wake_audio", data: base64(wav(all, RATE)), mime: "audio/wav", command: isCommand,
-              during_speech: duringSpeech });
+              during_speech: duringSpeech, answer: answeringRef.current });
           }
         };
         src.connect(node);

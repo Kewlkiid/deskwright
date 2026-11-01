@@ -1,6 +1,6 @@
 // Saved tasks, metrics and permissions, shown as cards inside the conversation instead of separate tabs.
 import { useEffect, useState } from "react";
-import { Check, ChevronRight, GraduationCap, Play, Trash2 } from "lucide-react";
+import { Check, ChevronRight, Code2, GraduationCap, Play, Trash2 } from "lucide-react";
 import type { Metrics, PermissionKind, Permissions, SavedTask } from "../lib/types";
 import { RunChart } from "./RunChart";
 
@@ -9,11 +9,13 @@ export function TasksCard({
   running,
   onRun,
   onDelete,
+  onExport,
 }: {
   tasks: SavedTask[];
   running: boolean;
   onRun: (id: number) => void;
   onDelete: (id: number) => void;
+  onExport?: (id: number) => void; // writes the task's code to a file other programs can run
 }) {
   const [open, setOpen] = useState<number | null>(null);
   if (!tasks.length) {
@@ -77,6 +79,11 @@ export function TasksCard({
                   </pre>
                   <div className="flex items-center justify-between text-[12px] text-fg-3">
                     <span>{t.versions.length > 1 ? `Latest: ${t.versions[t.versions.length - 1].note}` : "Original version"}</span>
+                    {onExport && (
+                      <button onClick={() => onExport(t.id)} className="flex items-center gap-1 hover:text-fg">
+                        <Code2 className="h-3.5 w-3.5" strokeWidth={1.75} /> Export code
+                      </button>
+                    )}
                     <button onClick={() => onDelete(t.id)} className="flex items-center gap-1 hover:text-bad">
                       <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} /> Delete
                     </button>

@@ -62,11 +62,19 @@ def _check(ctx: RunContext, condition: str, shot: cap.Shot | None = None) -> dic
 
 
 def ask(question: str) -> str:
-    """Ask a question about what is on the screen right now; returns the answer as text."""
+    """Ask a question about what is on the screen right now; returns the answer as text. In Chrome the whole page's
+    text counts too, so an answer that's scrolled out of view is still found."""
     ctx = current()
     with ACTION_LOCK:
         shot = ctx.capture()
         ctx.status(f"Asking: {question}")
+        b = browser_for(ctx)
+        if b:
+            settle_previous(ctx, shot, b)
+            answer = b.ask(ctx, question)
+            if answer is not None:
+                ctx.push_metrics()
+                return answer
         r = ctx.models.vision.ask(shot.image, question, _prev(ctx))
         ctx.resolve_pending(shot, r.get("prev_expect_met"), r.get("observation", ""))
         ctx.push_metrics()

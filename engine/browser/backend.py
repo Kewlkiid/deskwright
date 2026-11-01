@@ -174,6 +174,14 @@ class Browser:
         return [f"{e['method']} {e['url'][:120]} -> {e.get('status') or ('failed' if e.get('failed') else '?')}"
                 for e in r.get("entries", [])]
 
+    def ask(self, ctx, question: str) -> str | None:
+        """Answer from the whole page's text, including parts scrolled out of view. None: the text can't tell."""
+        try:
+            pt = self.page("page_text", max=14000)
+        except BrowserError:
+            return None
+        return ctx.models.vision.ask_text(question, pt.get("text", ""), pt.get("url", ""))
+
     def check(self, ctx, condition: str) -> dict | None:
         """Judge a condition from the page's text (and recent network calls). result None means "can't tell"."""
         try:

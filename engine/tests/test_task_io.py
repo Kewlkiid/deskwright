@@ -179,7 +179,7 @@ def test_cli_asks_for_missing_inputs_without_no_ask(saved):
     r = _cli(["run", "--saved", "greet", "--input", "customer=Acme", "--json"], saved, stdin="7\n")
     assert r.returncode == 0, r.stderr
     assert json.loads(r.stdout)["outputs"] == {"greeting": "hi Acme x7"}
-    assert "how many times" in r.stderr  # the prompt used the input's description
+    assert "how many times" in r.stderr.lower()  # the prompt used the input's description
 
 
 def test_cli_rejects_unknown_inputs_and_unknown_tasks(saved):
@@ -211,3 +211,17 @@ def test_output_isnt_shown_again_when_the_script_showed_its_result(screen, agent
     out = agent.run_task("greet", 'INPUTS = {}\nOUTPUTS = {"x": "str: x"}\nopen_app("A")\nshow("Done: 1")\noutput(x="1")')
     assert out["status"] == "succeeded" and out["outputs"] == {"x": "1"}
     assert len(events(host, "result_ready")) == 1  # just the show(), not a second "Output" card
+
+
+def test_export_writes_a_runnable_script(screen, agent_factory):
+    from engine.runner.schema import parse_header
+    from engine.runner.validate import validate
+    from engine.sdk import SDK_NAMES
+
+    agent, host = agent_factory()
+    tid = agent.db.save_task("greet someone", GREET, "Greet a customer")
+    path = agent.export_task(tid)
+    text = open(path).read()
+    assert text.startswith("# Deskwright task: greet someone") and "deskwright.run_script(" in text
+    assert parse_header(text)["inputs"] == parse_header(GREET)["inputs"] and validate(text, SDK_NAMES) == []
+    assert agent.run_task("greet", text, inputs={"customer": "Acme", "count": 1})["outputs"] == {"greeting": "hi Acme x1"}

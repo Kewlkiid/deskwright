@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 import threading
 from pathlib import Path
+import json
 import time
 import traceback
 
@@ -403,7 +404,8 @@ class Agent:
             self.draft_task(text)
 
     # Voice -----------------------------------------------------------------
-    def hear(self, audio: bytes, mime: str, command: bool = False, auto_run: bool = True, during_speech: bool = False):
+    def hear(self, audio: bytes, mime: str, command: bool = False, auto_run: bool = True, during_speech: bool = False,
+             answer: bool = False):
         """One utterance from wake-word listening. `command`: the user already said "Hey Agent" and this is the task.
         Recognised on this Mac only; anything that isn't for the agent is dropped. UI commands (approve, send, input,
         teach...) go back to the app as `voice_action`; while a run is on the screen only answers to it count."""
@@ -426,7 +428,12 @@ class Agent:
             text = without_spoken(text, speaker.recent_text())
             if not text.strip():
                 return
-        parsed = ("task", text.strip()) if command else parse_voice(text)
+        if answer:
+            # A question is waiting: whatever was said answers it, unless it was a command like "stop".
+            said = parse_voice(text)
+            parsed = said if said and said[0] in ("stop", "hush", "decline", "input") else ("input", text.strip())
+        else:
+            parsed = ("task", text.strip()) if command else parse_voice(text)
         if parsed is None:
             return
         action, value = parsed
@@ -447,7 +454,7 @@ class Agent:
                     from .models.wake import without_spoken
 
                     exact = without_spoken(exact, speaker.recent_text())
-                again = ("task", exact.strip()) if command else parse_voice(exact)
+                again = ("task", exact.strip()) if command else ("input", exact.strip()) if answer else parse_voice(exact)
                 if exact and again and again[0] == action:
                     value = again[1]
             except Exception:  # noqa: BLE001 - the on-device transcript is good enough
@@ -543,6 +550,39 @@ class Agent:
             self.host.emit("error", message=f"Could not compile the recording: {e}")
 
     # Tasks -----------------------------------------------------------------
+    def export_task(self, task_id: int) -> str | None:
+        """Write a saved task's script to engine/data/exports/<name>.py, ready for other programs to run."""
+        import re as _re
+
+        t = self.db.get_task(task_id)
+        if not t:
+            return None
+        from .config import ROOT
+        from .runner.schema import parse_header
+
+        h = parse_header(t["script"])
+        slug = _re.sub(r"[^a-z0-9]+", "_", t["name"].lower()).strip("_")[:60] or f"task_{task_id}"
+        path = config.exports_dir / f"{slug}.py"
+        example = json.dumps({k: "..." for k in h["inputs"]})
+        lines = [
+            f"# Deskwright task: {t['name']}",
+            *(f"# {line}" for line in (t["description"] or "").splitlines()[:3]),
+            "#",
+            "# Inputs:  " + (", ".join(f"{k} ({v})" for k, v in h["inputs"].items()) or "none"),
+            "# Outputs: " + (", ".join(f"{k} ({v})" for k, v in h["outputs"].items()) or "none"),
+            "#",
+            "# Run it from another program (it drives this Mac's screen, one run at a time):",
+            f"#   python:  import deskwright; deskwright.run_script({str(path)!r}, {example})",
+            f"#   shell:   {ROOT}/engine/.venv/bin/python -m engine.cli run --script {str(path)!r} "
+            f"--inputs-json '{example}' --json --no-ask",
+            "# It prints one JSON line: {\"status\": \"ok\", \"outputs\": {...}, \"error\": null, \"run_id\": ...}",
+            "# (deskwright.py is in the Deskwright project folder; add that folder to your Python path.)",
+            "",
+        ]
+        path.write_text("\n".join(lines) + t["script"].rstrip() + "\n")
+        self.host.emit("exported", path=str(path), fmt="py")
+        return str(path)
+
     def save_task(self, name: str, script: str, description: str = "", source: str = "chat") -> int | None:
         problems = validate(script, SDK_NAMES)
         if problems:

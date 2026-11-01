@@ -318,7 +318,12 @@ function onEvent(s: State, m: any): State {
           {
             id: uid(),
             kind: "agent",
-            text: m.path === "clipboard" ? "Copied to the clipboard" : `Exported ${String(m.fmt).toUpperCase()}`,
+            text:
+              m.path === "clipboard"
+                ? "Copied to the clipboard"
+                : m.fmt === "py"
+                  ? "Exported the task's code (run it from other apps with deskwright.py)"
+                  : `Exported ${String(m.fmt).toUpperCase()}`,
             path: m.path === "clipboard" ? undefined : m.path,
             icon: m.path === "clipboard" ? "copy" : "save",
           },

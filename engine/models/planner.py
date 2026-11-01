@@ -66,7 +66,9 @@ class Planner:
                 "Problems:\n- " + "\n- ".join(problems) + "\n\nRewrite it to follow the rules."
             )
         ]
-        return extract_code(self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference), content))
+        reply = self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference), content)
+        self.request_inputs = _request_values(reply) or self.request_inputs  # the values may only come now
+        return extract_code(reply)
 
     def fix_script(
         self,

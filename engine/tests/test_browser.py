@@ -376,3 +376,13 @@ def test_open_url_never_replaces_the_users_tab(screen, chrome, agent_factory):
     assert out["status"] == "succeeded", out
     # The user's tab (1) is left alone; the second URL reuses the tab the run opened; new_tab=True opens another.
     assert chrome.navigations == [("http://a.test", True), ("http://b.test", False), ("http://c.test", True)]
+
+
+def test_typing_never_targets_a_link():
+    from engine.browser.match import candidates
+
+    entries = [
+        {"index": 1, "tag": "a", "category": "a", "text": "Search", "accessible_name": "Search Wikipedia", "selector": "a"},
+        {"index": 2, "tag": "input", "category": "input", "accessible_name": "Search Wikipedia", "selector": "#q"},
+    ]
+    assert [e["index"] for e in candidates(entries, "Search Wikipedia field", "type into")] == [2]

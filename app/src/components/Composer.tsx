@@ -1,6 +1,6 @@
 import { type MutableRefObject, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, BarChart3, GraduationCap, LayoutList, ListChecks, Mic, Trash2 } from "lucide-react";
+import { ArrowUp, BarChart3, GraduationCap, LayoutList, ListChecks, Mic, Square, Trash2 } from "lucide-react";
 import type { WakeState } from "../lib/wake";
 
 export interface SlashCommand {
@@ -30,6 +30,7 @@ export function Composer({
   wakeState,
   onToggleWake,
   onSend,
+  onStop,
   onTeach,
   onCancelTeach,
   onShowTasks,
@@ -47,6 +48,7 @@ export function Composer({
   wakeState: WakeState;
   onToggleWake: () => void;
   onSend: (text: string) => void;
+  onStop: () => void;
   onTeach: () => void;
   onCancelTeach: () => void;
   onShowTasks: () => void;
@@ -196,14 +198,24 @@ export function Composer({
           {hot && <span className="absolute inset-0 animate-ping rounded-full bg-focus/20" />}
           <Mic className="relative h-[18px] w-[18px]" strokeWidth={wakeOn ? 2.25 : 1.75} />
         </button>
-        <button
-          onClick={submit}
-          disabled={!text.trim() || running}
-          title="Send"
-          className="flex w-10 shrink-0 items-center justify-center rounded-[18px] bg-fg text-white transition hover:bg-[#2b2b2b] disabled:bg-surface-3 disabled:text-fg-4"
-        >
-          <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
-        </button>
+        {running ? (
+          <button
+            onClick={onStop}
+            title="Cancel (esc)"
+            className="flex w-10 shrink-0 items-center justify-center rounded-[18px] bg-bad text-white transition hover:brightness-110"
+          >
+            <Square className="h-3.5 w-3.5 fill-white" />
+          </button>
+        ) : (
+          <button
+            onClick={submit}
+            disabled={!text.trim()}
+            title="Send"
+            className="flex w-10 shrink-0 items-center justify-center rounded-[18px] bg-fg text-white transition hover:bg-[#2b2b2b] disabled:bg-surface-3 disabled:text-fg-4"
+          >
+            <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
+          </button>
+        )}
       </div>
       {(running || bypass) && (
         <div className="mt-1.5 text-center text-[11.5px] text-fg-3">

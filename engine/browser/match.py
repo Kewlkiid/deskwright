@@ -98,10 +98,21 @@ def ranked(entries: list[dict], target: str, verb: str = "click") -> list[tuple[
     return out
 
 
+NOT_TYPEABLE = {"a", "link", "button", "structural", "static", "region"}
+
+
+def typeable(entries: list[dict]) -> list[dict]:
+    """For typing: no links or buttons (a "Search" link next to a hidden search box is not where text goes).
+    Rich-text editors (contenteditable) carry no field category, so they stay."""
+    return [e for e in entries if e.get("tag") in ("input", "textarea", "select") or e.get("category") not in NOT_TYPEABLE]
+
+
 def best(entries: list[dict], target: str, verb: str = "click") -> dict | None:
     """The element when the text alone identifies it beyond doubt, else None."""
     if ORDINAL.search(target):
         return None
+    if verb in TYPE_VERBS:
+        entries = typeable(entries)
     r = ranked(entries, target, verb)
     if not r or r[0][0] < 0.8:
         return None
@@ -111,6 +122,8 @@ def best(entries: list[dict], target: str, verb: str = "click") -> dict | None:
 
 
 def candidates(entries: list[dict], target: str, verb: str = "click", limit: int = 60) -> list[dict]:
+    if verb in TYPE_VERBS:
+        entries = typeable(entries)
     r = ranked(entries, target, verb)
     scored = [e for s, e in r if s > 0]
     if len(scored) >= 5:

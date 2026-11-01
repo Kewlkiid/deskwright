@@ -229,7 +229,7 @@ class Server:
                 a.models.chat.clear()
         elif t == "wake_audio":
             self._bg(a.hear, base64.b64decode(m["data"]), m.get("mime", "audio/wav"), bool(m.get("command")),
-                     self.settings.get("auto_run", True), bool(m.get("during_speech")))
+                     self.settings.get("auto_run", True), bool(m.get("during_speech")), bool(m.get("answer")))
         elif t == "teach_start":
             self._bg(a.teach_start)
         elif t == "teach_cancel":
@@ -238,6 +238,8 @@ class Server:
             self._bg(a.teach_stop, m.get("name", ""), m.get("description", ""))
         elif t == "save_task":
             self._bg(a.save_task, m["name"], m["script"], m.get("description", ""), m.get("source", "chat"))
+        elif t == "export_task":
+            self._bg(a.export_task, int(m["task_id"]))
         elif t == "delete_task":
             a.db.delete_task(int(m["task_id"]))
             self.host.emit("tasks", tasks=a.db.list_tasks())

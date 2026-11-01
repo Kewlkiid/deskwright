@@ -83,6 +83,10 @@ class FakeVision:
                 return i
         return None
 
+    def ask_text(self, question, text, url=""):
+        _meter("vision", 0.7, 0.0004)
+        return None
+
     def check_text(self, condition, text, url="", network=None):
         _meter("vision", 0.7, 0.0004)
         return {"result": True, "reason": "fake"}

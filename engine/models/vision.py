@@ -145,6 +145,12 @@ class Vision:
         except (TypeError, ValueError):
             return None
 
+    def ask_text(self, question: str, text: str, url: str = "") -> str | None:
+        """Answer a question from page text; None when the text doesn't hold the answer."""
+        data = self._text_json(prompts.ASK_TEXT_PROMPT.format(question=question, url=url, text=text[:14000]))
+        answer = data.get("answer")
+        return None if answer in (None, "", "null") else str(answer)
+
     def check_text(self, condition: str, text: str, url: str = "", network: list[str] | None = None) -> dict:
         """Judge a condition from page text; result is True, False, or None (can't tell from text)."""
         net = ("RECENT NETWORK CALLS:\n" + "\n".join(network) + "\n") if network else ""

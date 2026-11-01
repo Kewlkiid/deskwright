@@ -194,6 +194,18 @@ These are the page's elements (number: description). Pick the one that is the ta
 
 Reply with JSON only: {{"index": <number>, "reason": "..."}} or {{"index": null, "reason": "..."}} if none of them is the target."""
 
+ASK_TEXT_PROMPT = """A desktop agent needs an answer from the web page it is working in.
+QUESTION: "{question}"
+
+PAGE: {url}
+TEXT OF THE PAGE (may be truncated):
+<<<
+{text}
+>>>
+Answer only from this text, exactly as written there. If the text doesn't contain the answer (or it depends on \
+something visual), answer null.
+Reply with JSON only: {{"answer": "..." | null}}"""
+
 CHECK_TEXT_PROMPT = """A desktop agent needs to know whether a condition is true in the web page it is working in.
 CONDITION: "{condition}"
 

@@ -40,6 +40,7 @@ export default function App() {
   const [mode, setModeState] = useState<"panel" | "closing" | "pill" | "opening">("panel");
   const modeRef = useRef<"panel" | "pill">("panel");
   const runningRef = useRef(false);
+  const actingRef = useRef(false); // the run has started acting on the screen (the panel collapsed for it)
   const pillSize = useRef<"pill" | "mini">("pill");
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const goPill = useCallback(() => {
@@ -74,7 +75,7 @@ export default function App() {
     .reverse()
     .find((i) => (i.kind === "confirm" || i.kind === "question") && i.answer === undefined && !i.closed);
   // Utterances go to the engine even during a run ("stop", "approve") and while Deskwright talks (to cut it off).
-  const wake = useWakeWord(sendToEngine, s.speaking);
+  const wake = useWakeWord(sendToEngine, s.speaking, waiting?.kind === "question");
   const wakeRef = useRef(wake);
   wakeRef.current = wake;
   const composer = useRef<{ submit: () => void } | null>(null);
@@ -94,10 +95,18 @@ export default function App() {
       if (msg.type === "voice_action") voiceRef.current(msg.action, msg.text || "");
       if (msg.type === "wake_unavailable") wakeRef.current.off();
       if (msg.type === "run_started") {
+        // Stay open while the program is written: it may ask for an input first. Collapse at its first action.
         setRunningState(true);
         runningRef.current = true;
+        actingRef.current = false;
         window.agent?.setRunning(true);
-        window.agent?.yieldFocus();
+      }
+      const startsActing =
+        msg.type === "element_found" ||
+        (msg.type === "status" && !/^(Writing the script|Fixing script problems|Stopping)/.test(msg.text || ""));
+      if (runningRef.current && !actingRef.current && startsActing) {
+        actingRef.current = true;
+        window.agent?.yieldFocus(); // the script's typing must reach the app underneath, not this panel
         goPill();
       }
       if (msg.type === "run_finished") {
@@ -202,7 +211,7 @@ export default function App() {
     engine.send({ type: "save_task", name, script, description, source });
   const runScript = (script: string) => engine.send({ type: "run_script", script });
   const runSaved = (id: number) => engine.send({ type: "run_saved", task_id: id });
-  const backToPillIfRunning = () => setTimeout(() => runningRef.current && goPill(), 350);
+  const backToPillIfRunning = () => setTimeout(() => runningRef.current && actingRef.current && goPill(), 350);
 
   const renderAgentItem = (item: ChatItem) => {
     switch (item.kind) {
@@ -449,6 +458,7 @@ export default function App() {
 
       <Composer
         apiRef={composer}
+        onStop={() => engine.send({ type: "stop" })}
         running={s.running}
         recording={s.recording}
         reviewMode={!s.autoRun}
@@ -479,6 +489,7 @@ export default function App() {
                   runSaved(id);
                 }}
                 onDelete={(id) => engine.send({ type: "delete_task", task_id: id })}
+                onExport={(id) => engine.send({ type: "export_task", task_id: id })}
               />
             )}
             {sheet === "metrics" && (
