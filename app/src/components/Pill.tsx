@@ -1,22 +1,21 @@
 import { motion } from "framer-motion";
-import { PanelRightOpen, Square } from "lucide-react";
+import { PanelRightOpen } from "lucide-react";
 import type { Metrics } from "../lib/types";
 import { Logo } from "./Logo";
 
-/** Compact bar in the top-right corner: shown while a task runs, or when the panel is collapsed by hand. */
+/** Compact bar in the top-right corner: shown while a task runs, or when the panel is collapsed by hand.
+ * While running there are no buttons: Esc stops the run and the panel reopens by itself at the end. */
 export function Pill({
   running,
   status,
   metrics,
   connected,
-  onStop,
   onOpen,
 }: {
   running: boolean;
   status: string;
   metrics: Metrics | null;
   connected: boolean;
-  onStop: () => void;
   onOpen: () => void;
 }) {
   return (
@@ -52,21 +51,15 @@ export function Pill({
             </>
           )}
         </div>
-        {running && (
+        {!running && (
           <button
-            onClick={onStop}
-            className="flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-fg px-3.5 text-[13px] font-medium text-white hover:bg-[#2b2b2b]"
+            onClick={onOpen}
+            title="Open panel"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2"
           >
-            <Square className="h-2.5 w-2.5 fill-white" /> Stop
+            <PanelRightOpen className="h-[18px] w-[18px]" strokeWidth={1.75} />
           </button>
         )}
-        <button
-          onClick={onOpen}
-          title="Open panel"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2"
-        >
-          <PanelRightOpen className="h-[18px] w-[18px]" strokeWidth={1.75} />
-        </button>
       </motion.div>
     </div>
   );

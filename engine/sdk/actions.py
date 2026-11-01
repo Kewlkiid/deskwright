@@ -110,6 +110,10 @@ def find(ctx: RunContext, target: str, action: str = "click", raise_missing: boo
 
 
 def announce(ctx: RunContext, f: Found, target: str, verb: str, expect: str | None):
+    if ctx.debug is not None:
+        how = "cache" if f.from_cache else (getattr(ctx.models.grounder, "last_label", "") or "grounding")
+        ctx.debug.annotate(f.shot.image, "target", box=f.box, point=f.point,
+                           caption=f"{verb} “{target}” via {how}")
     try:
         thumb = cap.thumbnail_with_outline(f.shot.image, f.box, f.mask)
     except Exception:
@@ -352,7 +356,7 @@ def type_into(target: str, text, expect: str | None = None, confirm: bool = Fals
             run_input(inp.press, "backspace")
         window = ctx.window()
         typed = ""
-        last = cap.grab().image
+        last = ctx.capture().image  # same window crop as the checks between chunks
         chunks = [text[i : i + TYPE_CHUNK] for i in range(0, len(text), TYPE_CHUNK)] or [""]
         for i, chunk in enumerate(chunks):
             ctx.check_stop()
@@ -411,7 +415,7 @@ def scroll_until(target: str, direction: str = "down", max_scrolls: int = 15) ->
             run_input(inp.scroll, amount)
             ctx.metrics.steps += 1
             ctx.settle(1.0)
-            after = cap.grab().image
+            after = ctx.capture().image
             if before is not None and frame_diff(before, after) < 0.3:
                 break
         raise ElementNotFoundError(

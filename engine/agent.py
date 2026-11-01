@@ -199,6 +199,13 @@ class Agent:
                            for r in self.db.task_detours(task_id)]
         ctx.inputs = dict(inputs or {})
         ctx.no_ask = no_ask
+        if config.debug and not config.fake_models:
+            from .runner.debug import RunDebug
+
+            try:
+                ctx.debug = RunDebug(run_id, task)
+            except OSError:
+                ctx.debug = None
         set_current(ctx)
         status, final_script, error = "failed", script or "", None
         self.host.emit("run_started", run_id=run_id, task=task, task_id=task_id)
@@ -241,6 +248,8 @@ class Agent:
             self.last_run = {"final_script": final_script, "detours": learned}
             metrics = ctx.metrics.snapshot()
             self.db.finish_run(run_id, status, metrics)
+            if ctx.debug is not None:
+                ctx.debug.finish(status, metrics, error)
             self.host.emit(
                 "run_finished",
                 run_id=run_id,
@@ -254,6 +263,7 @@ class Agent:
                 outputs=ctx.outputs,
                 history=self.db.task_runs(task_id) if task_id else [],
                 totals=self.db.all_runs_summary(),
+                debug_dir=str(ctx.debug.dir) if ctx.debug is not None else None,
             )
             set_current(None)
             self.screen_lock.release()

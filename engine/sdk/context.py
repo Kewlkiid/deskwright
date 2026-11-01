@@ -113,6 +113,7 @@ class RunContext:
     browser_mark: int = 0
     browser_capture: bool = False
     browser_used: bool = False
+    debug: Any = None  # runner/debug.py RunDebug when debug folders are on
     _window: tuple[str, float] = ("", 0.0)
 
     # Control ---------------------------------------------------------------
@@ -136,6 +137,13 @@ class RunContext:
             self.host.emit(type, **data)
         except Exception:
             pass
+        if self.debug is not None:
+            try:
+                self.debug.event(type, **data)
+                if type == "line_failed" and self.last_shot is not None:
+                    self.debug.annotate(self.last_shot.image, "failed", caption="last screenshot before the failure")
+            except Exception:  # noqa: BLE001 - debugging must never break a run
+                pass
 
     def status(self, text: str):
         self.emit("status", text=text, line=self.current_line, segment=self.segment)
@@ -144,6 +152,8 @@ class RunContext:
         entry = f"line {self.current_line}: {text}" if self.current_line else text
         self.action_log.append(entry)
         self.action_log[:] = self.action_log[-60:]
+        if self.debug is not None:
+            self.debug.note(text)
 
     def push_metrics(self):
         self.emit("metrics", metrics=self.metrics.snapshot())

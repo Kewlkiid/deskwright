@@ -228,7 +228,7 @@ export default function App() {
 
   if (mode === "pill") {
     return (
-      <Pill running={s.running} status={s.status} metrics={s.metrics} connected={s.connected} onStop={stop} onOpen={goPanel} />
+      <Pill running={s.running} status={s.status} metrics={s.metrics} connected={s.connected} onOpen={goPanel} />
     );
   }
 

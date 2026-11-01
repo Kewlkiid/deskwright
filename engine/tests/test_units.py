@@ -267,3 +267,49 @@ def test_cache_keeps_one_entry_per_window_size(tmp_path):
     cache.put("App|Win", small, "Save button", [200, 150, 360, 200], point=(281, 176))
     assert cache.lookup("App|Win", big, "Save button").point == (280, 175)  # the first size still hits
     assert cache.lookup("App|Win", small, "Save button").point == (281, 176)
+
+
+def test_a_stop_ends_a_slow_model_call_right_away():
+    import threading
+
+    import pytest
+    import time as _time
+
+    from engine.models.client import interruptible
+    from engine.sdk.context import RunContext, set_current
+    from engine.sdk.errors import StoppedError
+
+    ctx = RunContext(host=None, models=None, db=None, cache=None)
+    set_current(ctx)
+    try:
+        threading.Timer(0.2, ctx.stop_event.set).start()
+        t0 = _time.time()
+        with pytest.raises(StoppedError):
+            interruptible(lambda: _time.sleep(5))  # a reply that would take 5s
+        assert _time.time() - t0 < 1
+    finally:
+        set_current(None)
+    assert interruptible(lambda: 7) == 7  # outside a run it is a plain call
+
+
+def test_debug_folder_records_events_calls_and_annotated_images(tmp_path):
+    from engine.runner.debug import RunDebug
+    from engine.screen.capture import to_data_url
+
+    d = RunDebug(7, "do a thing", root=tmp_path)
+    img = Image.new("RGB", (400, 300), "white")
+    d.event("script_generated", script="open_app('A')\nclick('Save')", segment=0)
+    d.event("line_started", line=2)
+    d.annotate(img, "target", box=[10, 10, 60, 40], point=(35, 25), boxes=[[10, 10, 60, 40], [100, 100, 150, 130]],
+               caption="click Save")
+    d.model_call("vision", "spark", [{"role": "user", "content": [{"type": "text", "text": "Is it saved?"},
+                                                                  {"type": "image_url", "image_url": {"url": to_data_url(img)}}]}],
+                 '{"ok": true}', 1.2)
+    d.event("line_failed", line=2, error={"message": "nope"}, thumb="data:...")
+    d.finish("failed", {"elapsed": 3.0, "model_calls": 1}, {"message": "nope"})
+    timeline = (d.dir / "timeline.md").read_text()
+    assert "click Save" in timeline and "Is it saved?" in timeline and "L2" in timeline and "failed" in timeline
+    assert len(list((d.dir / "img").iterdir())) == 2  # the annotated screenshot and the image the model saw
+    calls = sorted((d.dir / "calls").iterdir())
+    assert any(p.suffix == ".py" for p in calls) and any("vision" in p.name for p in calls)
+    assert "data:" not in (d.dir / "events.jsonl").read_text()  # images never go into the log

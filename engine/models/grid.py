@@ -15,6 +15,7 @@ import string
 from PIL import Image, ImageDraw, ImageFont
 
 from ..config import config
+from ..sdk.errors import StoppedError
 from ..screen.capture import Box, clamp_box, to_data_url
 from .client import ModelClient, extract_json, image_part, text_part
 from .grounding import Grounded
@@ -121,6 +122,8 @@ class GridGrounder:
             view = img.crop(tuple(round(v) for v in zone))
             try:
                 data = self._ask(view, phrase, cols, rows, first=i == 0)
+            except StoppedError:
+                raise
             except Exception as e:
                 if box is None:
                     return Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False, reason=f"Grounding failed: {e}")

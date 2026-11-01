@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from typing import Any
 
@@ -14,6 +15,31 @@ def current_metrics():
     from ..sdk.context import current_metrics as cm
 
     return cm()
+
+
+def interruptible(fn):
+    """Run a blocking API call so that a stop (Esc) ends the run right away instead of after the reply arrives.
+    The abandoned request finishes in the background and its answer is dropped."""
+    from ..sdk.context import _current as ctx  # read at call time; None outside a run
+
+    if ctx is None:
+        return fn()
+    box: dict = {}
+
+    def run():
+        try:
+            box["value"] = fn()
+        except BaseException as e:  # noqa: BLE001 - re-raised on the calling thread
+            box["error"] = e
+
+    worker = threading.Thread(target=run, daemon=True, name="model-call")
+    worker.start()
+    while worker.is_alive():
+        worker.join(0.05)
+        ctx.check_stop()
+    if "error" in box:
+        raise box["error"]
+    return box["value"]
 
 
 def image_part(data_url: str) -> dict:
@@ -48,6 +74,26 @@ def extract_json(text: str) -> Any:
 def extract_code(text: str) -> str:
     fence = re.search(r"```(?:python|py)?\s*\n(.*?)```", text, re.S)
     return (fence.group(1) if fence else text).strip("\n")
+
+
+def _debug_call(role, model, messages, reply, seconds, error=None, tokens=(0, 0)):
+    from ..runner.debug import current_debug
+
+    d = current_debug()
+    if d is not None:
+        try:
+            d.model_call(role, model, messages, reply, seconds, error=error, tokens=tokens)
+        except Exception:  # noqa: BLE001 - debugging must never break a run
+            pass
+
+
+def _sleep(seconds: float):
+    from ..sdk.context import _current as ctx
+
+    if ctx is None:
+        time.sleep(seconds)
+    else:
+        ctx.sleep(seconds)
 
 
 class ModelClient:
@@ -99,28 +145,33 @@ class ModelClient:
                     extra = {"usage": {"include": True}}
                     if reasoning and self.cfg.reasoning_effort:
                         extra["reasoning"] = {"effort": self.cfg.reasoning_effort}
-                resp = self.client.chat.completions.create(
+                resp = interruptible(lambda: self.client.chat.completions.create(
                     model=model,
                     messages=messages,
                     max_tokens=max_tokens + (self.cfg.reasoning_headroom if reasoning else 0),
                     temperature=temperature,
                     extra_body=extra,
-                )
+                ))
                 tin, tout, cost = self._cost(getattr(resp, "usage", None))
                 current_metrics().record_call(role, time.time() - t0, tin, tout, cost)
-                return resp.choices[0].message.content or ""
+                reply = resp.choices[0].message.content or ""
+                _debug_call(role, model, messages, reply, time.time() - t0, tokens=(tin, tout))
+                return reply
             except openai.APITimeoutError:
                 current_metrics().record_call(role, time.time() - t0)
                 last = AgentTimeoutError(f"{role} model timed out", retryable=True)
+                _debug_call(role, model, messages, None, time.time() - t0, error="timed out")
             except (openai.RateLimitError, openai.APIConnectionError, openai.InternalServerError) as e:
                 current_metrics().record_call(role, time.time() - t0)
                 last = ModelError(f"{role} model API error: {e}", retryable=True)
+                _debug_call(role, model, messages, None, time.time() - t0, error=str(e))
             except openai.APIStatusError as e:
                 current_metrics().record_call(role, time.time() - t0)
+                _debug_call(role, model, messages, None, time.time() - t0, error=f"{e.status_code}: {e.message}")
                 raise ModelError(f"{role} model API error {e.status_code}: {e.message}", retryable=False)
             if attempt < attempts - 1:
                 # 2s, 5s, 12s: rides out short provider overloads (503) without stalling a run for long.
-                time.sleep((2, 5, 12)[min(attempt, 2)])
+                _sleep((2, 5, 12)[min(attempt, 2)])
         raise last  # type: ignore[misc]
 
     def record_external(self, role: str, seconds: float, cost: float):

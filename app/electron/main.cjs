@@ -232,6 +232,7 @@ function createOverlay() {
     skipTaskbar: true,
     hasShadow: false,
     alwaysOnTop: true,
+    enableLargerThanScreen: true,
     show: false,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
@@ -239,6 +240,7 @@ function createOverlay() {
   overlay.setContentProtection(!SHOW_IN_RECORDINGS); // the agent never sees its own overlay
   overlay.setAlwaysOnTop(true, "screen-saver");
   if (IS_MAC) overlay.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  overlay.setBounds(bounds); // at screen-saver level macOS lets it cover the menu bar too (overlay.js corrects if not)
   overlay.loadFile(path.join(__dirname, "overlay.html"));
   overlay.once("ready-to-show", () => {
     overlay.showInactive();

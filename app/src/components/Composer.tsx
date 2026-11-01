@@ -248,13 +248,11 @@ export function Composer({
           )}
         </div>
       </div>
-      <div className="mt-1.5 text-center text-[11.5px] text-fg-3">
-        {running
-          ? "⌘⇧X or a mouse flick into a screen corner stops the agent"
-          : bypass
-            ? "Approvals are off: sensitive actions run without asking."
-            : "Agent can make mistakes. Sensitive actions always ask first."}
-      </div>
+      {(running || bypass) && (
+        <div className="mt-1.5 text-center text-[11.5px] text-fg-3">
+          {running ? "Press esc to stop" : "Approvals are off: sensitive actions run without asking."}
+        </div>
+      )}
     </div>
   );
 }

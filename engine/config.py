@@ -61,6 +61,10 @@ class Config:
     request_timeout: float = 60.0
     max_fixes_per_line: int = 3
     max_fixes_per_run: int = 10
+    # Per-run debug folders (runner/debug.py): timeline, model calls, annotated screenshots.
+    debug: bool = field(default_factory=lambda: _flag("AGENT_DEBUG", "1"))
+    debug_keep: int = field(default_factory=lambda: int(os.environ.get("AGENT_DEBUG_KEEP", "40")))
+    debug_dir: Path = DATA_DIR / "debug"
     db_path: Path = DATA_DIR / "agent.db"
     exports_dir: Path = DATA_DIR / "exports"
     recordings_dir: Path = DATA_DIR / "recordings"

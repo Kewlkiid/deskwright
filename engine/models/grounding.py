@@ -27,8 +27,9 @@ from dataclasses import dataclass
 from PIL import Image, ImageDraw
 
 from ..config import config
+from ..sdk.errors import StoppedError
 from ..screen.capture import Box, clamp_box, fit, to_data_url
-from .client import ModelClient, extract_json, image_part, text_part
+from .client import ModelClient, extract_json, image_part, interruptible, text_part
 
 
 @dataclass
@@ -173,19 +174,19 @@ class SamGrounder:
         if config.grounding_endpoint:
             import httpx
 
-            r = httpx.post(
+            r = interruptible(lambda: httpx.post(
                 config.base_url.rstrip("/") + config.grounding_endpoint,
                 headers={"Authorization": f"Bearer {config.api_key}"},
                 json=req,
                 timeout=config.request_timeout,
-            )
+            ))
             r.raise_for_status()
             return r.json()
-        resp = self.client.client.responses.create(
+        resp = interruptible(lambda: self.client.client.responses.create(
             model=config.grounding_model,
             input=[{"role": "user", "content": [{"type": "input_image", "image_url": req["image"]},
                                                 {"type": "input_text", "text": phrase}]}],
-        )
+        ))
         return {"text": getattr(resp, "output_text", "") or ""}
 
     # Public ----------------------------------------------------------------
@@ -197,6 +198,7 @@ class SamGrounder:
             t0 = time.time()
             data = self._call(small, q)
             self.client.record_external("grounding", time.time() - t0, config.price_per_grounding_call)
+            _debug_sam(small, q, data, time.time() - t0)
             for b in self._parse_response_all(data, small.size):
                 if all(_iou(b, o) < 0.7 for o in boxes):
                     boxes.append(b)
@@ -212,6 +214,8 @@ class SamGrounder:
         small, f = fit(img, config.model_image_max)
         try:
             boxes = self.candidates(small, phrase)
+        except StoppedError:
+            raise
         except Exception as e:
             return Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False, reason=f"Grounding failed: {e}")
         if not boxes:
@@ -220,7 +224,27 @@ class SamGrounder:
         if self.picker is not None:
             index = self.picker(small, boxes, phrase)
             if index is None or not 0 <= index < len(boxes):
+                _debug_pick(small, boxes, None, phrase)
                 return Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False,
                                 reason=f"SAM found {len(boxes)} candidate(s), but none of them is {phrase!r}.")
         box = clamp_box([v * f for v in boxes[index]], img.size)
+        _debug_pick(small, boxes, index, phrase)
         return Grounded(box=box, point=((box[0] + box[2]) / 2, (box[1] + box[3]) / 2))
+
+
+def _debug_sam(small: Image.Image, query: str, data: dict, seconds: float):
+    from ..runner.debug import current_debug
+
+    d = current_debug()
+    if d is not None:
+        text = (data.get("text") if isinstance(data, dict) else "") or str(data)[:500]
+        d.note(f"SAM “{query}” ({seconds:.1f}s): {text.count('<|box;')} box(es)", kind="sam")
+
+
+def _debug_pick(small: Image.Image, boxes: list, index: int | None, phrase: str):
+    from ..runner.debug import current_debug
+
+    d = current_debug()
+    if d is not None:
+        d.annotate(small, "sam-pick", boxes=boxes, box=boxes[index] if index is not None else None,
+                   caption=f"SAM candidates for “{phrase}”: Spark picked {index if index is not None else 'none'}")

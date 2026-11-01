@@ -9,12 +9,19 @@
 
   const glow = document.getElementById("glow");
 
+  // Boxes and pointer positions arrive in screen coordinates. macOS may keep this window below the menu bar
+  // (screenY > 0), so the stage is shifted back by the window's own offset to draw exactly on the target.
+  function alignStage() {
+    stage.style.transform = `translate(${-window.screenX}px, ${-window.screenY}px)`;
+  }
+  window.addEventListener("resize", alignStage);
+
   window.setPanel = (b) => {
-    // Overlay window starts at the display origin. In "panel" mode the agent occupies the right column;
-    // in "pill" mode it is a small bar in the corner, so the whole width is the stage.
-    panelLeft = b.mode === "pill" ? window.innerWidth : Math.max(200, b.x - window.screenX);
-    hud.style.left = panelLeft / 2 + "px";
+    // In "panel" mode the agent occupies the right column; in "pill" mode it is a small bar in the corner,
+    // so the whole width is the stage. The status bar always stays centred on the screen.
+    panelLeft = b.mode === "pill" ? window.innerWidth : Math.max(200, b.x);
     scan.style.width = panelLeft + "px";
+    alignStage();
   };
   setPanel({ x: window.innerWidth });
 
@@ -78,6 +85,7 @@
   }
 
   window.overlay = (e) => {
+    alignStage();
     switch (e.type) {
       case "run_started":
         glow.classList.add("on");
