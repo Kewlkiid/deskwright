@@ -103,16 +103,16 @@ class GridGrounder:
             rows=rows,
             phrase=phrase,
         )
-        reply = self.client.chat(
-            "grounding",
-            config.grid_model,
-            [{"role": "user", "content": [image_part(to_data_url(draw_grid(img, cols, rows), "PNG")), text_part(prompt)]}],
-            max_tokens=200,
-            temperature=0.0,
-            # Gemma and Llama answer directly; reasoning models (Muse Spark, Glimmer) need room to think first.
-            reasoning=not any(k in config.grid_model.lower() for k in ("gemma", "llama")),
-            effort=config.grid_effort or None,
-        )
+        messages = [{"role": "user", "content": [image_part(to_data_url(draw_grid(img, cols, rows), "PNG")),
+                                                 text_part(prompt)]}]
+        # Gemma and Llama answer directly; reasoning models (Muse Spark, Glimmer) need room to think first.
+        reasoning = not any(k in config.grid_model.lower() for k in ("gemma", "llama"))
+        reply = self.client.chat("grounding", config.grid_model, messages, max_tokens=200, temperature=0.0,
+                                 reasoning=reasoning, effort=config.grid_effort or None)
+        if not reply.strip() and reasoning and not self.client.openrouter:
+            # Spark sometimes thinks until it runs out of tokens and answers nothing: ask again, thinking less.
+            reply = self.client.chat("grounding", config.grid_model, messages, max_tokens=200, temperature=0.0,
+                                     reasoning=reasoning, effort="low")
         data = extract_json(reply)
         return data if isinstance(data, dict) else {}
 
