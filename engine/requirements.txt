@@ -9,3 +9,4 @@ openpyxl>=3.1
 pyperclip>=1.9
 python-dotenv>=1.0
 pytest>=8.0
+pyobjc-framework-Vision>=10; sys_platform == "darwin"

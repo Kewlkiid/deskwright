@@ -29,6 +29,10 @@ class Config:
     # Backup grounding: labelled-grid prompting on this vision model. Defaults to the vision model (Muse Spark);
     # on OpenRouter use google/gemma-4-26b-a4b-it, which is faster and more accurate at it.
     grid_model: str = field(default_factory=lambda: os.environ.get("GRID_MODEL", "") or os.environ.get("VISION_MODEL", "muse-spark-1.3"))
+    # Meta API reasoning_effort for grid passes (minimal|low|medium|...); empty = the model's default.
+    grid_effort: str = field(default_factory=lambda: os.environ.get("GRID_EFFORT", ""))
+    # On-device OCR text lines as extra grounding candidates next to SAM's (macOS Vision framework).
+    ocr_candidates: bool = field(default_factory=lambda: _flag("AGENT_OCR", "1"))
     voice_model: str = field(default_factory=lambda: os.environ.get("VOICE_MODEL", "muse-voice-transcribe-1.0"))
     fake_models: bool = field(default_factory=lambda: _flag("AGENT_FAKE_MODELS"))
     # Synthetic screen and no real input at all: UI development and tests without screen permissions.

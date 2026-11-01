@@ -111,6 +111,7 @@ class GridGrounder:
             temperature=0.0,
             # Gemma and Llama answer directly; reasoning models (Muse Spark, Glimmer) need room to think first.
             reasoning=not any(k in config.grid_model.lower() for k in ("gemma", "llama")),
+            effort=config.grid_effort or None,
         )
         data = extract_json(reply)
         return data if isinstance(data, dict) else {}

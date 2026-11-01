@@ -191,17 +191,25 @@ class SamGrounder:
 
     # Public ----------------------------------------------------------------
     def candidates(self, small: Image.Image, phrase: str) -> list[Box]:
-        """SAM's boxes for the phrase and for the element kind it names, without near-duplicates."""
+        """SAM's boxes for the phrase and for the element kind it names, plus on-screen text lines whose words match
+        the phrase (SAM finds icons and images but not plain text). Without near-duplicates, at most MAX_CANDIDATES."""
         queries = [phrase] + [kind for pat, kind in KINDS if re.search(pat, phrase, re.I) and kind != phrase.lower()]
-        boxes: list[Box] = []
+        sam: list[Box] = []
         for q in queries:
             t0 = time.time()
             data = self._call(small, q)
             self.client.record_external("grounding", time.time() - t0, config.price_per_grounding_call)
             _debug_sam(small, q, data, time.time() - t0)
             for b in self._parse_response_all(data, small.size):
-                if all(_iou(b, o) < 0.7 for o in boxes):
-                    boxes.append(b)
+                if all(_iou(b, o) < 0.7 for o in sam):
+                    sam.append(b)
+        if len(sam) > MAX_CANDIDATES:
+            sam = in_zone(sam, phrase, small.size) or sam  # e.g. 67 icons, "far-left sidebar": keep the left ones
+        texts = text_candidates(small, phrase) if config.ocr_candidates else []
+        boxes: list[Box] = []
+        for b in texts + sam:
+            if all(_iou(b, o) < 0.5 for o in boxes):
+                boxes.append(b)
         return boxes[:MAX_CANDIDATES]
 
     def _parse_response_all(self, data, size) -> list[Box]:
@@ -248,3 +256,70 @@ def _debug_pick(small: Image.Image, boxes: list, index: int | None, phrase: str)
     if d is not None:
         d.annotate(small, "sam-pick", boxes=boxes, box=boxes[index] if index is not None else None,
                    caption=f"SAM candidates for “{phrase}”: Spark picked {index if index is not None else 'none'}")
+
+
+# Location words in a target description -> the part of the screen (fractions x1, y1, x2, y2) it must be in.
+ZONES = [
+    (r"\b(far[- ]left|left(most)?|left[- ]hand)\b", (0, 0, 0.4, 1)),
+    (r"\b(far[- ]right|right(most)?|right[- ]hand)\b", (0.6, 0, 1, 1)),
+    (r"\b(top|upper|header|title bar|toolbar)\b", (0, 0, 1, 0.35)),
+    (r"\b(bottom|lower|footer)\b", (0, 0.65, 1, 1)),
+]
+
+
+def in_zone(boxes: list[Box], phrase: str, size: tuple[int, int]) -> list[Box]:
+    w, h = size
+    keep = boxes
+    for pat, (x1, y1, x2, y2) in ZONES:
+        if re.search(pat, phrase, re.I):
+            keep = [b for b in keep if x1 * w <= (b[0] + b[2]) / 2 <= x2 * w and y1 * h <= (b[1] + b[3]) / 2 <= y2 * h]
+    return keep
+
+
+# Words that describe what kind of element or where it is, not what it says.
+GENERIC = set("""a an the at in on of to for with and or by from into its it is that which this
+button field input icon box bar text area link tab menu item list row column entry option panel pane sidebar side
+left right top bottom center centre middle upper lower far near next below above under over beside first second
+third last vertical horizontal window screen page app main small large big blue red green grey gray white black
+dark light round rounded circular square labeled labelled named called says shows showing containing placeholder
+starting reads with""".split())
+
+
+def _words(text: str) -> list[str]:
+    return [w for w in re.findall(r"#?[\w][\w'.-]*", text.lower()) if w not in GENERIC and len(w.strip("#")) >= 2]
+
+
+def text_candidates(small: Image.Image, phrase: str, limit: int = 6) -> list[Box]:
+    """Boxes of on-screen text lines (on-device OCR) that match the phrase's words or quoted text, best first."""
+    from ..screen import ocr
+
+    if not ocr.available():
+        return []
+    try:
+        lines = ocr.text_boxes(small, accurate=True)
+    except Exception:  # noqa: BLE001 - OCR is a bonus; SAM still runs
+        return []
+    quoted = [q.strip().lower() for q in re.findall(r"['\"“‘]([^'\"”’]{2,})['\"”’]", phrase)]
+    want = _words(phrase)
+    scored = []
+    for box, text in lines:
+        low = text.lower()
+        have = _words(text)
+        score = sum(3 for q in quoted if q.strip("# ") and q.strip("# ") in low)
+        for w in want:
+            bare = w.strip("#")
+            if any(h.strip("#") == bare for h in have):
+                score += 1
+            elif len(bare) >= 4 and any(h.strip("#.").startswith(bare[:4]) and len(h) >= 4 for h in have):
+                score += 0.5  # truncated ("build-for-your-w...") or misread
+        if score >= 1:
+            pad = 4
+            scored.append((score, [box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad]))
+    scored.sort(key=lambda s: -s[0])
+    debug_note = [(round(s, 1), [round(v) for v in b]) for s, b in scored[:limit]]
+    from ..runner.debug import current_debug
+
+    d = current_debug()
+    if d is not None:
+        d.note(f"text matches for “{phrase}”: {debug_note}", kind="ocr")
+    return [b for _, b in scored[:limit]]

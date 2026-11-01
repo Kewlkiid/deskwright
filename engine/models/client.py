@@ -131,9 +131,11 @@ class ModelClient:
         temperature: float = 0.2,
         attempts: int = 4,
         reasoning: bool = True,
+        effort: str | None = None,
     ) -> str:
         """`reasoning=False` for models that answer directly: they get no thinking headroom, so a reply that
-        rambles is cut off at max_tokens instead of running on."""
+        rambles is cut off at max_tokens instead of running on. `effort` asks a reasoning model to think less
+        (Meta API reasoning_effort) where a quick answer is enough."""
         import openai
 
         last: Exception | None = None
@@ -145,6 +147,8 @@ class ModelClient:
                     extra = {"usage": {"include": True}}
                     if reasoning and self.cfg.reasoning_effort:
                         extra["reasoning"] = {"effort": self.cfg.reasoning_effort}
+                elif effort:
+                    extra = {"reasoning_effort": effort}  # Meta API: minimal|low|medium|high|xhigh|max
                 resp = interruptible(lambda: self.client.chat.completions.create(
                     model=model,
                     messages=messages,
