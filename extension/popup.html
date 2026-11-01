@@ -1,0 +1,33 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root { color-scheme: light dark; --fg: #0d0d0d; --muted: #6b6b6b; --line: #e5e5e5; --bg: #fff; --chip: #f4f4f4; }
+  @media (prefers-color-scheme: dark) { :root { --fg: #ececec; --muted: #9b9b9b; --line: #333; --bg: #1f1f1f; --chip: #2a2a2a; } }
+  body { margin: 0; width: 260px; font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--fg); background: var(--bg); }
+  header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #c0c0c0; }
+  .dot.on { background: #16a34a; }
+  .title { font-weight: 600; flex: 1; }
+  .sub { color: var(--muted); font-size: 12px; }
+  section { padding: 10px 14px 12px; }
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 6px 0; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--chip); color: var(--fg); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  button.on { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  #err { color: #dc2626; font-size: 12px; padding: 0 14px 10px; }
+</style>
+</head>
+<body>
+  <header><span id="dot" class="dot"></span><span class="title">Agent</span><span id="state" class="sub">…</span></header>
+  <section>
+    <div class="sub" id="tab"></div>
+    <div class="row"><span>Interactive elements</span><button data-layer="interactive">Show</button></div>
+    <div class="row"><span>Page sections</span><button data-layer="interactive" data-mode="regions">Show</button></div>
+    <div class="row"><span>Static text</span><button data-layer="static">Show</button></div>
+    <div class="row"><span>Scrollable areas</span><button data-layer="scrollable">Show</button></div>
+  </section>
+  <div id="err"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

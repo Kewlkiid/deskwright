@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: transparent;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #0d0d0d;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  letter-spacing: -0.003em;
+}
+
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag,
+button,
+input,
+textarea,
+select,
+a {
+  -webkit-app-region: no-drag;
+}
+
+textarea,
+input,
+.selectable {
+  user-select: text;
+}
+
+/* Thin scrollbars that only show on hover, like native panels. */
+.scroll-y {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.scroll-y::-webkit-scrollbar,
+.scroll-x::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-y::-webkit-scrollbar-thumb,
+.scroll-x::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.scroll-y:hover::-webkit-scrollbar-thumb,
+.scroll-x:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.14);
+}
+
+/* "Working..." text shimmer on status lines. */
+.shimmer {
+  background: linear-gradient(90deg, #8f8f8f 0%, #8f8f8f 40%, #0d0d0d 50%, #8f8f8f 60%, #8f8f8f 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+
+.md p {
+  margin: 0.35rem 0;
+}
+.md ul {
+  list-style: disc;
+  padding-left: 1.15rem;
+  margin: 0.35rem 0;
+}
+.md ol {
+  list-style: decimal;
+  padding-left: 1.15rem;
+  margin: 0.35rem 0;
+}
+.md li {
+  margin: 0.15rem 0;
+}
+.md strong {
+  font-weight: 600;
+}
+.md code {
+  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+  background: #f4f4f4;
+  padding: 1px 5px;
+  border-radius: 5px;
+}
+.md h1,
+.md h2,
+.md h3 {
+  font-weight: 600;
+  margin: 0.75rem 0 0.25rem;
+}

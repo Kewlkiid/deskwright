@@ -1,0 +1,110 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'self'">
+<style>
+  :root {
+    --spark: #2563eb;
+    --sam: #2563eb;
+    --cache: #c2410c;
+    --ok: #15803d;
+    --bad: #b91c1c;
+    --ink: #0d0d0d;
+    --ease: cubic-bezier(.2, .8, .2, 1);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+  }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+  #stage { position: fixed; top: 0; left: 0; bottom: 0; right: 0; pointer-events: none; }
+
+  /* Screen-edge glow while the agent is in control */
+  #glow {
+    position: fixed; inset: 0; opacity: 0; transition: opacity .6s var(--ease); pointer-events: none;
+    box-shadow: inset 0 0 0 3px rgba(79, 124, 255, .7), inset 0 0 48px 10px rgba(79, 124, 255, .32);
+  }
+  #glow.on { opacity: 1; animation: breathe 3.2s ease-in-out infinite; }
+  @keyframes breathe { 0%, 100% { opacity: .45; } 50% { opacity: 1; } }
+
+  /* Status pill */
+  #hud {
+    position: fixed; top: 14px; transform: translate(-50%, -8px); opacity: 0;
+    display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 11px;
+    background: rgba(255, 255, 255, .96); color: var(--ink); border-radius: 999px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.12); border: 1px solid rgba(0,0,0,.06);
+    font-size: 13px; letter-spacing: -.005em; white-space: nowrap; max-width: 70vw;
+    transition: opacity .25s var(--ease), transform .25s var(--ease);
+  }
+  #hud.on { opacity: 1; transform: translate(-50%, 0); }
+  #hud .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--spark); flex: none; }
+  #hud.busy .dot { animation: pulse 1.1s ease-in-out infinite; }
+  #hud b { font-weight: 600; }
+  #hud .sub { margin-left: 6px; color: #6b6b6b; overflow: hidden; text-overflow: ellipsis; }
+  @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
+
+  /* Scan line while the vision model looks at the screen */
+  #scan {
+    position: fixed; left: 0; height: 120px; opacity: 0; top: -120px;
+    background: linear-gradient(to bottom, rgba(37,99,235,0), rgba(37,99,235,.07) 85%, rgba(37,99,235,.55) 100%);
+    transition: opacity .3s;
+  }
+  #scan.on { opacity: 1; animation: sweep 1.6s var(--ease) infinite; }
+  @keyframes sweep { from { top: -120px; } to { top: 100%; } }
+
+  /* Target box: found element (or cached box) */
+  .box {
+    position: fixed; border-radius: 8px; box-sizing: border-box;
+    transition: left .45s var(--ease), top .45s var(--ease), width .45s var(--ease), height .45s var(--ease),
+                opacity .3s, border-color .3s;
+  }
+  .box.rough { border: 1.5px dashed var(--spark); background: rgba(37,99,235,.04); }
+  .box.exact { border: 2px solid var(--sam); background: transparent; box-shadow: 0 0 0 4px rgba(37,99,235,.14); }
+  .box.cached { border: 2px solid var(--cache); box-shadow: 0 0 0 4px rgba(194,65,12,.14); }
+  .box.fade { opacity: 0; }
+  .corner { position: absolute; width: 10px; height: 10px; border-color: inherit; border-style: solid; border-width: 0; }
+  .mask { position: fixed; opacity: 0; transition: opacity .35s var(--ease); image-rendering: auto; }
+  .mask.on { opacity: 1; }
+
+  .tag {
+    position: absolute; left: -2px; bottom: calc(100% + 6px); display: flex; align-items: center; gap: 5px;
+    padding: 3px 8px; border-radius: 6px; font-size: 11.5px; font-weight: 500; white-space: nowrap;
+    background: #fff; color: var(--ink); border: 1px solid rgba(0,0,0,.08); box-shadow: 0 2px 8px rgba(0,0,0,.1);
+  }
+  .tag i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; background: var(--spark); }
+  .tag.cache i { background: var(--cache); }
+  .tag .muted { color: #6b6b6b; font-weight: 400; }
+
+  /* Pointer */
+  .reticle {
+    position: fixed; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%;
+    border: 2px solid var(--ink); background: rgba(255,255,255,.35); opacity: 0;
+    transform: scale(1.6); transition: transform .25s var(--ease), opacity .2s;
+  }
+  .reticle.on { opacity: 1; transform: scale(1); }
+  .ripple {
+    position: fixed; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%;
+    border: 2px solid var(--ink); animation: ripple .7s var(--ease) forwards;
+  }
+  @keyframes ripple { from { transform: scale(.6); opacity: .9; } to { transform: scale(3.4); opacity: 0; } }
+
+  /* Verdict chip */
+  .verdict {
+    position: fixed; display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 500; background: #fff; border: 1px solid rgba(0,0,0,.08);
+    box-shadow: 0 4px 14px rgba(0,0,0,.12); white-space: nowrap; max-width: 420px; overflow: hidden; text-overflow: ellipsis;
+    opacity: 0; transform: translateY(4px); transition: opacity .25s var(--ease), transform .25s var(--ease);
+  }
+  .verdict.on { opacity: 1; transform: none; }
+  .verdict .mark { font-weight: 700; }
+  .verdict.ok .mark { color: var(--ok); }
+  .verdict.bad .mark { color: var(--bad); }
+</style>
+</head>
+<body>
+<div id="glow"></div>
+<div id="stage">
+  <div id="scan"></div>
+  <div id="hud"><span class="dot"></span><span class="txt"></span></div>
+</div>
+<script src="overlay.js"></script>
+</body>
+</html>

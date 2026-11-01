@@ -1,0 +1,11 @@
+openai>=1.40
+mss>=9.0
+pyautogui>=0.9.54
+pynput>=1.7.7
+pillow>=10.4
+imagehash>=4.3
+websockets>=13.0
+openpyxl>=3.1
+pyperclip>=1.9
+python-dotenv>=1.0
+pytest>=8.0

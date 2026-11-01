@@ -1,0 +1,21 @@
+# Secrets and local state
+.env
+engine/data/
+extension/config.js
+
+# Dependencies and build output
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+app/dist/
+app/build/*
+# The app icon is a source asset (read by the packager), not build output.
+!app/build/icon*.png
+app/release/
+
+# Reference only, not shipped
+example/
+
+.DS_Store

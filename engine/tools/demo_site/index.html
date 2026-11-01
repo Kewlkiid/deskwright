@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Acme Invoices</title>
+<style>
+  :root { --bg: #f5f6f8; --card: #fff; --ink: #1f2328; --muted: #6b7280; --brand: #2563eb; --ok: #16a34a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--ink); }
+  header { background: #111827; color: #fff; padding: 14px 24px; display: flex; align-items: center; gap: 16px; }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header .spacer { flex: 1; }
+  main { display: grid; grid-template-columns: 1fr 380px; gap: 20px; padding: 20px 24px; max-width: 1200px; }
+  .card { background: var(--card); border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 18px; }
+  h2 { font-size: 15px; margin: 0 0 12px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid #eef0f3; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  td.amount, th.amount { text-align: right; font-variant-numeric: tabular-nums; }
+  button { font: inherit; border: 0; border-radius: 8px; padding: 9px 16px; cursor: pointer; }
+  .primary { background: var(--brand); color: #fff; }
+  .ghost { background: #eef2ff; color: var(--brand); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input { width: 100%; font: inherit; padding: 9px 10px; border: 1px solid #d1d5db; border-radius: 8px; }
+  .form { display: none; }
+  .form.open { display: block; }
+  .toast { margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: #dcfce7; color: #14532d; display: none; }
+  .toast.show { display: block; }
+  #invoices li { padding: 6px 0; border-bottom: 1px dashed #e5e7eb; }
+  .controls { font-size: 12px; color: var(--muted); margin-top: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Acme Invoices</h1>
+  <div class="spacer"></div>
+  <button class="primary" id="new-invoice">New Invoice</button>
+</header>
+<main>
+  <section class="card">
+    <h2>Orders</h2>
+    <table id="orders">
+      <thead><tr><th>Customer</th><th class="amount">Amount</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>Acme Corp</td><td class="amount">1,200.00</td><td>Open</td></tr>
+        <tr><td>Globex</td><td class="amount">860.50</td><td>Open</td></tr>
+        <tr><td>Initech</td><td class="amount">455.25</td><td>Open</td></tr>
+        <tr><td>Umbrella</td><td class="amount">2,310.00</td><td>Open</td></tr>
+        <tr><td>Hooli</td><td class="amount">99.99</td><td>Open</td></tr>
+      </tbody>
+    </table>
+    <div class="controls">
+      Demo controls (break things on purpose):
+      <button class="ghost" id="rename">Rename Save button</button>
+      <button class="ghost" id="move">Move the form</button>
+      <button class="ghost" id="reset">Reset</button>
+    </div>
+  </section>
+  <aside>
+    <section class="card form" id="form">
+      <h2>New invoice</h2>
+      <label for="customer">Customer</label>
+      <input id="customer" autocomplete="off">
+      <label for="amount">Amount</label>
+      <input id="amount" autocomplete="off">
+      <div style="margin-top:14px"><button class="primary" id="save">Save</button></div>
+      <div class="toast" id="toast">Invoice saved</div>
+    </section>
+    <section class="card" style="margin-top:20px">
+      <h2>Invoices created</h2>
+      <ul id="invoices" style="list-style:none;padding:0;margin:0"></ul>
+    </section>
+  </aside>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  $("new-invoice").onclick = () => {
+    $("form").classList.add("open"); $("toast").classList.remove("show");
+    $("customer").value = ""; $("amount").value = ""; $("customer").focus();
+  };
+  $("save").onclick = async () => {
+    if (!$("customer").value) return;
+    const invoice = { customer: $("customer").value, amount: $("amount").value };
+    // Served by demo_server.py, the invoice is created through an API (the agent can read the new id from the
+    // network response); opened as a file, it's created locally.
+    if (location.protocol.startsWith("http")) {
+      const r = await fetch("/api/invoices", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(invoice) });
+      Object.assign(invoice, await r.json());
+    }
+    const li = document.createElement("li");
+    li.textContent = `${invoice.number ? invoice.number + ": " : ""}${invoice.customer} - ${invoice.amount}`;
+    $("invoices").appendChild(li);
+    $("toast").classList.add("show");
+    setTimeout(() => $("form").classList.remove("open"), 900);
+  };
+  $("rename").onclick = () => { $("save").textContent = "Submit invoice"; $("save").style.background = "#16a34a"; };
+  $("move").onclick = () => { document.querySelector("main").style.gridTemplateColumns = "380px 1fr";
+    document.querySelector("main").prepend(document.querySelector("aside")); };
+  $("reset").onclick = () => location.reload();
+</script>
+</body>
+</html>

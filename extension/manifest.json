@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Agent Browser Bridge",
+  "version": "0.1.0",
+  "description": "Lets the desktop agent read and drive pages in this Chrome: element overlays, DOM actions, network capture.",
+  "permissions": ["tabs", "scripting", "debugger", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Agent" },
+  "content_scripts": [
+    { "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_start" },
+    { "matches": ["<all_urls>"], "js": ["overlay.js"], "run_at": "document_end", "world": "MAIN" }
+  ]
+}
