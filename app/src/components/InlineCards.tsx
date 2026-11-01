@@ -329,6 +329,9 @@ export function PermissionsList() {
           </div>
         ))}
       </div>
+      <div className="mt-1 border-t border-line-soft pt-2 text-[11.5px] text-fg-3">
+        Speaking out loud and playing sound need no permission on macOS.
+      </div>
       {note && <div className="mt-2 text-[12px] text-fg-2">{note}</div>}
       {perm.restart && (
         <button

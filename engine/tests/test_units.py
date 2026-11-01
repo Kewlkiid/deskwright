@@ -363,3 +363,35 @@ def test_voice_commands():
     assert parse_voice("hey agent stop listening") == ("listen_off", "")
     assert parse_voice("I approve of this movie") is None  # only whole phrases count
     assert parse_voice("what should we send to grandma") is None
+
+
+def test_narration_lines():
+    from engine.speaker import Narrator
+
+    class Spy:
+        enabled = True
+
+        def __init__(self):
+            self.said = []
+
+        def say(self, text, important=False):
+            self.said.append((text, important))
+
+    spy = Spy()
+    n = Narrator(spy)
+    n.on_event("chat_reply", {"text": "**Hey!** How can I help?"})
+    n.on_event("status", {"text": "Opening app: Discord"})
+    n.on_event("element_found", {"verb": "click", "target": "Control server icon in the far-left sidebar"})
+    n.on_event("status", {"text": "Checking: the channel opened"})  # checks aren't narrated
+    n.on_event("confirm_request", {"summary": "Post 'hi' in #support?\nExpected result: posted"})
+    n.on_event("run_finished", {"status": "succeeded", "results": [{"text": "Posted **hi** in #support."}]})
+    assert spy.said == [
+        ("**Hey!** How can I help?", True),
+        ("Opening Discord", False),
+        ("Clicking Control server icon", False),
+        ("I need your approval. Post 'hi' in #support?", True),
+        ("Done. Posted hi in support.", True),
+    ]
+    spy.enabled = False
+    n.on_event("chat_reply", {"text": "quiet"})
+    assert len(spy.said) == 5  # nothing spoken while talking back is off

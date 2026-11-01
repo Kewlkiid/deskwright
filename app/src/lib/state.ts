@@ -16,6 +16,9 @@ export interface State {
   recording: boolean;
   teachStatus: string;
   thinking: boolean; // a message was sent and the chat hasn't answered yet
+  speak: boolean; // talking back on
+  voiceState: string; // "off" | "loading" | "ready"
+  speaking: boolean; // Deskwright is talking right now (the wake word stops listening meanwhile)
   autoRun: boolean;
   bypass: boolean; // approvals off: sensitive actions run without asking
   lastCacheHit: string | null;
@@ -37,6 +40,9 @@ export const initialState: State = {
   recording: false,
   teachStatus: "",
   thinking: false,
+  speak: false,
+  voiceState: "off",
+  speaking: false,
   autoRun: true,
   bypass: false,
   lastCacheHit: null,
@@ -78,6 +84,7 @@ export type Action =
   | { type: "setBypass"; value: boolean }
   | { type: "clearChat" }
   | { type: "thinking" }
+  | { type: "setSpeak"; value: boolean }
   | { type: "patchRun"; key: string; patch: Partial<RunView> };
 
 export function reducer(s: State, a: Action): State {
@@ -94,6 +101,8 @@ export function reducer(s: State, a: Action): State {
       return { ...s, items: [], runs: {}, draftKey: null, thinking: false };
     case "thinking":
       return { ...s, thinking: true };
+    case "setSpeak":
+      return { ...s, speak: a.value };
     case "patchRun":
       return s.runs[a.key] ? { ...s, runs: { ...s.runs, [a.key]: { ...s.runs[a.key], ...a.patch } } } : s;
     case "event": {
@@ -119,6 +128,7 @@ function onEvent(s: State, m: any): State {
         totals: m.totals,
         autoRun: m.settings?.auto_run ?? s.autoRun,
         bypass: !!m.settings?.bypass_approvals,
+        speak: !!m.settings?.speak,
       };
     case "tasks":
       return { ...s, tasks: m.tasks || [] };
@@ -258,6 +268,10 @@ function onEvent(s: State, m: any): State {
       return { ...s, thinking: false, items: [...s.items, { id: uid(), kind: "reply", text: m.text }] };
     case "chat_done":
       return { ...s, thinking: false };
+    case "voice_status":
+      return { ...s, voiceState: m.state };
+    case "speaking":
+      return { ...s, speaking: !!m.on };
     case "task_updated":
       return { ...s, items: [...s.items, { id: uid(), kind: "agent", text: m.note, icon: "sparkle" }] };
     case "transcript":

@@ -32,10 +32,16 @@ class ServerHost:
         self._hidden = threading.Event()
         self.approve_all = False  # "Approve all this run": reset when the next run starts
         self.bypass = False  # bypass mode: sensitive actions run without asking (set from the UI)
+        self.narrator = None  # speaker.Narrator when talking back is set up
 
     def emit(self, type: str, **data: Any):
         if type == "run_started":
             self.approve_all = False
+        if self.narrator is not None and type not in ("speaking", "voice_status"):
+            try:
+                self.narrator.on_event(type, data)
+            except Exception:  # noqa: BLE001 - talking back is a bonus
+                pass
         if self.loop is None or self.queue is None:
             return
         msg = json.dumps({"type": type, **data}, default=str)
@@ -101,11 +107,37 @@ class Server:
         self.host = ServerHost()
         self.agent = Agent(self.host)
         self.client = None
-        self.settings = {"auto_run": True, "bypass_approvals": False}
+        self.settings = {"auto_run": True, "bypass_approvals": False, "speak": False}
+        self.settings.update(self._load_settings())
+        self.host.bypass = bool(self.settings.get("bypass_approvals"))
+        from .speaker import Narrator, Speaker
+
+        self.speaker = Speaker(self.host.emit)
+        self.host.narrator = Narrator(self.speaker)
+        if self.settings.get("speak"):
+            self.speaker.set_enabled(True)  # loads the voice in the background
         from .browser.bridge import start_bridge
 
         self.bridge = start_bridge()  # the Chrome extension connects here (extension/config.js)
         threading.Thread(target=self._watch_teach_requests, name="teach-requests", daemon=True).start()
+
+    SETTINGS_FILE = "settings.json"
+
+    def _load_settings(self) -> dict:
+        from .config import DATA_DIR
+
+        try:
+            return json.loads((DATA_DIR / self.SETTINGS_FILE).read_text())
+        except (OSError, ValueError):
+            return {}
+
+    def _save_settings(self):
+        from .config import DATA_DIR
+
+        try:
+            (DATA_DIR / self.SETTINGS_FILE).write_text(json.dumps(self.settings, indent=1))
+        except OSError:
+            pass
 
     def _watch_teach_requests(self):
         """Another program asked for a task to be shown once (`engine.cli teach --describe`): it leaves a
@@ -220,6 +252,9 @@ class Server:
         elif t == "settings":
             self.settings.update({k: v for k, v in m.items() if k != "type"})
             self.host.bypass = bool(self.settings.get("bypass_approvals"))
+            if "speak" in m:
+                self.speaker.set_enabled(bool(m["speak"]))
+            self._save_settings()
         elif t == "ui_bounds":
             a.ui_bounds = m.get("bounds")
         elif t == "hidden_ack":

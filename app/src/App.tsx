@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   BarChart3, GraduationCap, KeyRound, LayoutList, ListChecks, Mic, MoreHorizontal, PanelRightClose, Power, ShieldOff,
-  SquarePen,
+  SquarePen, Volume2,
 } from "lucide-react";
 import { engine } from "./lib/engine";
 import { Markdown } from "./lib/markdown";
@@ -73,7 +73,8 @@ export default function App() {
     .reverse()
     .find((i) => (i.kind === "confirm" || i.kind === "question") && i.answer === undefined && !i.closed);
   // While a run is on the screen, utterances are only sent when it's waiting for an answer.
-  const wake = useWakeWord(sendToEngine, running && !waiting);
+  // ...and never while Deskwright itself is talking (the mic would hear it).
+  const wake = useWakeWord(sendToEngine, (running && !waiting) || s.speaking);
   const wakeRef = useRef(wake);
   wakeRef.current = wake;
   const composer = useRef<{ submit: () => void } | null>(null);
@@ -186,6 +187,10 @@ export default function App() {
   const toggleReview = () => {
     engine.send({ type: "settings", auto_run: !s.autoRun });
     dispatch({ type: "setAutoRun", value: !s.autoRun });
+  };
+  const toggleSpeak = () => {
+    engine.send({ type: "settings", speak: !s.speak });
+    dispatch({ type: "setSpeak", value: !s.speak });
   };
   const toggleBypass = () => {
     engine.send({ type: "settings", bypass_approvals: !s.bypass });
@@ -374,6 +379,13 @@ export default function App() {
             { label: "Permissions", icon: KeyRound, onSelect: showPermissions },
             { kind: "separator" },
             { kind: "toggle", label: "Listen for “Hey Agent”", icon: Mic, checked: wake.on, onSelect: wake.toggle },
+            {
+              kind: "toggle",
+              label: s.speak && s.voiceState === "loading" ? "Speak out loud (loading voice…)" : "Speak out loud",
+              icon: Volume2,
+              checked: s.speak,
+              onSelect: toggleSpeak,
+            },
             { kind: "toggle", label: "Review before running", icon: ListChecks, checked: !s.autoRun, onSelect: toggleReview },
             { kind: "toggle", label: "Skip approvals", icon: ShieldOff, checked: s.bypass, onSelect: toggleBypass },
             { kind: "separator" },

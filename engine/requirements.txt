@@ -9,5 +9,7 @@ openpyxl>=3.1
 pyperclip>=1.9
 python-dotenv>=1.0
 pytest>=8.0
+pocket-tts>=4.0
+sounddevice>=0.5
 pyobjc-framework-Vision>=10; sys_platform == "darwin"
 pyobjc-framework-Speech>=10; sys_platform == "darwin"
