@@ -18,7 +18,7 @@ export function Menu({
   trigger: (open: boolean, toggle: () => void) => React.ReactNode;
   items: MenuItem[];
   align?: "left" | "right";
-  side?: "top" | "bottom";
+  side?: "top" | "bottom" | "right";
   width?: number;
 }) {
   const [open, setOpen] = useState(false);
@@ -28,11 +28,12 @@ export function Menu({
     if (!open && ref.current) {
       const r = ref.current.getBoundingClientRect();
       const need = items.length * 34 + 24;
-      setFlip(side === "bottom" ? window.innerHeight - r.bottom < need && r.top > need : r.top < need);
+      // bottom/top: open the other way if there's no room. right: grow upward from the button near the bottom.
+      setFlip(side === "top" ? r.top < need : window.innerHeight - (side === "right" ? r.top : r.bottom) < need && r.top > need);
     }
     setOpen((o) => !o);
   };
-  const at = flip ? (side === "bottom" ? "top" : "bottom") : side;
+  const at = side === "right" ? "right" : flip ? (side === "bottom" ? "top" : "bottom") : side;
 
   useEffect(() => {
     if (!open) return;
@@ -54,13 +55,15 @@ export function Menu({
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: at === "bottom" ? -4 : 4, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
+            initial={{ opacity: 0, x: at === "right" ? -4 : 0, y: at === "bottom" ? -4 : at === "top" ? 4 : 0, scale: 0.98 }}
+            animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.1 } }}
             transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
             style={{ width }}
-            className={`absolute z-50 rounded-2xl bg-white p-1.5 shadow-pop ${align === "left" ? "left-0" : "right-0"} ${
-              at === "bottom" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]"
+            className={`absolute z-50 rounded-2xl bg-white p-1.5 shadow-pop ${
+              at === "right"
+                ? `left-[calc(100%+6px)] ${flip ? "bottom-0" : "top-0"}`
+                : `${align === "left" ? "left-0" : "right-0"} ${at === "bottom" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]"}`
             }`}
           >
             {items.map((it, i) => {
