@@ -204,3 +204,10 @@ def test_a_default_written_into_the_script_fills_the_input():
 
     script = 'INPUTS = {"message": "str: text"}\nOUTPUTS = {}\nmessage = inp("message") or "hi there"\nn = inp("n")'
     assert literal_defaults(script) == {"message": "hi there"}
+
+
+def test_output_isnt_shown_again_when_the_script_showed_its_result(screen, agent_factory):
+    agent, host = agent_factory()
+    out = agent.run_task("greet", 'INPUTS = {}\nOUTPUTS = {"x": "str: x"}\nopen_app("A")\nshow("Done: 1")\noutput(x="1")')
+    assert out["status"] == "succeeded" and out["outputs"] == {"x": "1"}
+    assert len(events(host, "result_ready")) == 1  # just the show(), not a second "Output" card

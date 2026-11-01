@@ -12,7 +12,7 @@ def test_clean_run_succeeds(screen, agent_factory):
     out = agent.run_task("create invoices", DEMO_SCRIPT)
     assert out["status"] == "succeeded", out
     shown = events(host, "result_ready")
-    assert len(shown) == 2 and shown[1]["result"]["title"] == "Output"  # the summary, then the task's outputs
+    assert len(shown) == 1  # the script's summary; its outputs aren't shown a second time
     assert out["outputs"] == {"invoices_created": 3}
     # 3 rows x (New Invoice, Customer, Amount, Save) = 12 grounded actions
     assert out["metrics"]["steps"] == 12

@@ -221,6 +221,10 @@ class Agent:
                            inputs=ctx.input_schema, outputs=ctx.output_schema)
             self._start_network_capture(ctx, script)
             result = run_with_healing(ctx, script, sdk_reference())
+            if result["status"] == "succeeded":
+                from .sdk.task_io import show_unshown_outputs
+
+                show_unshown_outputs(ctx)
             status = result["status"]
             final_script = result["final_script"]
             error = result.get("error")

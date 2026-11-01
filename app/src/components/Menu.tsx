@@ -22,7 +22,17 @@ export function Menu({
   width?: number;
 }) {
   const [open, setOpen] = useState(false);
+  const [flip, setFlip] = useState(false); // not enough room on the asked-for side: open the other way
   const ref = useRef<HTMLDivElement>(null);
+  const toggle = () => {
+    if (!open && ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      const need = items.length * 34 + 24;
+      setFlip(side === "bottom" ? window.innerHeight - r.bottom < need && r.top > need : r.top < need);
+    }
+    setOpen((o) => !o);
+  };
+  const at = flip ? (side === "bottom" ? "top" : "bottom") : side;
 
   useEffect(() => {
     if (!open) return;
@@ -39,18 +49,18 @@ export function Menu({
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
-      {trigger(open, () => setOpen((o) => !o))}
+    <div ref={ref} className="relative inline-block">
+      {trigger(open, toggle)}
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: side === "bottom" ? -4 : 4, scale: 0.98 }}
+            initial={{ opacity: 0, y: at === "bottom" ? -4 : 4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, transition: { duration: 0.1 } }}
             transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
             style={{ width }}
             className={`absolute z-50 rounded-2xl bg-white p-1.5 shadow-pop ${align === "left" ? "left-0" : "right-0"} ${
-              side === "bottom" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]"
+              at === "bottom" ? "top-[calc(100%+6px)]" : "bottom-[calc(100%+6px)]"
             }`}
           >
             {items.map((it, i) => {

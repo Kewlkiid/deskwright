@@ -6,7 +6,7 @@ import { Menu } from "./Menu";
 export function ResultCard({ result, onExport }: { result: ResultItem; onExport: (fmt: string) => void }) {
   const exportMenu = (
     <Menu
-      align="right"
+      align={result.kind === "table" ? "right" : "left"}
       width={200}
       trigger={(open, toggle) => (
         <button

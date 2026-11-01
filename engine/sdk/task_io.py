@@ -35,7 +35,8 @@ def inp(name: str):
 
 def output(**values) -> None:
     """Record result values for this run, e.g. output(app_id=app_id, ad_unit_ids=ids). They are returned to whoever
-    started the task (the CLI's --json result) and shown in the window like show(). Values must be JSON-serializable."""
+    started the task (the CLI's --json result); in the window they appear at the end only if the script showed
+    nothing itself (no show() of the same thing twice). Values must be JSON-serializable."""
     ctx = current()
     for k, v in values.items():
         try:
@@ -43,6 +44,13 @@ def output(**values) -> None:
         except (TypeError, ValueError):
             raise ScriptError(f'output {k}={v!r} is not JSON-serializable (use str, numbers, lists or dicts)') from None
     ctx.outputs.update(values)
+    ctx.log(f"output({', '.join(values)})")
+
+
+def show_unshown_outputs(ctx) -> None:
+    """At the end of a successful run: a script that recorded outputs but showed nothing gets them shown."""
+    if not ctx.outputs or ctx.results:
+        return
     lines = [f"- **{k}**: {v if isinstance(v, (str, int, float, bool)) or v is None else json.dumps(v)}"
-             for k, v in values.items()]
+             for k, v in ctx.outputs.items()]
     show("\n".join(lines), title="Output")
