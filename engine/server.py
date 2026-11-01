@@ -196,6 +196,8 @@ class Server:
                      self.settings.get("auto_run", True))
         elif t == "teach_start":
             self._bg(a.teach_start)
+        elif t == "teach_cancel":
+            self._bg(a.teach_cancel)
         elif t == "teach_stop":
             self._bg(a.teach_stop, m.get("name", ""), m.get("description", ""))
         elif t == "save_task":

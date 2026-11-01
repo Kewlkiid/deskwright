@@ -248,7 +248,11 @@ function onEvent(s: State, m: any): State {
     case "transcript":
       return { ...s, items: [...s.items, { id: uid(), kind: "user", text: m.text, voice: true }] };
     case "teach_recording":
-      return { ...s, recording: !!m.recording, teachStatus: m.recording ? "" : "Analysing your demonstration" };
+      return {
+        ...s,
+        recording: !!m.recording,
+        teachStatus: m.recording || m.cancelled ? "" : "Analysing your demonstration",
+      };
     case "teach_request":
       // Another program wants a task the agent can't write on its own: the user shows it once.
       return {

@@ -354,6 +354,7 @@ def test_voice_commands():
     assert parse_voice("I'm done teaching") == ("teach_stop", "")
     assert parse_voice("I am done teaching") == ("teach_stop", "")
     assert parse_voice("agent stop recording") == ("teach_stop", "")
+    assert parse_voice("cancel teaching") == ("teach_cancel", "")
     assert parse_voice("hey agent stop listening") == ("listen_off", "")
     assert parse_voice("I approve of this movie") is None  # only whole phrases count
     assert parse_voice("what should we send to grandma") is None

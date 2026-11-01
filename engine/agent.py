@@ -409,6 +409,26 @@ class Agent:
                 self.host.emit("status", text=f"Chrome recording unavailable: {e}")
         self.host.emit("teach_recording", recording=True, browser=self.teach_browser)
 
+    def teach_cancel(self):
+        """Stop recording and throw the demonstration away."""
+        import shutil
+
+        if not self.recorder:
+            return
+        recorder, self.recorder = self.recorder, None
+        self.host.emit("teach_recording", recording=False, cancelled=True)  # the banner closes right away
+        recorder.stop()  # joins its threads (a few seconds), then the files can go
+        if self.teach_browser:
+            from .browser.bridge import get_bridge
+
+            try:
+                get_bridge().call("teach_stop", timeout=20)
+            except Exception:  # noqa: BLE001 - nothing to keep anyway
+                pass
+        self.teach_browser = False
+        if self.teach_dir:
+            shutil.rmtree(self.teach_dir, ignore_errors=True)
+
     def teach_stop(self, name: str = "", description: str = ""):
         from .teach.compiler import compile_recording
 

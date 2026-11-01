@@ -31,6 +31,7 @@ export function Composer({
   onToggleWake,
   onSend,
   onTeach,
+  onCancelTeach,
   onShowTasks,
   onShowMetrics,
   onToggleReview,
@@ -47,6 +48,7 @@ export function Composer({
   onToggleWake: () => void;
   onSend: (text: string) => void;
   onTeach: () => void;
+  onCancelTeach: () => void;
   onShowTasks: () => void;
   onShowMetrics: () => void;
   onToggleReview: () => void;
@@ -127,8 +129,14 @@ export function Composer({
             <span className="h-2 w-2 shrink-0 animate-rec rounded-full bg-bad" />
             <div className="min-w-0 flex-1">
               <div className="text-[13px] font-medium text-fg">Recording your demonstration · {elapsed}</div>
-              <div className="text-[12px] text-fg-2">Do the task once in any app. Clicks on this panel aren't recorded.</div>
+              <div className="text-[12px] text-fg-2">Do the task once in any app.</div>
             </div>
+            <button
+              onClick={onCancelTeach}
+              className="h-8 shrink-0 rounded-full border border-line bg-white px-3 text-[12.5px] text-fg-2 hover:bg-surface"
+            >
+              Cancel
+            </button>
             <button onClick={onTeach} className="h-8 shrink-0 rounded-full bg-fg px-3.5 text-[12.5px] font-medium text-white">
               Finish
             </button>

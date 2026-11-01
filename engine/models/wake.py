@@ -53,6 +53,8 @@ def _commands(name: str) -> list[tuple[str, re.Pattern]]:
                                rf"(?:\W+{name})?\W*$", re.I)),
         ("teach_stop", re.compile(rf"^\W*(?:{a}\W+)?(?:i'?m\W+|i\W+am\W+|we'?re\W+)?(?:done|finish(?:ed)?|stop(?:ped)?)"
                                   rf"\W+(?:teaching|recording)(?:\W+{name})?\W*$", re.I)),
+        ("teach_cancel", re.compile(rf"^\W*(?:{a}\W+)?cancel\W+(?:teaching|recording|the\W+demo(?:nstration)?)"
+                                    rf"(?:\W+{name})?\W*$", re.I)),
         ("teach", re.compile(rf"^\W*(?:{a}\W+teach(?:\W+mode)?|teach\W+mode|teach\W+{name}|let\W+me\W+teach\W+you"
                              rf"(?:\W+{name})?|{a}\W+let\W+me\W+teach\W+you)\W*$", re.I)),
         # "sent" too: on-device recognition often hears "agent send" as "agent sent"

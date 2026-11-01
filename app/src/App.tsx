@@ -161,6 +161,7 @@ export default function App() {
     } else if (action === "send") composer.current?.submit();
     else if (action === "teach" && !s.recording) toggleTeach();
     else if (action === "teach_stop" && s.recording) toggleTeach();
+    else if (action === "teach_cancel" && s.recording) engine.send({ type: "teach_cancel" });
     else if (action === "listen_off") wake.off();
   };
   const toggleReview = () => {
@@ -428,6 +429,7 @@ export default function App() {
         onToggleWake={wake.toggle}
         onSend={send}
         onTeach={toggleTeach}
+        onCancelTeach={() => engine.send({ type: "teach_cancel" })}
         onShowTasks={showTasks}
         onShowMetrics={showMetrics}
         onToggleReview={toggleReview}
