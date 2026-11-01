@@ -422,6 +422,16 @@ class Agent:
         if parsed is None:
             return
         action, value = parsed
+        if action in ("task", "input") and wav:
+            # Addressed to the agent, and the words matter: Muse Voice Transcribe for the exact wording. (Listening
+            # for the wake phrase stays on this Mac; only clips that start with it get here.)
+            try:
+                exact = self.models.voice.transcribe(wav, "audio/wav")
+                again = ("task", exact.strip()) if command else parse_voice(exact)
+                if exact and again and again[0] == action:
+                    value = again[1]
+            except Exception:  # noqa: BLE001 - the on-device transcript is good enough
+                pass
         if self._busy.locked() and action not in ("approve", "decline", "input"):
             return  # a run is on the screen; Esc is how to stop it
         if action == "wake":
