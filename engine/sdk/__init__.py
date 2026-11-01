@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import inspect
 
-from . import actions, apps, browser, questions, raw, results, user, waiting
+from . import actions, apps, browser, questions, raw, results, task_io, user, waiting
 from .errors import SCRIPT_ERRORS
 from .progress import Progress, checkpoint
 
@@ -48,6 +48,9 @@ SDK_FUNCTIONS = {
     "export": results.export,
     # Progress
     "checkpoint": checkpoint,
+    # Task inputs and outputs
+    "inp": task_io.inp,
+    "output": task_io.output,
     # User
     "ask_user": user.ask_user,
     "confirm_with_user": user.confirm_with_user,
@@ -66,6 +69,7 @@ FAMILIES = [
     ("Browser (Google Chrome with the agent extension; the actions above also work there)",
      ["open_url", "network_response", "page_js"]),
     ("Results", ["summarize", "make_table", "show", "export"]),
+    ("Task inputs and outputs (declared in the INPUTS / OUTPUTS header)", ["inp", "output"]),
     ("User", ["ask_user", "confirm_with_user"]),
 ]
 
@@ -94,6 +98,11 @@ def sdk_reference() -> str:
         out.append(f"progress.{n}{sig}\n    {inspect.getdoc(fn)}")
     out.append(f"checkpoint{inspect.signature(checkpoint, eval_str=True)}\n    {inspect.getdoc(checkpoint)}")
     out.append(
+        "\n## Script header (required)\n"
+        "Every script starts with two dict literals: INPUTS = {name: \"type: description\"} for the values that change "
+        "between runs, OUTPUTS = {name: \"type: description\"} for what the task produces. Types: str, int, float, bool, "
+        "list[str], dict, or choices like \"ios|android\". Use {} when there are none. Read inputs with inp(\"name\"), "
+        "report results with output(name=value).\n"
         "\n## Notes\n"
         "- read_table returns a list of dict rows; row[\"name\"] matches columns case-insensitively.\n"
         "- In Google Chrome the actions use the page's DOM (element names, labels, text) before the screenshot, so "

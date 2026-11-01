@@ -3,6 +3,7 @@
     python -m engine.tools.demo_server          # http://127.0.0.1:5050
 
 POST /api/invoices {"customer", "amount"} -> {"id", "number", "customer", "amount"}; GET /api/invoices lists them.
+GET /search.html is a docs search page; GET /api/search?q=term -> {"query", "results": [{"title", "url", "snippet"}]}.
 """
 from __future__ import annotations
 
@@ -12,10 +13,18 @@ import json
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 SITE = Path(__file__).resolve().parent / "demo_site"
 _ids = itertools.count(812)
 INVOICES: list[dict] = []
+DOCS = [
+    {"title": "Solar panel sizing guide", "url": "/docs/solar-sizing", "snippet": "How many solar panels a roof needs."},
+    {"title": "Wind turbine maintenance", "url": "/docs/wind-maintenance", "snippet": "Yearly checks for small wind turbines."},
+    {"title": "Battery storage basics", "url": "/docs/battery-basics", "snippet": "Store solar and wind energy at home."},
+    {"title": "Solar inverter errors", "url": "/docs/solar-inverter-errors", "snippet": "What inverter error codes mean."},
+    {"title": "Wind farm site selection", "url": "/docs/wind-sites", "snippet": "Choosing a site with steady wind."},
+]
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -30,6 +39,11 @@ class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         if self.path.startswith("/api/invoices"):
             return self._json(200, INVOICES)
+        if self.path.startswith("/api/search"):
+            q = parse_qs(urlsplit(self.path).query).get("q", [""])[0].strip()
+            words = q.lower().split()
+            hits = [d for d in DOCS if all(w in (d["title"] + " " + d["snippet"]).lower() for w in words)] if q else []
+            return self._json(200, {"query": q, "results": hits})
         return super().do_GET()
 
     def do_POST(self):

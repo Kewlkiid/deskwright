@@ -103,6 +103,12 @@ class RunContext:
     # the models only ever see that app.
     scope_app: str | None = None
     detours: list = field(default_factory=list)  # known ways back to steps (runner/detours.py)
+    # Task I/O (runner/schema.py): declared INPUTS/OUTPUTS, values passed in, results recorded with output().
+    input_schema: dict = field(default_factory=dict)
+    output_schema: dict = field(default_factory=dict)
+    inputs: dict = field(default_factory=dict)
+    outputs: dict = field(default_factory=dict)
+    no_ask: bool = False  # a missing input fails instead of asking (CLI --no-ask)
     new_detours: list = field(default_factory=list)  # learned during this run
     browser_mark: int = 0
     browser_capture: bool = False

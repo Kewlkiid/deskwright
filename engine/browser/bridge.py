@@ -11,6 +11,7 @@ import asyncio
 import concurrent.futures
 import itertools
 import json
+import os
 import secrets
 import threading
 from pathlib import Path
@@ -36,6 +37,8 @@ class BrowserUnavailableError(AgentError):
 
 
 def pairing_token() -> str:
+    if os.environ.get("AGENT_BROWSER_TOKEN"):
+        return os.environ["AGENT_BROWSER_TOKEN"]  # a test or second engine paired with its own extension copy
     path = config.browser_token_path
     if path.exists():
         token = path.read_text().strip()
@@ -71,6 +74,7 @@ class BrowserBridge:
         self._ids = itertools.count(1)
         self._waiting: dict[int, concurrent.futures.Future] = {}
         self._started = threading.Event()
+        self._done = None
         self.error: str | None = None
 
     @property
@@ -91,9 +95,17 @@ class BrowserBridge:
 
     async def _serve(self):
         self.loop = asyncio.get_running_loop()
+        self._done = self.loop.create_future()
         async with websockets.serve(self._handler, "127.0.0.1", self.port, max_size=32 * 1024 * 1024):
             self._started.set()
-            await asyncio.Future()
+            await self._done
+
+    def stop(self):
+        """Close the server and free the port (the extension reconnects to whoever listens there next)."""
+        if self.loop and not self._done.done():
+            if self.ws is not None:
+                asyncio.run_coroutine_threadsafe(self.ws.close(code=1001, reason="engine stopping"), self.loop)
+            self.loop.call_soon_threadsafe(self._done.set_result, None)
 
     async def _handler(self, ws):
         origin = ws.request.headers.get("Origin", "") if ws.request else ""
@@ -175,7 +187,7 @@ def start_bridge(write_config: bool = True) -> BrowserBridge | None:
     bridge = BrowserBridge(config.browser_port, token)
     if not bridge.start():
         return None
-    if write_config:
+    if write_config and not os.environ.get("AGENT_BROWSER_TOKEN"):
         write_extension_config(config.browser_port, token)
     _bridge = bridge
     return bridge

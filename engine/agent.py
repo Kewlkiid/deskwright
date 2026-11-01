@@ -11,6 +11,7 @@ from .config import config
 from .metrics import GLOBAL_METRICS
 from .models import get_models
 from .runner.healer import run_with_healing
+from .runner.schema import header_problems, schema_of
 from .runner.validate import scope_problems, validate
 from .sdk import SDK_NAMES, sdk_reference
 from .sdk.context import Host, RunContext, set_current
@@ -74,13 +75,19 @@ class Agent:
         ctx.status("Writing the script…")
         shot = ctx.capture()
         script = self.models.planner.generate_script(task, shot.image, ref, self._context_hint())
-        problems = validate(script, SDK_NAMES) + scope_problems(script)
+        problems = validate(script, SDK_NAMES) + scope_problems(script) + header_problems(script)
         if problems:
             ctx.status("Fixing script problems…")
             script = self.models.planner.repair_validation(task, script, problems, ref)
-            problems = validate(script, SDK_NAMES) + scope_problems(script)
+            problems = validate(script, SDK_NAMES) + scope_problems(script) + header_problems(script)
             if problems:
                 raise AgentError("The planner's script failed validation: " + "; ".join(problems), retryable=False)
+        # Values the request already gave ("send sam hi") fill the inputs, so a chat run doesn't ask for them again.
+        declared, _ = schema_of(script)
+        given = getattr(self.models.planner, "request_inputs", {}) or {}
+        for k, v in given.items():
+            if k in declared and k not in ctx.inputs:
+                ctx.inputs[k] = v
         return script
 
     def draft_task(self, task: str):
@@ -105,7 +112,10 @@ class Agent:
             self._busy.release()
 
     # Running ---------------------------------------------------------------
-    def run_task(self, task: str, script: str | None = None, task_id: int | None = None) -> dict:
+    def run_task(self, task: str, script: str | None = None, task_id: int | None = None,
+                 inputs: dict | None = None, no_ask: bool = False) -> dict:
+        """Run a task. `inputs` are values for the script's declared INPUTS (from the CLI or another program);
+        missing ones are asked for, unless `no_ask`, which makes a missing input fail the run."""
         if not self._busy.acquire(blocking=False):
             self.host.emit("error", message="Busy: a run is in progress")
             return {"status": "busy"}
@@ -118,6 +128,8 @@ class Agent:
             ctx.detours = [Detour(step=r["step"], when=r["when_text"], screen=r["screen"], window=r["window"] or "",
                                   recover=r["recover"], source=r["source"] or "", id=r["id"], uses=r["uses"])
                            for r in self.db.task_detours(task_id)]
+        ctx.inputs = dict(inputs or {})
+        ctx.no_ask = no_ask
         set_current(ctx)
         status, final_script, error = "failed", script or "", None
         self.host.emit("run_started", run_id=run_id, task=task, task_id=task_id)
@@ -129,7 +141,9 @@ class Agent:
                 if problems:
                     raise AgentError("Script failed validation: " + "; ".join(problems), retryable=False)
             final_script = script
-            self.host.emit("script_generated", script=script, segment=0, draft=False, task=task)
+            ctx.input_schema, ctx.output_schema = schema_of(script)
+            self.host.emit("script_generated", script=script, segment=0, draft=False, task=task,
+                           inputs=ctx.input_schema, outputs=ctx.output_schema)
             self._start_network_capture(ctx, script)
             result = run_with_healing(ctx, script, sdk_reference())
             status = result["status"]
@@ -168,12 +182,14 @@ class Agent:
                 metrics=metrics,
                 final_script=final_script,
                 results=ctx.results,
+                outputs=ctx.outputs,
                 history=self.db.task_runs(task_id) if task_id else [],
                 totals=self.db.all_runs_summary(),
             )
             set_current(None)
             self._busy.release()
-        return {"status": status, "final_script": final_script, "error": error, "metrics": metrics}
+        return {"status": status, "final_script": final_script, "error": error, "metrics": metrics,
+                "outputs": dict(ctx.outputs), "run_id": run_id}
 
     # Chrome -----------------------------------------------------------------
     @staticmethod

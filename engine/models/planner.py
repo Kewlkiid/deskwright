@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from PIL import Image
 
@@ -11,6 +12,18 @@ from . import prompts
 from .client import ModelClient, extract_code, extract_json, image_part, text_part
 
 
+def _request_values(reply: str) -> dict:
+    """The ```json block after the script: input values given in the user's request."""
+    m = re.search(r"```json\s*(\{.*?\})\s*```", reply, re.S)
+    if not m:
+        return {}
+    try:
+        data = json.loads(m.group(1))
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def numbered(script: str, start: int = 1) -> str:
     return "\n".join(f"{i:>3}| {line}" for i, line in enumerate(script.splitlines(), start))
 
@@ -18,6 +31,7 @@ def numbered(script: str, start: int = 1) -> str:
 class Planner:
     def __init__(self, client: ModelClient):
         self.client = client
+        self.request_inputs: dict = {}  # input values the last generate_script() found in the user's request
 
     def _chat(self, system: str, content: list, max_tokens: int = 3000) -> str:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
@@ -40,7 +54,9 @@ class Planner:
             text += f"\nCONTEXT:\n{context}\n"
         text += "\nThe image is the user's screen right now. Write the script."
         content.append(text_part(text))
-        return extract_code(self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference), content))
+        reply = self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference), content)
+        self.request_inputs = _request_values(reply)
+        return extract_code(reply)
 
     def repair_validation(self, task: str, script: str, problems: list[str], sdk_reference: str) -> str:
         content = [

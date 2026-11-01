@@ -11,7 +11,9 @@ def test_clean_run_succeeds(screen, agent_factory):
     agent, host = agent_factory()
     out = agent.run_task("create invoices", DEMO_SCRIPT)
     assert out["status"] == "succeeded", out
-    assert len(events(host, "result_ready")) == 1
+    shown = events(host, "result_ready")
+    assert len(shown) == 2 and shown[1]["result"]["title"] == "Output"  # the summary, then the task's outputs
+    assert out["outputs"] == {"invoices_created": 3}
     # 3 rows x (New Invoice, Customer, Amount, Save) = 12 grounded actions
     assert out["metrics"]["steps"] == 12
     assert events(host, "line_failed") == []
@@ -23,7 +25,7 @@ def test_heals_and_resumes_without_redoing_finished_rows(screen, agent_factory):
     assert out["status"] == "succeeded", out
     failed = events(host, "line_failed")
     assert len(failed) == 1 and failed[0]["error"]["code"] == "element_not_found"
-    assert failed[0]["line"] == 7  # the Save click (line 1 is open_app)
+    assert failed[0]["line"] == 10  # the Save click (lines 1-3 are the header, 4 is open_app)
     rewritten = events(host, "line_rewritten")
     assert len(rewritten) == 1 and "Save button (alternative)" in rewritten[0]["script"]
     # Every row is marked done exactly once.

@@ -95,8 +95,16 @@ class ScriptError(AgentError):
     default_fix = "The script has a bug. Fix the code at this line."
 
 
+class InputMissingError(AgentError):
+    """A declared input had no value and asking was not allowed (CLI --no-ask), or the value didn't fit its type."""
+
+    code = "input_missing"
+    default_fix = "Pass the input when starting the task."
+    default_retryable = False
+
+
 # Errors that end the run and are never sent to the fixer.
-TERMINAL_ERRORS = (StoppedError, UserDeclinedError)
+TERMINAL_ERRORS = (StoppedError, UserDeclinedError, InputMissingError)
 
 # Names exposed to generated scripts. TimeoutError is the SDK name for AgentTimeoutError.
 SCRIPT_ERRORS = {

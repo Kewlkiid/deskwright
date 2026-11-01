@@ -11,7 +11,7 @@ from ..sdk import SDK_NAMES, build_namespace
 from ..sdk.context import RunContext
 from ..sdk.errors import TERMINAL_ERRORS, StoppedError
 from ..sdk.results import show
-from . import detours
+from . import detours, schema
 from .executor import execute, failing_line, to_agent_error
 from .validate import safe_builtins, validate
 
@@ -206,7 +206,12 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
                 return {"status": "failed", "final_script": full_script, "error": {"message": rejection}}
 
             if fix["full_script"] and not validate(fix["full_script"], SDK_NAMES):
-                full_script = fix["full_script"]
+                candidate_full = fix["full_script"]
+                if not schema.header_problems(script) and not schema.same_schema(script, candidate_full):
+                    # The header is the task's contract with its callers: a repair never drops or renames it.
+                    ctx.log("the rewrite changed the INPUTS/OUTPUTS header; restored the original")
+                    candidate_full = schema.with_header(candidate_full, schema.header_source(script))
+                full_script = candidate_full
             recovery = fix.get("recovery", "").strip()
             if recovery and validate(recovery, SDK_NAMES, extra_names=user_vars(ns)):
                 recovery = ""  # an invalid way back is dropped, not run

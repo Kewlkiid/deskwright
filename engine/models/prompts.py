@@ -11,6 +11,12 @@ controls the computer through the Agent SDK below. The script runs line by line 
 it sees only screenshots and moves the real mouse and keyboard. It works in any app.
 
 RULES
+- Start the script with its header, two plain dict literals (nothing else on those lines):
+  INPUTS = {{"name": "type: description", ...}}   the values that would change if the task were run again
+  OUTPUTS = {{"name": "type: description", ...}}  what the task produces or finds for whoever runs it
+  Types: str, int, float, bool, list[str], dict, or choices like "ios|android". Use {{}} when there are none.
+  Read each input with inp("name") instead of hardcoding it, and report results with output(name=value) \
+(JSON-serializable values). Keep ask_user() for genuine mid-run questions, not for inputs.
 - Use ONLY the SDK functions listed below plus basic Python (variables, for/while/if, lists, dicts, f-strings, \
 len, range, enumerate, str, int, float, round, min, max, sum, sorted, zip, any, all).
 - No imports, no try/except, no classes, no file or network access, no names starting with "_", no .format().
@@ -34,7 +40,9 @@ with it, and call it again whenever the task moves to a different app.
 
 """ + UNTRUSTED + """
 
-Reply with ONE ```python code block containing only the script, preceded by at most two sentences of explanation.
+Reply with ONE ```python code block containing only the script, preceded by at most two sentences of explanation, \
+then ONE ```json block with the value the user's request gives for each input, e.g. {{"recipient": "sam", \
+"message": "hi"}} (leave out inputs the request doesn't give; {{}} if none).
 
 AGENT SDK REFERENCE
 {sdk_reference}
@@ -59,6 +67,9 @@ or a wait. Keep target descriptions visual and specific.
 - If the error shows SAM 3.1 failing to find an element that IS visible in the screenshot, start the continuation \
 with use_grounding("grid") so elements are found with the labelled-grid method instead.
 - Same rules as the planner: only SDK functions and basic Python, no imports, no try/except, no names starting with "_".
+- The script's INPUTS / OUTPUTS header is its contract with whoever runs it: keep it exactly as it is in full_script \
+(same names, same descriptions) unless the task itself changed. The continuation doesn't repeat the header; read \
+inputs with inp(...) and report results with output(...) as the script does.
 
 """ + UNTRUSTED + """
 
@@ -86,16 +97,19 @@ GENERALIZE_SYSTEM = """You are the planner of a desktop agent. The user demonstr
 steps (each with the element that was clicked, what was typed, the step's intent and what happened next). \
 Turn the demonstration into a reusable Python script against the Agent SDK.
 
-- Replace demonstrated values with variables: data the user typed (names, amounts, emails) should come from the \
-records being processed (e.g. row["name"]). Decide where records come from: read_table(...) of something on screen, \
-or ask_user(...) if the source isn't visible. Iterate with progress.pending()/progress.done().
+- Start with the INPUTS / OUTPUTS header (plain dict literals, "type: description" values, {{}} when empty):
+  INPUTS are the values that would vary between runs: what the user typed or picked that isn't fixed by the task \
+(a search term, a name, an amount), unless it comes from data on screen. Read them with inp("name").
+  OUTPUTS are what the task produces or captures: created ids and numbers (the "ids" of network steps count), \
+values read from the screen at the end, results the description asks for. Report them with output(name=value).
+- Data the user typed for each of several records should come from the records being processed (e.g. row["name"]): \
+read_table(...) of something on screen. Iterate with progress.pending()/progress.done().
 - Use the recorded element descriptions as targets.
 - Add expect="..." to each action from what the recording showed happening next.
 - Put a short comment before each step: `# Step 3: open a new invoice`.
 - Steps with "source": "chrome" were recorded from the web page itself: their element/field descriptions are the \
 page's own labels, so use them verbatim as targets. A "start_page" or "navigate" step becomes \
-open_url(url) (generalize ids in the URL if they vary). Secret fields (passwords) were not recorded: get them \
-with ask_user(...).
+open_url(url) (generalize ids in the URL if they vary). Secret fields (passwords) were not recorded: make them inputs.
 - "network" steps are API calls the page made. When the task creates or looks up something whose id or number \
 the user would want (see "ids"), read it with network_response("<distinctive part of the url>", method=...) right \
 after the action that caused it, and show() it at the end.

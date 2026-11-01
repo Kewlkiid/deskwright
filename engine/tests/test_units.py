@@ -159,7 +159,7 @@ def test_teach_compile_only_writes_a_valid_script(tmp_path):
     out = compile_recording(meta, "greet", "", Models(FakePlanner(), FakeVision(), grounder, None),
                             lambda t, **d: events.append(t))
     assert out["problems"] == []
-    assert out["script"].startswith("open_app(")  # it only writes the script; the first replay fills the cache
+    assert out["script"].startswith("INPUTS = {}")  # it only writes the script (with its header)
     assert [s["kind"] for s in out["steps"]] == ["click", "type", "press"]
     assert "teach_step" in events
 

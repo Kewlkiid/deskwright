@@ -20,7 +20,10 @@ def _meter(role: str, seconds: float, cost: float):
 
     current_metrics().record_call(role, seconds, 900, 120, cost)
 
-DEMO_SCRIPT = '''open_app("Invoices")
+DEMO_SCRIPT = '''INPUTS = {}
+OUTPUTS = {"invoices_created": "int: number of invoices created"}
+
+open_app("Invoices")
 rows = read_table("orders table")
 for row in progress.pending(rows):
     click("New Invoice button", expect="empty invoice form is open")
@@ -30,6 +33,7 @@ for row in progress.pending(rows):
     progress.done(row)
 checkpoint("invoices created")
 show(summarize("invoices created this run"))
+output(invoices_created=len(rows))
 '''
 
 
@@ -148,7 +152,7 @@ class FakePlanner:
 
     def generalize_recording(self, name, description, steps, sdk_reference):
         _meter("planner", 4.0, 0.012)
-        out = [f"# {name}"]
+        out = ["INPUTS = {}", "OUTPUTS = {}", "", f"# {name}", 'open_app("Demo")']
         for i, s in enumerate(steps, 1):
             out.append(f"# Step {i}: {s.get('intent', '')}")
             if s["kind"] == "click":

@@ -12,6 +12,7 @@ from bisect import bisect_left
 
 from PIL import Image
 
+from ..runner.schema import header_problems
 from ..runner.validate import scope_problems, validate
 from ..sdk import SDK_NAMES, sdk_reference
 
@@ -161,8 +162,8 @@ def compile_recording(meta: dict, name: str, description: str, models, emit, bro
     emit("teach_status", text="Writing the script")
     ref = sdk_reference()
     script = models.planner.generalize_recording(name, description, out_steps, ref)
-    problems = validate(script, SDK_NAMES) + scope_problems(script)
+    problems = validate(script, SDK_NAMES) + scope_problems(script) + header_problems(script)
     if problems:
         script = models.planner.repair_validation(f"{name}: {description}", script, problems, ref)
-        problems = validate(script, SDK_NAMES) + scope_problems(script)
+        problems = validate(script, SDK_NAMES) + scope_problems(script) + header_problems(script)
     return {"steps": out_steps, "script": script, "problems": problems}
