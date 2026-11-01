@@ -107,6 +107,10 @@ class DB:
                 self.conn.execute("ALTER TABLE cache ADD COLUMN point TEXT")
             if "frame" not in cols:
                 self.conn.execute("ALTER TABLE cache ADD COLUMN frame TEXT")
+            # Which outside request (e.g. another program's task_request) a task was made for.
+            task_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(tasks)")}
+            if "request_id" not in task_cols:
+                self.conn.execute("ALTER TABLE tasks ADD COLUMN request_id TEXT")
             self.conn.execute("INSERT OR IGNORE INTO cache_stats (id) VALUES (1)")
             self.conn.commit()
 
@@ -121,7 +125,8 @@ class DB:
             return [dict(r) for r in self.conn.execute(sql, params).fetchall()]
 
     # Tasks -----------------------------------------------------------------
-    def save_task(self, name: str, script: str, description: str = "", source: str = "chat", note: str = "") -> int:
+    def save_task(self, name: str, script: str, description: str = "", source: str = "chat", note: str = "",
+                  request_id: str | None = None) -> int:
         now = time.time()
         existing = self.query("SELECT id FROM tasks WHERE name = ?", (name,))
         if existing:
@@ -139,7 +144,23 @@ class DB:
             "INSERT INTO task_versions (task_id, script, note, created) VALUES (?, ?, ?, ?)",
             (task_id, script, note or ("created" if not existing else "updated"), now),
         )
+        if request_id:
+            self.execute("UPDATE tasks SET request_id = ? WHERE id = ?", (request_id, task_id))
         return task_id
+
+    def rename_task(self, task_id: int, new_name: str):
+        self.execute("UPDATE tasks SET name = ?, updated = ? WHERE id = ?", (new_name, time.time(), task_id))
+
+    def task_stats(self, task_id: int) -> dict:
+        """Run history in brief: how often it ran and succeeded, the last run, when it last healed itself."""
+        runs = self.query("SELECT status, started, ended FROM runs WHERE task_id = ? AND status != 'running' ORDER BY id",
+                          (task_id,))
+        ok = sum(1 for r in runs if r["status"] == "succeeded")
+        healed = self.query("SELECT MAX(created) AS t FROM task_versions WHERE task_id = ? AND note LIKE 'self-healed%'",
+                            (task_id,))[0]["t"]
+        versions = self.query("SELECT COUNT(*) AS n FROM task_versions WHERE task_id = ?", (task_id,))[0]["n"]
+        return {"runs": len(runs), "success_rate": round(ok / len(runs), 3) if runs else None,
+                "last_run": runs[-1] if runs else None, "last_healed": healed, "versions": versions}
 
     def get_task(self, task_id: int | None = None, name: str | None = None) -> dict | None:
         if task_id is not None:

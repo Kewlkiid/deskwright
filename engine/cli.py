@@ -162,24 +162,120 @@ class TerminalHost:
 STATUS = {"succeeded": "ok", "stopped": "stopped", "declined": "stopped", "busy": "busy"}
 
 
-def _task_row(t: dict) -> dict:
+def _iso(ts) -> str | None:
+    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat(timespec="seconds") if ts else None
+
+
+def _task_row(t: dict, db=None) -> dict:
     from .runner.schema import schema_of
 
     inputs, outputs = schema_of(t["script"])
-    updated = datetime.fromtimestamp(t["updated"] or 0, tz=timezone.utc).isoformat(timespec="seconds")
-    return {"name": t["name"], "description": t.get("description") or "", "inputs": inputs, "outputs": outputs,
-            "updated": updated}
+    row = {"name": t["name"], "description": t.get("description") or "", "inputs": inputs, "outputs": outputs,
+           "updated": _iso(t["updated"] or 0) or _iso(0.0001)}
+    if db is not None:  # --stats
+        st = db.task_stats(t["id"])
+        last = st["last_run"]
+        row.update({
+            "id": t["id"], "source": t.get("source") or "", "request_id": t.get("request_id"),
+            "runs": st["runs"], "success_rate": st["success_rate"],
+            "last_run": {"status": last["status"], "started": _iso(last["started"]), "ended": _iso(last["ended"])} if last else None,
+            "last_healed": _iso(st["last_healed"]), "versions": st["versions"],
+        })
+    return row
+
+
+def _json_or_text(as_json: bool, obj: dict, text: str = "") -> int:
+    if as_json:
+        print(json.dumps(obj, ensure_ascii=False, default=str))
+    else:
+        print(obj.get("error") or text, file=sys.stderr if obj.get("error") else sys.stdout)
+    return 0 if not obj.get("error") else 1
+
+
+def cmd_task(argv: list[str]) -> int:
+    """task show NAME | task rename OLD NEW | task delete NAME --yes   (all take --json)"""
+    p = argparse.ArgumentParser(prog="engine.cli task", description="Show, rename or delete a saved task.")
+    p.add_argument("action", choices=["show", "rename", "delete"])
+    p.add_argument("name")
+    p.add_argument("new_name", nargs="?")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--yes", action="store_true", help="required to delete")
+    args = p.parse_args(argv)
+    try:
+        from .config import config
+        from .runner.schema import schema_of
+        from .store.db import DB
+
+        db = DB(config.db_path)
+        t = db.get_task(name=args.name)
+        if not t:
+            return _json_or_text(args.json, {"ok": False, "error": f"no saved task named {args.name!r}"})
+        if args.action == "show":
+            inputs, outputs = schema_of(t["script"])
+            versions = [{"id": v["id"], "note": v["note"], "created": _iso(v["created"])}
+                        for v in db.query("SELECT id, note, created FROM task_versions WHERE task_id = ? ORDER BY id", (t["id"],))]
+            return _json_or_text(args.json, {"name": t["name"], "description": t.get("description") or "", "inputs": inputs,
+                                             "outputs": outputs, "script": t["script"], "versions": versions}, t["script"])
+        if args.action == "rename":
+            new = (args.new_name or "").strip()
+            if not new:
+                return _json_or_text(args.json, {"ok": False, "error": "rename needs a new name"})
+            other = db.get_task(name=new)
+            if other and other["id"] != t["id"]:
+                return _json_or_text(args.json, {"ok": False, "error": f"a task named {new!r} already exists"})
+            db.rename_task(t["id"], new)
+            return _json_or_text(args.json, {"ok": True, "error": None}, f"renamed to {new}")
+        if not args.yes:
+            return _json_or_text(args.json, {"ok": False, "error": "delete needs --yes"})
+        db.delete_task(t["id"])
+        return _json_or_text(args.json, {"ok": True, "error": None}, "deleted")
+    except Exception as e:  # noqa: BLE001
+        return _json_or_text(args.json, {"ok": False, "error": f"{type(e).__name__}: {e}"})
+
+
+def cmd_history(argv: list[str]) -> int:
+    p = argparse.ArgumentParser(prog="engine.cli history", description="Latest runs, newest first.")
+    p.add_argument("--task", help="only this task's runs")
+    p.add_argument("--limit", type=int, default=50)
+    p.add_argument("--json", action="store_true")
+    args = p.parse_args(argv)
+    try:
+        from .config import config
+        from .store.db import DB
+
+        db = DB(config.db_path)
+        where, params = "", []
+        if args.task:
+            t = db.get_task(name=args.task)
+            if not t:
+                return _json_or_text(args.json, {"error": f"no saved task named {args.task!r}"})
+            where, params = "WHERE r.task_id = ?", [t["id"]]
+        rows = db.query(f"SELECT r.id, r.status, r.started, r.ended, r.metrics, t.name FROM runs r LEFT JOIN tasks t "
+                        f"ON t.id = r.task_id {where} ORDER BY r.id DESC LIMIT ?", [*params, args.limit])
+        out = [{"run_id": r["id"], "task": r["name"], "status": r["status"], "started": _iso(r["started"]),
+                "ended": _iso(r["ended"]), "metrics": json.loads(r["metrics"]) if r["metrics"] else {}} for r in rows]
+    except Exception as e:  # noqa: BLE001
+        return _json_or_text(args.json, {"error": f"{type(e).__name__}: {e}"})
+    if args.json:
+        print(json.dumps(out, ensure_ascii=False))
+    else:
+        for r in out:
+            print(f"{r['run_id']}  {r['task'] or '-'}  {r['status']}  {r['started']}")
+    return 0
 
 
 def cmd_tasks(argv: list[str]) -> int:
     p = argparse.ArgumentParser(prog="engine.cli tasks", description="List saved tasks with their inputs and outputs.")
     p.add_argument("--json", action="store_true", help="print the list as JSON")
+    p.add_argument("--stats", action="store_true",
+                   help="also id, source, request_id, runs, success_rate, last_run, last_healed, versions")
     args = p.parse_args(argv)
     from .config import config
     from .store.db import DB
 
     try:
-        rows = [_task_row(t) for t in DB(config.db_path).query("SELECT * FROM tasks ORDER BY updated DESC")]
+        db = DB(config.db_path)
+        rows = [_task_row(t, db if args.stats else None) for t in db.query("SELECT * FROM tasks ORDER BY updated DESC")]
     except Exception as e:  # noqa: BLE001  (callers parse stdout: give them an error object, never a traceback)
         if args.json:
             print(json.dumps({"error": f"{type(e).__name__}: {e}"}))
@@ -322,6 +418,10 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_tasks(argv[1:])
     if argv[:1] == ["run"]:
         return cmd_run(argv[1:])
+    if argv[:1] == ["task"]:
+        return cmd_task(argv[1:])
+    if argv[:1] == ["history"]:
+        return cmd_history(argv[1:])
     return cmd_run(argv, prog="engine.cli")  # older forms: "task text", --script FILE, --saved NAME
 
 

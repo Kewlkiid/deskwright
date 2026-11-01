@@ -121,3 +121,19 @@ def test_a_locked_db_is_waited_for(data_dir):
     code, out, _ = cli(data_dir, "tasks", "--json")
     t.join()
     assert code == 0 and isinstance(json.loads(out), list)
+
+
+def test_stats_show_rename_delete_history(data_dir):
+    cli(data_dir, "run", "--saved", "echo", "--input", "query=a", "--input", "times=1", "--json", "--no-ask")
+    rows = {r["name"]: r for r in json.loads(cli(data_dir, "tasks", "--json", "--stats")[1])}
+    assert rows["echo"]["runs"] == 1 and rows["echo"]["success_rate"] == 1.0 and rows["echo"]["last_run"]["status"] == "succeeded"
+    shown = json.loads(cli(data_dir, "task", "show", "echo", "--json")[1])
+    assert shown["script"].startswith("INPUTS") and shown["versions"][0]["note"] == "created"
+    assert json.loads(cli(data_dir, "task", "rename", "echo", "asks", "--json")[1])["ok"] is False  # name taken
+    assert json.loads(cli(data_dir, "task", "rename", "echo", "shout", "--json")[1])["ok"] is True
+    assert json.loads(cli(data_dir, "task", "delete", "shout", "--json")[1])["ok"] is False  # needs --yes
+    assert json.loads(cli(data_dir, "task", "delete", "shout", "--yes", "--json")[1])["ok"] is True
+    names = [r["name"] for r in json.loads(cli(data_dir, "tasks", "--json")[1])]
+    assert "shout" not in names and "echo" not in names
+    hist = json.loads(cli(data_dir, "history", "--json", "--limit", "5")[1])
+    assert hist and hist[0]["status"] == "succeeded"
