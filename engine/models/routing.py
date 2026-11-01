@@ -1,9 +1,9 @@
 """Chooses the grounding method per element: SAM 3.1 first, the labelled grid (Muse Spark, or Gemma on OpenRouter)
 as the backup.
 
-  auto (default): try SAM; if it can't find the element or errors, retry the same step with the grid. After
-                  SAM_STRIKES elements in one run that the grid found but SAM missed, the grid goes first for the
-                  rest of that run. (A miss by both means the element isn't there, not that SAM is worse.)
+  auto (default): try SAM (with on-screen text candidates); if it can't find the element or errors, retry the
+                  same step with the grid. SAM always goes first: it takes seconds, a grid lookup up to a minute.
+                  sam_failures counts elements the grid found but SAM missed (shown to the repair module).
   sam / grid:     use only that method. Scripts and the repair module switch with use_grounding("grid").
 
 Each run starts back in auto with a clean failure count (reset() is called when a run starts).
@@ -46,8 +46,6 @@ class GroundingRouter:
             chain = [self.sam]
         elif self.mode == "grid":
             chain = [self.grid]
-        elif self.sam_failures >= SAM_STRIKES:
-            chain = [self.grid, self.sam]
         else:
             chain = [self.sam, self.grid]
         return [g for g in chain if g is not None]

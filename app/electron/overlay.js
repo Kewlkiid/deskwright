@@ -77,9 +77,10 @@
     const v = document.createElement("div");
     v.className = "verdict " + (ok ? "ok" : "bad");
     v.innerHTML = `<span class="mark">${ok ? "✓" : "✕"}</span><span>${esc(short(text, 60))}</span>`;
-    v.style.left = Math.max(8, b[0]) + "px";
     v.style.top = b[3] + 10 + "px";
     stage.appendChild(v);
+    // Keep the chip on screen: near the right edge it would run off past the element's left side.
+    v.style.left = Math.max(8, Math.min(b[0], window.innerWidth - v.offsetWidth - 8)) + "px";
     requestAnimationFrame(() => v.classList.add("on"));
     setTimeout(() => { v.classList.remove("on"); setTimeout(() => v.remove(), 300); }, 2200);
   }

@@ -176,18 +176,16 @@ class _StubGrounder:
         return Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False, reason="not seen")
 
 
-def test_router_tries_sam_then_grid_and_switches_after_strikes():
+def test_router_tries_sam_then_grid_and_keeps_sam_first():
     from engine.models.routing import SAM_STRIKES, GroundingRouter
     sam, grid = _StubGrounder("SAM 3.1", False), _StubGrounder("Spark grid", True)
     r = GroundingRouter(sam, grid)
     img = Image.new("RGB", (100, 100))
     g = r.locate(img, "Save button")
     assert g.found and g.label == "Spark grid" and sam.calls == 1 and grid.calls == 1
-    for _ in range(SAM_STRIKES - 1):
+    for _ in range(SAM_STRIKES + 1):
         r.locate(img, "Save button")
-    assert r.label == "Spark grid"  # SAM missed 3 times: grid goes first now
-    r.locate(img, "Save button")
-    assert sam.calls == SAM_STRIKES  # and SAM is no longer tried while the grid succeeds
+    assert r.label == "SAM 3.1" and r.sam_failures == SAM_STRIKES + 2  # counted, but SAM is still tried first
     r.reset()
     assert r.mode == "auto" and r.label == "SAM 3.1"
 

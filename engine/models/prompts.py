@@ -211,5 +211,6 @@ PICK_BOX_PROMPT = """Image size: {w}x{h}. Numbered red boxes mark candidate elem
 Which numbered box is this target: "{target}"? Read the text inside the boxes and use the position words in the \
 target (left sidebar, bottom, top right...). Text the target quotes must match what the element says. An icon can \
 stand for a named thing without spelling it out: a server or app called "Control" may be a round icon showing "C" or \
-a logo; a text field may show only its placeholder. Answer null only if no box plausibly is the target.
+a logo; a text field may show only its placeholder. But the element must do what the target says: a location arrow \
+is not a Directions button, a search field is not a message box. If no box is that element, answer null.
 Reply with JSON only: {{"index": <number>, "reason": "..."}} or {{"index": null, "reason": "..."}}"""
