@@ -90,9 +90,16 @@ class DB:
     def __init__(self, path: Path | str):
         self.path = str(path)
         self._lock = threading.RLock()
-        self.conn = sqlite3.connect(self.path, check_same_thread=False)
+        # Several processes share this file (the app's engine, CLI runs started by other programs): wait for a
+        # lock instead of failing, and use WAL so readers never block the writer.
+        self.conn = sqlite3.connect(self.path, check_same_thread=False, timeout=30)
         self.conn.row_factory = sqlite3.Row
         with self._lock:
+            self.conn.execute("PRAGMA busy_timeout = 30000")
+            try:
+                self.conn.execute("PRAGMA journal_mode = WAL")
+            except sqlite3.OperationalError:
+                pass  # e.g. a read-only location; the default journal still works
             self.conn.executescript(SCHEMA)
             # Databases created before the cache remembered click points.
             cols = {r[1] for r in self.conn.execute("PRAGMA table_info(cache)")}

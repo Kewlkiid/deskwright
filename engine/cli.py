@@ -106,7 +106,14 @@ def cmd_tasks(argv: list[str]) -> int:
     from .config import config
     from .store.db import DB
 
-    rows = [_task_row(t) for t in DB(config.db_path).query("SELECT * FROM tasks ORDER BY updated DESC")]
+    try:
+        rows = [_task_row(t) for t in DB(config.db_path).query("SELECT * FROM tasks ORDER BY updated DESC")]
+    except Exception as e:  # noqa: BLE001  (callers parse stdout: give them an error object, never a traceback)
+        if args.json:
+            print(json.dumps({"error": f"{type(e).__name__}: {e}"}))
+        else:
+            print(f"error: {e}", file=sys.stderr)
+        return 1
     if args.json:
         print(json.dumps(rows, ensure_ascii=False))
     else:
@@ -164,56 +171,63 @@ def cmd_run(argv: list[str], prog: str = "engine.cli run") -> int:
         p.print_help(sys.stderr)
         return finish("failed", error="nothing to run: pass --saved NAME, --script FILE or a task")
 
-    from .agent import Agent
-    from .runner.schema import schema_of
+    # Anything that goes wrong from here on (a locked or broken DB, a crash) still ends in the one JSON result.
+    def go() -> int:
+        from .agent import Agent
+        from .runner.schema import schema_of
 
-    host = TerminalHost(args.yes, args.verbose, stream=sys.stderr if args.json else None)
-    agent = Agent(host)
-    task_text, script, task_id = args.task, None, None
-    if args.saved:
-        t = agent.db.get_task(name=args.saved)
-        if not t:
-            return finish("failed", error=f"no saved task named {args.saved!r}")
-        task_text, script, task_id = t["description"] or t["name"], t["script"], t["id"]
-    elif args.script:
-        with open(args.script, encoding="utf-8") as fh:
-            script = fh.read()
-        task_text = args.task or args.script
-    if script is not None:
-        declared, _ = schema_of(script)
-        unknown = [k for k in inputs if k not in declared]
-        if unknown:
-            return finish("failed", error=f"unknown input(s) {', '.join(unknown)}; the task takes: "
-                                         f"{', '.join(declared) or 'no inputs'}")
-        missing = [k for k in declared if k not in inputs]
-        if args.no_ask and missing:
-            return finish("failed", error=f"missing input(s) {', '.join(missing)} (--no-ask): "
-                                         + "; ".join(f"{k}: {declared[k]}" for k in missing))
+        host = TerminalHost(args.yes, args.verbose, stream=sys.stderr if args.json else None)
+        agent = Agent(host)
+        task_text, script, task_id = args.task, None, None
+        if args.saved:
+            t = agent.db.get_task(name=args.saved)
+            if not t:
+                return finish("failed", error=f"no saved task named {args.saved!r}")
+            task_text, script, task_id = t["description"] or t["name"], t["script"], t["id"]
+        elif args.script:
+            with open(args.script, encoding="utf-8") as fh:
+                script = fh.read()
+            task_text = args.task or args.script
+        if script is not None:
+            declared, _ = schema_of(script)
+            unknown = [k for k in inputs if k not in declared]
+            if unknown:
+                return finish("failed", error=f"unknown input(s) {', '.join(unknown)}; the task takes: "
+                                             f"{', '.join(declared) or 'no inputs'}")
+            missing = [k for k in declared if k not in inputs]
+            if args.no_ask and missing:
+                return finish("failed", error=f"missing input(s) {', '.join(missing)} (--no-ask): "
+                                             + "; ".join(f"{k}: {declared[k]}" for k in missing))
 
-    from .browser.bridge import start_bridge
+        from .browser.bridge import start_bridge
 
-    bridge = start_bridge()  # lets SDK scripts drive Chrome through the extension
-    wait = float(os.environ.get("AGENT_BROWSER_WAIT", "0") or 0)  # seconds to wait for the extension to connect
-    if bridge is not None and wait > 0:
-        import time
+        bridge = start_bridge()  # lets SDK scripts drive Chrome through the extension
+        wait = float(os.environ.get("AGENT_BROWSER_WAIT", "0") or 0)  # seconds to wait for the extension to connect
+        if bridge is not None and wait > 0:
+            import time
 
-        end = time.time() + wait
-        while not bridge.connected and time.time() < end:
-            time.sleep(0.2)
+            end = time.time() + wait
+            while not bridge.connected and time.time() < end:
+                time.sleep(0.2)
+        try:
+            import signal
+
+            signal.signal(signal.SIGINT, lambda *_: agent.stop())
+        except Exception:
+            pass
+        try:
+            out = agent.run_task(task_text, script, task_id, inputs=inputs, no_ask=args.no_ask)
+        except Exception as e:  # noqa: BLE001
+            return finish("failed", error=f"{type(e).__name__}: {e}")
+        err = out.get("error")
+        message = (err.get("message") if isinstance(err, dict) else err) or None
+        return finish(STATUS.get(out.get("status"), "failed"), out.get("outputs"), message, out.get("run_id"))
+
+
     try:
-        import signal
-
-        signal.signal(signal.SIGINT, lambda *_: agent.stop())
-    except Exception:
-        pass
-    try:
-        out = agent.run_task(task_text, script, task_id, inputs=inputs, no_ask=args.no_ask)
+        return go()
     except Exception as e:  # noqa: BLE001
         return finish("failed", error=f"{type(e).__name__}: {e}")
-    err = out.get("error")
-    message = (err.get("message") if isinstance(err, dict) else err) or None
-    return finish(STATUS.get(out.get("status"), "failed"), out.get("outputs"), message, out.get("run_id"))
-
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
