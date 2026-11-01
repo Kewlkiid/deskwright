@@ -31,6 +31,8 @@ len, range, enumerate, str, int, float, round, min, max, sum, sorted, zip, any, 
 - The agent sees ONE app at a time: open_app("Discord") (or focus_window("..."), or open_url("https://...") for a web \
 page) brings that app to the front AND makes every later screenshot show only that app's window. Start every script \
 with it, and call it again whenever the task moves to a different app.
+- When the user names an app ("the maps app", "in Notes", "the App Store"), do the task in that desktop app with \
+open_app(...), not on a website. Use a website only when they ask for one or name none and it is the natural place.
 - Prefer the keyboard when it's the normal way to do something (e.g. enter to send a typed message).
 - Use raw input (press, hotkey, type_text) when it's simpler than clicking: e.g. hotkey("cmd", "l") to focus a browser address bar.
   "cmd" maps to Ctrl on Windows/Linux.
