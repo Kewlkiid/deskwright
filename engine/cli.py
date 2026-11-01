@@ -87,7 +87,7 @@ class TerminalHost:
         pass
 
 
-STATUS = {"succeeded": "ok", "stopped": "stopped", "declined": "stopped"}
+STATUS = {"succeeded": "ok", "stopped": "stopped", "declined": "stopped", "busy": "busy"}
 
 
 def _task_row(t: dict) -> dict:
@@ -147,6 +147,8 @@ def cmd_run(argv: list[str], prog: str = "engine.cli run") -> int:
     p.add_argument("--json", action="store_true", help="progress to stderr, one JSON result on stdout")
     p.add_argument("--yes", action="store_true", help="auto-confirm sensitive actions")
     p.add_argument("--no-ask", action="store_true", help="fail on a missing input instead of asking")
+    p.add_argument("--wait-lock", type=float, default=0.0, metavar="SECONDS",
+                   help="wait this long for another run to free the screen (default 0: answer \"busy\" at once)")
     p.add_argument("-v", "--verbose", action="store_true")
     args = p.parse_args(argv)
 
@@ -178,6 +180,7 @@ def cmd_run(argv: list[str], prog: str = "engine.cli run") -> int:
 
         host = TerminalHost(args.yes, args.verbose, stream=sys.stderr if args.json else None)
         agent = Agent(host)
+        agent.lock_wait = args.wait_lock
         task_text, script, task_id = args.task, None, None
         if args.saved:
             t = agent.db.get_task(name=args.saved)

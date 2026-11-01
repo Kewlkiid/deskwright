@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import threading
+from pathlib import Path
 import time
 import traceback
 
@@ -31,6 +32,11 @@ class Agent:
         self.stop_event = threading.Event()
         self.capture_paused = threading.Event()
         self._busy = threading.Lock()
+        # One run on the screen at a time across processes (the app's engine and CLI runs from other programs).
+        from .runner.screen_lock import ScreenLock
+
+        self.screen_lock = ScreenLock(Path(self.db.path).parent)
+        self.lock_wait = 0.0  # seconds a run waits for the screen before giving up as "busy"
         self.draft: dict | None = None
         self.recorder = None
         self.teach_dir = None
@@ -118,9 +124,18 @@ class Agent:
         missing ones are asked for, unless `no_ask`, which makes a missing input fail the run."""
         if not self._busy.acquire(blocking=False):
             self.host.emit("error", message="Busy: a run is in progress")
-            return {"status": "busy"}
+            return {"status": "busy", "error": {"message": "a run is already in progress here"}, "outputs": {}, "run_id": None}
+        from .runner.screen_lock import ScreenBusy
+
+        try:
+            self.screen_lock.acquire(task, wait=self.lock_wait)
+        except ScreenBusy as e:
+            self._busy.release()
+            self.host.emit("error", message=f"Busy: {e}")
+            return {"status": "busy", "error": {"message": str(e)}, "outputs": {}, "run_id": None}
         self.stop_event.clear()
         run_id = self.db.start_run(task, task_id)
+        self.screen_lock.note_run(run_id)
         ctx = self._new_context(task, run_id, task_id)
         if task_id:
             from .runner.detours import Detour
@@ -187,6 +202,7 @@ class Agent:
                 totals=self.db.all_runs_summary(),
             )
             set_current(None)
+            self.screen_lock.release()
             self._busy.release()
         return {"status": status, "final_script": final_script, "error": error, "metrics": metrics,
                 "outputs": dict(ctx.outputs), "run_id": run_id}
