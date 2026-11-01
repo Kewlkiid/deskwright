@@ -395,3 +395,21 @@ def test_narration_lines():
     spy.enabled = False
     n.on_event("chat_reply", {"text": "quiet"})
     assert len(spy.said) == 5  # nothing spoken while talking back is off
+
+
+def test_start_words_commands_and_talking_over_deskwright():
+    from engine.models.wake import parse_voice, without_spoken
+
+    assert parse_voice("agent open notes") == ("task", "open notes")
+    assert parse_voice("Deskwright, check my email") == ("task", "check my email")
+    assert parse_voice("desk right open discord") == ("task", "open discord")  # how recognition often writes it
+    assert parse_voice("deskwright") == ("wake", "")
+    for said, action in [("yes", "approve"), ("do it", "approve"), ("sure", "approve"), ("nope", "decline"),
+                         ("never mind", "decline"), ("submit", "send"), ("hit send", "send"), ("send it agent", "send"),
+                         ("stop", "stop"), ("agent stop", "stop"), ("cancel", "stop"), ("be quiet", "hush"),
+                         ("stop talking", "hush")]:
+        assert parse_voice(said) == (action, ""), said
+    assert parse_voice("the agent was here") is None and parse_voice("go to the store") is None
+    # While it talks, the mic hears both: its own words are taken out, the user's stay.
+    assert parse_voice(without_spoken("Done posted hi in support agent stop", "Done. Posted hi in support.")) == ("stop", "")
+    assert without_spoken("I need your approval post hi", "I need your approval. Post hi in #support?") == ""

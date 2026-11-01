@@ -33,8 +33,9 @@ class Config:
     grid_effort: str = field(default_factory=lambda: os.environ.get("GRID_EFFORT", ""))
     # On-device OCR text lines as extra grounding candidates next to SAM's (macOS Vision framework).
     ocr_candidates: bool = field(default_factory=lambda: _flag("AGENT_OCR", "1"))
-    # Wake word: "hey <wake_word>, ..." starts a task while the voice button is on (models/wake.py).
-    wake_word: str = field(default_factory=lambda: os.environ.get("WAKE_WORD", "agent"))
+    # Start words, comma-separated: "agent, ...", "deskwright, ...", "hey agent, ..." start a task while the voice
+    # button is on (models/wake.py).
+    wake_word: str = field(default_factory=lambda: os.environ.get("WAKE_WORD", "agent,deskwright"))
     # Conversation turns (models/chat.py): quick replies, and the decision to take control. Defaults to the vision model.
     chat_model: str = field(default_factory=lambda: os.environ.get("CHAT_MODEL", "") or os.environ.get("VISION_MODEL", "muse-spark-1.3"))
     # Talking back (speaker.py): a Pocket TTS voice name (alba, anna, charles, eve, george, jane, mary, paul...).

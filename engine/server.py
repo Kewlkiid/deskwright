@@ -114,6 +114,7 @@ class Server:
 
         self.speaker = Speaker(self.host.emit)
         self.host.narrator = Narrator(self.speaker)
+        self.agent.speaker = self.speaker  # voice commands can cut it off
         if self.settings.get("speak"):
             self.speaker.set_enabled(True)  # loads the voice in the background
         from .browser.bridge import start_bridge
@@ -228,7 +229,7 @@ class Server:
                 a.models.chat.clear()
         elif t == "wake_audio":
             self._bg(a.hear, base64.b64decode(m["data"]), m.get("mime", "audio/wav"), bool(m.get("command")),
-                     self.settings.get("auto_run", True))
+                     self.settings.get("auto_run", True), bool(m.get("during_speech")))
         elif t == "teach_start":
             self._bg(a.teach_start)
         elif t == "teach_cancel":

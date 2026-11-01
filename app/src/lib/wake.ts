@@ -3,13 +3,17 @@
 // "Hey Agent" (engine/models/wake.py). Lives at the App level so it keeps listening while the panel is collapsed.
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type WakeState = "off" | "listening" | "hearing" | "command";
+// "command": a bare start word was heard and the next utterance is the task. (Ordinary sounds don't change the state,
+// so the mic button and the input box stay steady.)
+export type WakeState = "off" | "listening" | "command";
 
 const RATE = 16000;
 const PRE_ROLL_S = 0.4; // audio kept from just before speech started, so the first word isn't clipped
 const END_SILENCE_S = 1.2; // this much quiet ends an utterance (shorter splits sentences at a pause)
 const MAX_UTTERANCE_S = 12;
 const MIN_SPEECH_S = 0.35;
+const ONSET_FRAMES = 2; // loud frames in a row (about 0.25s) before it counts as speech: clicks and taps don't
+const OVER_SPEECH_S = 2.0; // while Deskwright talks the room never goes quiet: send what it hears in short pieces
 const COMMAND_WINDOW_MS = 7000; // after a bare "Hey Agent", how long the next utterance counts as the task
 
 function wav(samples: Float32Array, rate: number): Uint8Array {
@@ -55,12 +59,14 @@ function save(on: boolean) {
   }
 }
 
-export function useWakeWord(send: (msg: Record<string, unknown>) => void, paused: boolean) {
+/** `speaking`: Deskwright is talking. Listening goes on meanwhile (so "stop" or the start word can cut it off); the
+ * engine removes its own words from what the mic heard. */
+export function useWakeWord(send: (msg: Record<string, unknown>) => void, speaking: boolean) {
   const [on, setOn] = useState(load);
   const [state, setState] = useState<WakeState>("off");
   const commandUntil = useRef(0);
-  const pausedRef = useRef(paused);
-  pausedRef.current = paused;
+  const speakingRef = useRef(speaking);
+  speakingRef.current = speaking;
 
   useEffect(() => {
     if (!on) {
@@ -82,6 +88,8 @@ export function useWakeWord(send: (msg: Record<string, unknown>) => void, paused
         let take: Float32Array[] | null = null;
         let speech = 0;
         let quiet = 0;
+        let onset = 0;
+        let overSpeech = false; // Deskwright talked during this clip
         const levels: number[] = []; // recent loudness, to tell the room's background from speech
         const frameS = 2048 / RATE;
         setState("listening");
@@ -99,27 +107,32 @@ export function useWakeWord(send: (msg: Record<string, unknown>) => void, paused
           if (!take) {
             pre.push(x);
             while (pre.length * frameS > PRE_ROLL_S) pre.shift();
-            if (loud && !pausedRef.current) {
-              take = [...pre, x];
-              speech = frameS;
+            onset = loud ? onset + 1 : 0;
+            // While Deskwright talks its own voice sets the background level, so a person talking over it may never
+            // read as "loud": record continuously then, in short pieces (the engine finds the user's words).
+            if (onset >= ONSET_FRAMES || speakingRef.current) {
+              take = [...pre]; // the pre-roll already holds the loud frames
+              speech = onset * frameS;
               quiet = 0;
-              setState(Date.now() < commandUntil.current ? "command" : "hearing");
+              onset = 0;
+              overSpeech = speakingRef.current;
             }
             return;
           }
           take.push(x);
+          if (speakingRef.current) overSpeech = true;
           if (loud) {
             speech += frameS;
             quiet = 0;
           } else quiet += frameS;
           const length = take.length * frameS;
-          if (quiet >= END_SILENCE_S || length >= MAX_UTTERANCE_S) {
+          if (quiet >= END_SILENCE_S || length >= (overSpeech ? OVER_SPEECH_S : MAX_UTTERANCE_S)) {
             const clip = take;
+            const duringSpeech = overSpeech;
             take = null;
             pre.length = 0;
             const isCommand = Date.now() < commandUntil.current;
-            setState(isCommand ? "command" : "listening");
-            if (speech < MIN_SPEECH_S || pausedRef.current) return;
+            if (speech < MIN_SPEECH_S && !duringSpeech) return;
             const all = new Float32Array(clip.reduce((n, c) => n + c.length, 0));
             let o = 0;
             for (const c of clip) {
@@ -127,7 +140,8 @@ export function useWakeWord(send: (msg: Record<string, unknown>) => void, paused
               o += c.length;
             }
             if (isCommand) commandUntil.current = 0;
-            send({ type: "wake_audio", data: base64(wav(all, RATE)), mime: "audio/wav", command: isCommand });
+            send({ type: "wake_audio", data: base64(wav(all, RATE)), mime: "audio/wav", command: isCommand,
+              during_speech: duringSpeech });
           }
         };
         src.connect(node);

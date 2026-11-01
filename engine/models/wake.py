@@ -23,55 +23,82 @@ except ImportError:
     Speech = None
 
 
+def name_pattern() -> str:
+    """The start words: config.wake_word ("agent,deskwright"). "Deskwright" also as recognition tends to write it."""
+    alts = []
+    for w in config.wake_word.split(","):
+        w = w.strip().lower()
+        if not w:
+            continue
+        if w == "deskwright":
+            alts.append(r"desk\W?(?:wright|right|write|rite|ride)")
+        else:
+            alts.append(re.escape(w))
+    return "(?:" + "|".join(alts or ["agent"]) + ")"
+
+
 def wake_pattern() -> re.Pattern:
-    """config.wake_word ("agent") preceded by a greeting: "hey agent", "hi agent", "ok agent", "okay agent"."""
-    name = re.escape(config.wake_word.strip().lower())
-    return re.compile(rf"^\W*(?:hey|hi|ok|okay|yo)\W+{name}\b\W*", re.I)
+    """A start word, optionally after a greeting: "agent", "deskwright", "hey agent", "ok deskwright"..."""
+    return re.compile(rf"^\W*(?:(?:hey|hi|ok|okay|yo)\W+)?{name_pattern()}\b\W*", re.I)
 
 
 def match_wake(text: str) -> tuple[bool, str]:
-    """(heard the wake phrase, what was said after it)."""
+    """(heard the start word, what was said after it)."""
     m = wake_pattern().match(text or "")
     if not m:
         return False, ""
     return True, text[m.end():].strip()
 
 
-# Spoken commands besides "Hey Agent, <task>". `name` is the wake word; most commands work with or without it.
-CLOSE_WORDS = r"(?:send|send it|done|over|enter|that's it)"
+# Spoken commands besides "<start word>, <task>". Most work with or without the start word; the app only acts on
+# approve/decline when an approval is waiting and on send when there's text in the box.
+CLOSE_WORDS = r"(?:send|send it|submit|done|over|enter|that's it|that is it)"
+APPROVE = (r"approve|approved|i approve|approve it|approve that|yes|yeah|yep|yup|sure|ok(?:ay)?(?: do it)?|do it|"
+           r"go ahead|go for it|allow(?: it)?|accept(?: it)?|confirm(?:ed)?|yes please|yes do it|sounds good")
+DECLINE = (r"(?:decline|declined|deny|denied|reject)(?: it| that)?|no|nope|don'?t|do not|don'?t do it|never ?mind|"
+           r"no thanks")
+SEND = (r"sen[dt](?: it| that| the message| message)?|submit(?: it| that)?|hit (?:send|enter)|press (?:send|enter)|"
+        r"post it|enter|go")
+STOP = r"stop|stop it|stop that|stop stop|halt|abort|cancel|cancel (?:it|that|the task)|stop the task|stop everything"
+HUSH = r"stop talking|be quiet|quiet|shush|shut up|silence|hush|enough|stop speaking"
 
 
 def _commands(name: str) -> list[tuple[str, re.Pattern]]:
-    a = rf"(?:(?:hey|hi|ok|okay)\W+)?{name}"  # "agent", "hey agent"
+    a = rf"(?:(?:hey|hi|ok|okay)\W+)?{name}"  # "agent", "hey agent", "deskwright"
+    opt = rf"(?:{a}\W+)?"  # the start word in front is optional
+    tail = rf"(?:\W+{name})?\W*$"  # ...and so is one at the end ("send it agent")
+
+    def cmd(words: str) -> str:
+        return rf"^\W*{opt}(?:{words}){tail}"
+
     return [
-        # "enter input <text>", "agent input <text>", "task input <text>": typed in and sent; a trailing close word
-        # ("... send", "... done") is dropped
-        ("input", re.compile(rf"^\W*(?:enter|{a}|task)\W+input\W+(?P<text>.+?)(?:\W+{CLOSE_WORDS})?\W*$", re.I)),
-        ("approve", re.compile(rf"^\W*(?:{a}\W+)?(?:yes\W+)?(?:approve|approved|i approve|go ahead|confirm(?:ed)?)"
-                               rf"(?:\W+(?:it|that))?(?:\W+{name})?\W*$", re.I)),
-        ("decline", re.compile(rf"^\W*(?:{a}\W+)?(?:no\W+)?(?:decline|declined|deny|denied|reject)(?:\W+(?:it|that))?"
-                               rf"(?:\W+{name})?\W*$", re.I)),
-        ("teach_stop", re.compile(rf"^\W*(?:{a}\W+)?(?:i'?m\W+|i\W+am\W+|we'?re\W+)?(?:done|finish(?:ed)?|stop(?:ped)?)"
-                                  rf"\W+(?:teaching|recording)(?:\W+{name})?\W*$", re.I)),
-        ("teach_cancel", re.compile(rf"^\W*(?:{a}\W+)?cancel\W+(?:teaching|recording|the\W+demo(?:nstration)?)"
-                                    rf"(?:\W+{name})?\W*$", re.I)),
+        # "enter input <text>", "agent input <text>", "task input <text>", "type <text>": typed in and sent; a trailing
+        # close word ("... send", "... done") is dropped
+        ("input", re.compile(rf"^\W*(?:enter|{a}|task|type)\W+input\W+(?P<text>.+?)(?:\W+{CLOSE_WORDS})?\W*$", re.I)),
+        ("teach_stop", re.compile(cmd(r"(?:i'?m\W+|i\W+am\W+|we'?re\W+)?(?:done|finish(?:ed)?|stop(?:ped)?)\W+(?:teaching|recording)"), re.I)),
+        ("teach_cancel", re.compile(cmd(r"cancel\W+(?:teaching|recording|the\W+demo(?:nstration)?)"), re.I)),
         ("teach", re.compile(rf"^\W*(?:{a}\W+teach(?:\W+mode)?|teach\W+mode|teach\W+{name}|let\W+me\W+teach\W+you"
                              rf"(?:\W+{name})?|{a}\W+let\W+me\W+teach\W+you)\W*$", re.I)),
-        # "sent" too: on-device recognition often hears "agent send" as "agent sent"
         # "agent save task", "save that", "save it as a task", "save task as morning report"
         ("save", re.compile(rf"^\W*(?:{a}\W+save|save(?=\W+(?:it|that|this|task|the\W+task)))(?:\W+(?:it|that|this))?"
                             rf"(?:\W+(?:the\W+)?task|\W+as\W+a\W+task)?(?:\W+(?:as|called|named)\W+(?P<text>.+?))?"
                             rf"(?:\W+{name})?\W*$", re.I)),
-        ("send", re.compile(rf"^\W*(?:{a}\W+sen[dt](?:\W+it)?|sen[dt](?:\W+it)?\W+{name})\W*$", re.I)),
+        ("hush", re.compile(cmd(HUSH), re.I)),
+        ("stop", re.compile(cmd(STOP), re.I)),
+        ("approve", re.compile(cmd(APPROVE), re.I)),
+        ("decline", re.compile(cmd(DECLINE), re.I)),
+        # "sent" too: on-device recognition often hears "send" as "sent"
+        ("send", re.compile(cmd(SEND), re.I)),
         ("listen_off", re.compile(rf"^\W*{a}\W+stop\W+listening\W*$", re.I)),
     ]
 
 
 def parse_voice(text: str) -> tuple[str, str] | None:
-    """What an utterance asks for: ("input", text), ("approve"|"decline"|"teach"|"teach_stop"|"send"|"listen_off", ""),
-    ("task", text) for "Hey Agent, <task>", ("wake", "") for a bare "Hey Agent", or None (not for the agent)."""
+    """What an utterance asks for: ("input", text), ("approve"|"decline"|"send"|"stop"|"hush"|"teach"|"teach_stop"|
+    "teach_cancel"|"save"|"listen_off", ""), ("task", text) after a start word, ("wake", "") for a bare start word,
+    or None (not for the agent)."""
     text = (text or "").strip()
-    name = re.escape(config.wake_word.strip().lower())
+    name = name_pattern()
     for action, pat in _commands(name):
         m = pat.match(text)
         if m:
@@ -80,6 +107,22 @@ def parse_voice(text: str) -> tuple[str, str] | None:
     if heard:
         return ("task", rest) if rest else ("wake", "")
     return None
+
+
+def without_spoken(heard: str, spoken: str) -> str:
+    """What the microphone heard minus the words Deskwright itself was saying (it hears its own voice while it
+    talks): the user's words, roughly in order."""
+    said: dict[str, int] = {}
+    for w in re.findall(r"[a-z0-9']+", (spoken or "").lower()):
+        said[w] = said.get(w, 0) + 1
+    out = []
+    for w in (heard or "").split():
+        k = re.sub(r"[^a-z0-9']", "", w.lower())
+        if k and said.get(k, 0) > 0:
+            said[k] -= 1
+            continue
+        out.append(w)
+    return " ".join(out)
 
 
 def on_device_available() -> bool:

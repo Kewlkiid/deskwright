@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { PanelRightOpen } from "lucide-react";
+import { Mic, PanelRightOpen } from "lucide-react";
 import type { Metrics } from "../lib/types";
 import { Logo } from "./Logo";
 
@@ -10,6 +10,7 @@ export function Pill({
   status,
   metrics,
   connected,
+  listening = false,
   visible = true,
   onOpen,
 }: {
@@ -17,6 +18,7 @@ export function Pill({
   status: string;
   metrics: Metrics | null;
   connected: boolean;
+  listening?: boolean; // wake word on: say "stop" works too
   visible?: boolean;
   onOpen: () => void;
 }) {
@@ -58,10 +60,16 @@ export function Pill({
         <div className="min-w-0 flex-1 leading-tight">
           <div className="shimmer truncate text-[13.5px]">{status || "Working…"}</div>
           <div className="mt-0.5 truncate text-[11.5px] text-fg-3">
-            Press <kbd className="rounded border border-line bg-surface px-1 font-sans text-[10.5px] text-fg-2">esc</kbd> to stop
+            Press <kbd className="rounded border border-line bg-surface px-1 font-sans text-[10.5px] text-fg-2">esc</kbd>
+            {listening ? " or say “stop”" : ""} to stop
             {metrics ? ` · ${metrics.model_calls} model calls${metrics.cache_hits ? `, ${metrics.cache_hits} cached` : ""}` : ""}
           </div>
-        </div>
+                </div>
+        {listening && (
+          <span title="Listening: say “stop” to stop" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-focus/10 text-focus">
+            <Mic className="h-4 w-4" strokeWidth={2.25} />
+          </span>
+        )}
       </motion.div>
     </div>
   );

@@ -403,7 +403,7 @@ class Agent:
             self.draft_task(text)
 
     # Voice -----------------------------------------------------------------
-    def hear(self, audio: bytes, mime: str, command: bool = False, auto_run: bool = True):
+    def hear(self, audio: bytes, mime: str, command: bool = False, auto_run: bool = True, during_speech: bool = False):
         """One utterance from wake-word listening. `command`: the user already said "Hey Agent" and this is the task.
         Recognised on this Mac only; anything that isn't for the agent is dropped. UI commands (approve, send, input,
         teach...) go back to the app as `voice_action`; while a run is on the screen only answers to it count."""
@@ -418,15 +418,35 @@ class Agent:
                                                            "wake word can't listen privately.")
                 return
             text = self.models.voice.transcribe(audio, mime)  # the user asked for this one: the cloud model is fine
+        speaker = getattr(self, "speaker", None)
+        if during_speech and speaker is not None:
+            # The mic also heard Deskwright talking: keep only the user's words.
+            from .models.wake import without_spoken
+
+            text = without_spoken(text, speaker.recent_text())
+            if not text.strip():
+                return
         parsed = ("task", text.strip()) if command else parse_voice(text)
         if parsed is None:
             return
         action, value = parsed
+        if speaker is not None and (speaker.speaking or during_speech):
+            speaker.stop()  # talked over: stop talking right away and listen
+        if action == "hush":
+            return
+        if action == "stop":
+            if self._busy.locked():
+                self.stop()
+            return
         if action in ("task", "input") and wav:
             # Addressed to the agent, and the words matter: Muse Voice Transcribe for the exact wording. (Listening
             # for the wake phrase stays on this Mac; only clips that start with it get here.)
             try:
                 exact = self.models.voice.transcribe(wav, "audio/wav")
+                if during_speech and speaker is not None:
+                    from .models.wake import without_spoken
+
+                    exact = without_spoken(exact, speaker.recent_text())
                 again = ("task", exact.strip()) if command else parse_voice(exact)
                 if exact and again and again[0] == action:
                     value = again[1]

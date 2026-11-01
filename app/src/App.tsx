@@ -72,9 +72,8 @@ export default function App() {
   const waiting = [...s.items]
     .reverse()
     .find((i) => (i.kind === "confirm" || i.kind === "question") && i.answer === undefined && !i.closed);
-  // While a run is on the screen, utterances are only sent when it's waiting for an answer.
-  // ...and never while Deskwright itself is talking (the mic would hear it).
-  const wake = useWakeWord(sendToEngine, (running && !waiting) || s.speaking);
+  // Utterances go to the engine even during a run ("stop", "approve") and while Deskwright talks (to cut it off).
+  const wake = useWakeWord(sendToEngine, s.speaking);
   const wakeRef = useRef(wake);
   wakeRef.current = wake;
   const composer = useRef<{ submit: () => void } | null>(null);
@@ -315,6 +314,7 @@ export default function App() {
         status={s.status}
         metrics={s.metrics}
         connected={s.connected}
+        listening={wake.on}
         visible={mode !== "opening"}
         onOpen={goPanel}
       />

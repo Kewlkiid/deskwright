@@ -50,6 +50,8 @@ class Speaker:
         self._model = None
         self._voice = None
         self._loading = False
+        self.speaking = False
+        self._recent: deque = deque(maxlen=3)  # what it said lately: the mic hears that too
         threading.Thread(target=self._worker, name="speaker", daemon=True).start()
 
     # Control ---------------------------------------------------------------
@@ -103,6 +105,10 @@ class Speaker:
             self._items.clear()
             self._cut.set()
 
+    def recent_text(self) -> str:
+        """The last few things it said (or is saying), to tell its own voice from the user's."""
+        return " ".join(self._recent)
+
     # Playback ----------------------------------------------------------------
     def _worker(self):
         stream = None
@@ -112,8 +118,10 @@ class Speaker:
                     self._cv.wait()
                 text, _ = self._items.popleft()
                 self._cut.clear()
+                self._recent.append(text)
             while self._loading and not self._cut.is_set():
                 time.sleep(0.1)  # first sentence after turning voice on: wait for the model
+            self.speaking = True
             self.emit("speaking", on=True)
             try:
                 if self._model is not None:
@@ -125,7 +133,8 @@ class Speaker:
             with self._cv:
                 idle = not self._items
             if idle:
-                time.sleep(0.25)  # let the room go quiet before the mic listens again
+                self.speaking = False
+                time.sleep(0.25)  # the room's echo dies down
                 self.emit("speaking", on=False)
 
     def _play_pocket(self, text: str, stream):

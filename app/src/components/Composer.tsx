@@ -105,16 +105,9 @@ export function Composer({
     setText("");
   };
 
-  const placeholder = running
-    ? "Working on it…"
-    : wakeState === "command"
-      ? "Listening… say the task"
-      : wakeState === "hearing"
-        ? "Hearing you…"
-        : wakeOn
-          ? "Say “Hey Agent…” or type a task"
-          : "Ask Agent to do something";
-  const hot = wakeState === "hearing" || wakeState === "command";
+  // Steady text: what the mic hears doesn't change it (the mic button pulses while it waits for a spoken task).
+  const placeholder = running ? "Working on it…" : wakeOn ? "Say “Agent…” or type a task" : "Ask Agent to do something";
+  const hot = wakeState === "command";
 
   return (
     <div className="no-drag relative px-3 pb-2 pt-1">
@@ -214,7 +207,11 @@ export function Composer({
       </div>
       {(running || bypass) && (
         <div className="mt-1.5 text-center text-[11.5px] text-fg-3">
-          {running ? "Press esc to stop" : "Approvals are off: sensitive actions run without asking."}
+          {running
+            ? wakeOn
+              ? "Press esc or say “stop” to stop"
+              : "Press esc to stop"
+            : "Approvals are off: sensitive actions run without asking."}
         </div>
       )}
     </div>
