@@ -184,27 +184,25 @@ export function Composer({
           placeholder={placeholder}
           className="block max-h-[200px] min-h-[96px] flex-1 resize-none bg-transparent px-2.5 py-2 text-[14.5px] leading-[1.45] outline-none placeholder:text-fg-3"
         />
-        {/* Mic on top, a tall Send below it */}
-        <div className="flex w-9 shrink-0 flex-col gap-1.5">
-          <button
-            onClick={onToggleWake}
-            title={wakeOn ? "Stop listening for “Hey Agent”" : "Listen for “Hey Agent”"}
-            className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
-              wakeOn ? "bg-focus/10 text-focus" : "text-fg-2 hover:bg-surface-2"
-            }`}
-          >
-            {hot && <span className="absolute inset-0 animate-ping rounded-full bg-focus/20" />}
-            <Mic className="relative h-[18px] w-[18px]" strokeWidth={wakeOn ? 2.25 : 1.75} />
-          </button>
-          <button
-            onClick={submit}
-            disabled={!text.trim() || running}
-            title="Send"
-            className="flex min-h-9 w-9 flex-1 items-center justify-center rounded-full bg-fg text-white transition hover:bg-[#2b2b2b] disabled:bg-surface-3 disabled:text-fg-4"
-          >
-            <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
-          </button>
-        </div>
+        {/* Mic, then Send filling the box's full height on the right */}
+        <button
+          onClick={onToggleWake}
+          title={wakeOn ? "Stop listening for “Hey Agent”" : "Listen for “Hey Agent”"}
+          className={`relative flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full transition ${
+            wakeOn ? "bg-focus/10 text-focus" : "text-fg-2 hover:bg-surface-2"
+          }`}
+        >
+          {hot && <span className="absolute inset-0 animate-ping rounded-full bg-focus/20" />}
+          <Mic className="relative h-[18px] w-[18px]" strokeWidth={wakeOn ? 2.25 : 1.75} />
+        </button>
+        <button
+          onClick={submit}
+          disabled={!text.trim() || running}
+          title="Send"
+          className="flex w-10 shrink-0 items-center justify-center rounded-[18px] bg-fg text-white transition hover:bg-[#2b2b2b] disabled:bg-surface-3 disabled:text-fg-4"
+        >
+          <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
+        </button>
       </div>
       {(running || bypass) && (
         <div className="mt-1.5 text-center text-[11.5px] text-fg-3">
