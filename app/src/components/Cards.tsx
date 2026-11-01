@@ -152,9 +152,9 @@ export function SummaryCard({
 }) {
   const [name, setName] = useState(run.task.slice(0, 48));
   const [open, setOpen] = useState(false);
-  const [saved, setSaved] = useState(false);
   const m = run.metrics;
   const ok = run.status === "succeeded";
+  const canSave = !run.taskId && !!run.finalScript && ok && !run.savedAs;
   const title = ok
     ? `Done in ${m ? m.elapsed.toFixed(1) : "?"}s`
     : run.status === "stopped"
@@ -175,6 +175,14 @@ export function SummaryCard({
           <CircleSlash className="h-4 w-4 text-fg-3" strokeWidth={2} />
         )}
         <span className="font-medium">{title}</span>
+        {canSave && !open && (
+          <button
+            onClick={() => setOpen(true)}
+            className="ml-auto flex h-7 items-center gap-1.5 rounded-full border border-line px-2.5 text-[12.5px] text-fg-2 hover:bg-surface"
+          >
+            <Save className="h-3.5 w-3.5" strokeWidth={1.75} /> Save as a reusable task
+          </button>
+        )}
       </div>
       {run.error?.message && !ok && <div className="selectable text-[13px] text-fg-2">{run.error.message}</div>}
       {m && (
@@ -201,38 +209,26 @@ export function SummaryCard({
           The position cache skipped {m.calls_saved} model calls (about {m.time_saved.toFixed(0)}s, {fmtCost(m.cost_saved)}).
         </div>
       )}
-      {!run.taskId && run.finalScript && ok && !saved && (
-        <div>
-          {open ? (
-            <form
-              className="flex items-center gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (!name.trim()) return;
-                onSave(name.trim(), run.finalScript!);
-                setSaved(true);
-              }}
-            >
-              <input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Name this task"
-                className="h-8 flex-1 rounded-lg border border-line px-2.5 text-[13px] outline-none focus:border-fg-3"
-              />
-              <button className="h-8 rounded-lg bg-fg px-3 text-[13px] font-medium text-white">Save</button>
-            </form>
-          ) : (
-            <button
-              onClick={() => setOpen(true)}
-              className="flex h-8 items-center gap-1.5 rounded-full border border-line px-3 text-[13px] hover:bg-surface"
-            >
-              <Save className="h-3.5 w-3.5" strokeWidth={1.75} /> Save as a reusable task
-            </button>
-          )}
-        </div>
+      {canSave && open && (
+        <form
+          className="flex items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!name.trim()) return;
+            onSave(name.trim(), run.finalScript!);
+          }}
+        >
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name this task"
+            className="h-8 flex-1 rounded-lg border border-line px-2.5 text-[13px] outline-none focus:border-fg-3"
+          />
+          <button className="h-8 rounded-lg bg-fg px-3 text-[13px] font-medium text-white">Save</button>
+        </form>
       )}
-      {saved && <div className="text-[13px] text-fg-2">Saved. Say “run {name}” any time.</div>}
+      {run.savedAs && <div className="text-[13px] text-fg-2">Saved as “{run.savedAs}”. Say “run {run.savedAs}” any time.</div>}
     </div>
   );
 }

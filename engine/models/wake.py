@@ -58,6 +58,10 @@ def _commands(name: str) -> list[tuple[str, re.Pattern]]:
         ("teach", re.compile(rf"^\W*(?:{a}\W+teach(?:\W+mode)?|teach\W+mode|teach\W+{name}|let\W+me\W+teach\W+you"
                              rf"(?:\W+{name})?|{a}\W+let\W+me\W+teach\W+you)\W*$", re.I)),
         # "sent" too: on-device recognition often hears "agent send" as "agent sent"
+        # "agent save task", "save that", "save it as a task", "save task as morning report"
+        ("save", re.compile(rf"^\W*(?:{a}\W+save|save(?=\W+(?:it|that|this|task|the\W+task)))(?:\W+(?:it|that|this))?"
+                            rf"(?:\W+(?:the\W+)?task|\W+as\W+a\W+task)?(?:\W+(?:as|called|named)\W+(?P<text>.+?))?"
+                            rf"(?:\W+{name})?\W*$", re.I)),
         ("send", re.compile(rf"^\W*(?:{a}\W+sen[dt](?:\W+it)?|sen[dt](?:\W+it)?\W+{name})\W*$", re.I)),
         ("listen_off", re.compile(rf"^\W*{a}\W+stop\W+listening\W*$", re.I)),
     ]

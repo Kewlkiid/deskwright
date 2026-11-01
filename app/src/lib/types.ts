@@ -78,6 +78,7 @@ export interface Segment {
 export interface RunView {
   key: string;
   task: string;
+  savedAs?: string; // saved as a reusable task (by the button or "agent save task")
   draft: boolean;
   status: "draft" | "running" | "succeeded" | "failed" | "stopped" | "declined" | "error";
   segments: Segment[];

@@ -58,13 +58,34 @@ class Agent:
         self.host.emit("status", text="Stopping…")
 
     # Planning --------------------------------------------------------------
-    def _context_hint(self) -> str:
-        tasks = self.db.query("SELECT name, description FROM tasks ORDER BY updated DESC LIMIT 8")
+    def _context_hint(self, task: str = "") -> str:
+        """Saved tasks for the planner: their names, and the script of the most similar one to reuse its approach."""
+        tasks = self.db.query("SELECT name, description, script FROM tasks ORDER BY updated DESC LIMIT 30")
         if not tasks:
             return ""
-        return "Saved tasks the user has taught (for reference): " + "; ".join(
-            f"{t['name']}" + (f" ({t['description']})" if t["description"] else "") for t in tasks
+        hint = "Saved tasks the user has (for reference): " + "; ".join(
+            f"{t['name']}" + (f" ({t['description']})" if t["description"] else "") for t in tasks[:8]
         )
+        best, score = None, 0.0
+        for t in tasks:
+            s = _similarity(task, f"{t['name']} {t['description'] or ''}")
+            if s > score:
+                best, score = t, s
+        if best is not None and score >= 0.3:
+            hint += ("\n\nA similar task was saved before and worked. Reuse its approach (app, targets, steps, "
+                     "header) where it fits this task, and change what differs:\n"
+                     f"Saved task: {best['name']}\n```python\n{best['script']}\n```")
+        return hint
+
+    def find_task_by_name(self, name: str) -> dict | None:
+        """A saved task by exact name, else case-insensitively, else the closest name."""
+        rows = self.db.query("SELECT * FROM tasks")
+        for match in (lambda r: r["name"] == name, lambda r: r["name"].lower() == name.strip().lower()):
+            for r in rows:
+                if match(r):
+                    return r
+        scored = sorted(((_similarity(name, r["name"]), r) for r in rows), key=lambda x: -x[0])
+        return scored[0][1] if scored and scored[0][0] >= 0.5 else None
 
     def _new_context(self, task: str, run_id: int = 0, task_id: int | None = None) -> RunContext:
         ctx = RunContext(
@@ -81,7 +102,7 @@ class Agent:
         ref = sdk_reference()
         ctx.status("Writing the script…")
         shot = ctx.capture()
-        script = self.models.planner.generate_script(task, shot.image, ref, self._context_hint())
+        script = self.models.planner.generate_script(task, shot.image, ref, self._context_hint(task))
         problems = validate(script, SDK_NAMES) + scope_problems(script) + header_problems(script)
         if problems:
             ctx.status("Fixing script problems…")
@@ -356,17 +377,26 @@ class Agent:
         chat = getattr(self.models, "chat", None)
         if chat is not None:
             try:
-                names = [r["name"] for r in self.db.query("SELECT name FROM tasks ORDER BY updated DESC LIMIT 20")]
-                reply, task = chat.respond(text, names)
+                from .runner.schema import parse_header
+
+                saved = [{"name": t["name"], "description": t["description"], "inputs": parse_header(t["script"])["inputs"]}
+                         for t in self.db.query("SELECT name, description, script FROM tasks ORDER BY updated DESC LIMIT 20")]
+                reply, action = chat.respond(text, saved)
             except Exception as e:  # noqa: BLE001 - the chat being down shouldn't block tasks
                 self.host.emit("status", text=f"Chat unavailable ({type(e).__name__}); treating that as a task")
-                reply, task = "", text
+                reply, action = "", ("task", text)
             if reply:
-                self.host.emit("chat_reply", text=reply, task=task)
-            if not task:
+                self.host.emit("chat_reply", text=reply)
+            if action is None:
                 self.host.emit("chat_done")
                 return
-            text = task
+            if action[0] == "saved":
+                t = self.find_task_by_name(action[1])
+                if t:
+                    self.run_task(t["description"] or t["name"], t["script"], t["id"], inputs=action[2])
+                    return
+                action = ("task", text)  # no such saved task after all: do it fresh
+            text = action[1]
         if auto_run:
             self.run_task(text)
         else:
@@ -517,3 +547,12 @@ def literal_defaults(script: str) -> dict:
                     and isinstance(call.args[0], ast.Constant) and isinstance(value, ast.Constant)):
                 found[str(call.args[0].value)] = value.value
     return found
+
+
+def _similarity(a: str, b: str) -> float:
+    """Word overlap between two task descriptions (Jaccard over words of 3+ letters)."""
+    import re as _re
+
+    wa = {w for w in _re.findall(r"[a-z0-9]{3,}", (a or "").lower())}
+    wb = {w for w in _re.findall(r"[a-z0-9]{3,}", (b or "").lower())}
+    return len(wa & wb) / len(wa | wb) if wa and wb else 0.0

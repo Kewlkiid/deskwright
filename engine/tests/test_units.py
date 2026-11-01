@@ -355,6 +355,11 @@ def test_voice_commands():
     assert parse_voice("I am done teaching") == ("teach_stop", "")
     assert parse_voice("agent stop recording") == ("teach_stop", "")
     assert parse_voice("cancel teaching") == ("teach_cancel", "")
+    assert parse_voice("agent save task") == ("save", "")
+    assert parse_voice("save that") == ("save", "")
+    assert parse_voice("save it as a task") == ("save", "")
+    assert parse_voice("save task as morning report") == ("save", "morning report")
+    assert parse_voice("save") is None  # too easy to say in passing
     assert parse_voice("hey agent stop listening") == ("listen_off", "")
     assert parse_voice("I approve of this movie") is None  # only whole phrases count
     assert parse_voice("what should we send to grandma") is None

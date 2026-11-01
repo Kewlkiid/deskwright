@@ -77,7 +77,8 @@ export type Action =
   | { type: "setAutoRun"; value: boolean }
   | { type: "setBypass"; value: boolean }
   | { type: "clearChat" }
-  | { type: "thinking" };
+  | { type: "thinking" }
+  | { type: "patchRun"; key: string; patch: Partial<RunView> };
 
 export function reducer(s: State, a: Action): State {
   switch (a.type) {
@@ -93,6 +94,8 @@ export function reducer(s: State, a: Action): State {
       return { ...s, items: [], runs: {}, draftKey: null, thinking: false };
     case "thinking":
       return { ...s, thinking: true };
+    case "patchRun":
+      return s.runs[a.key] ? { ...s, runs: { ...s.runs, [a.key]: { ...s.runs[a.key], ...a.patch } } } : s;
     case "event": {
       const next = onEvent(s, a.msg);
       // A run or draft starting means the chat handed over: stop showing "Thinking…".

@@ -148,7 +148,7 @@ def test_chat_replies_without_running_and_hands_over_tasks(screen, agent_factory
             self.notes = []
 
         def respond(self, text, saved):
-            return ("Hi! What can I do for you?", None) if text == "hi" else ("Opening it now.", "open_app test task")
+            return ("Hi! What can I do for you?", None) if text == "hi" else ("Opening it now.", ("task", "open_app test task"))
 
         def note(self, text):
             self.notes.append(text)
@@ -161,3 +161,26 @@ def test_chat_replies_without_running_and_hands_over_tasks(screen, agent_factory
     kinds = [t for t, _ in host.events]
     assert "run_started" in kinds  # the chat handed over a task
     assert agent.models.chat.notes and "Ran the task" in agent.models.chat.notes[-1]  # and heard how it went
+
+
+def test_chat_can_run_a_saved_task_and_the_planner_sees_a_similar_one(screen, agent_factory):
+    from engine.models.fake import DEMO_SCRIPT
+
+    agent, host = agent_factory()
+    agent.db.save_task("create invoices", DEMO_SCRIPT, "Create an invoice for every order row")
+
+    class StubChat:
+        def respond(self, text, saved):
+            assert saved and saved[0]["name"] == "create invoices"
+            return "Running your saved task.", ("saved", "Create Invoices", {})
+
+        def note(self, text):
+            pass
+
+    agent.models.chat = StubChat()
+    agent.handle_command("make the invoices again")
+    started = [d for t, d in host.events if t == "run_started"]
+    assert started and started[0]["task_id"] is not None  # the saved task ran, matched case-insensitively
+    hint = agent._context_hint("create invoices for the new orders")
+    assert "A similar task was saved before" in hint and "create invoices" in hint
+    assert "similar task" not in agent._context_hint("open discord and say hi")

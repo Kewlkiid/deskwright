@@ -8,7 +8,7 @@ import { engine } from "./lib/engine";
 import { Markdown } from "./lib/markdown";
 import { useWakeWord } from "./lib/wake";
 import { initialState, reducer, uid } from "./lib/state";
-import type { ChatItem } from "./lib/types";
+import type { ChatItem, RunView } from "./lib/types";
 import { AgentNote, AgentTurn, ConfirmCard, ErrorNote, QuestionCard, SummaryCard, TeachCard, UserMessage } from "./components/Cards";
 import { Composer } from "./components/Composer";
 import { MetricsCard, PermissionsCard, PermissionsList, TasksCard } from "./components/InlineCards";
@@ -147,6 +147,18 @@ export default function App() {
     engine.send({ type: "command", text });
   };
   const toggleTeach = () => engine.send({ type: s.recording ? "teach_stop" : "teach_start" });
+  const saveRun = (run: RunView, name: string, script: string) => {
+    saveTask(name, script, run.task);
+    dispatch({ type: "patchRun", key: run.key, patch: { savedAs: name } });
+  };
+  // "agent save task": the latest finished run that can be saved, under the given or a default name.
+  const saveLatest = (name: string) => {
+    const latest = [...s.items]
+      .reverse()
+      .map((i) => (i.kind === "summary" ? s.runs[i.runKey] : undefined))
+      .find((r) => r && !r.taskId && r.finalScript && r.status === "succeeded" && !r.savedAs);
+    if (latest) saveRun(latest, name || latest.task.slice(0, 48), latest.finalScript!);
+  };
   const answerQuestion = (item: Extract<ChatItem, { kind: "question" }>, value: string) => {
     engine.send({ type: "answer_user", id: item.qid, value });
     dispatch({ type: "patchItem", id: item.id, patch: { answer: value } });
@@ -169,6 +181,7 @@ export default function App() {
     else if (action === "teach_stop" && s.recording) toggleTeach();
     else if (action === "teach_cancel" && s.recording) engine.send({ type: "teach_cancel" });
     else if (action === "listen_off") wake.off();
+    else if (action === "save") saveLatest(text);
   };
   const toggleReview = () => {
     engine.send({ type: "settings", auto_run: !s.autoRun });
@@ -229,7 +242,7 @@ export default function App() {
             run={run}
             firstRun={done[0]?.metrics}
             runNumber={done.length}
-            onSave={(name, script) => saveTask(name, script, run.task)}
+            onSave={(name, script) => saveRun(run, name, script)}
           />
         );
       }
