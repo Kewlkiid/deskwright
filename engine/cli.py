@@ -23,22 +23,72 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import queue
 import sys
 import threading
+import time
+import uuid
 from datetime import datetime, timezone
+
+# Events left out of --events: UI plumbing, or too large and internal to be useful to another program.
+QUIET_EVENTS = {"pointer", "vision_scan", "vision_miss", "scope", "request_show", "request_hide", "suppress_esc",
+                "capture_paused", "cache", "pong", "metrics", "browser", "element_found"}
+BULKY_FIELDS = {"script", "final_script", "history", "totals", "image", "screenshot", "trace"}
 
 
 class TerminalHost:
     COLORS = {"line_failed": "\033[31m", "line_rewritten": "\033[33m", "cache_hit": "\033[36m",
               "result_ready": "\033[32m", "run_finished": "\033[1m"}
 
-    def __init__(self, yes: bool = False, verbose: bool = False, stream=None):
+    def __init__(self, yes: bool = False, verbose: bool = False, stream=None, no_ask: bool = False,
+                 events: bool = False):
         self.yes = yes
         self.verbose = verbose
         self.stream = stream  # where progress goes (stderr in --json mode); None = stdout
+        self.no_ask = no_ask
+        # --events: every event is one JSON line on stderr, and questions/confirmations are answered with JSON
+        # lines on stdin ({"id": ..., "answer": ...}), so another program can show them to its user.
+        self.events = events
+        self._answers: queue.Queue = queue.Queue()
+        if events:
+            threading.Thread(target=self._read_answers, name="cli-answers", daemon=True).start()
 
     def _print(self, *args):
+        if self.events:
+            return  # only JSON events on stderr in this mode
         print(*args, file=self.stream or sys.stdout, flush=True)
+
+    def _event(self, type: str, **data):
+        line = json.dumps({"type": type, "t": round(time.time(), 3), **data}, ensure_ascii=False, default=str)
+        sys.stderr.write(line + "\n")
+        sys.stderr.flush()
+
+    def _read_answers(self):
+        for line in sys.stdin:
+            try:
+                msg = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(msg, dict) and "id" in msg:
+                self._answers.put((str(msg["id"]), msg.get("answer")))
+        self._answers.put((None, None))  # stdin closed: nobody will answer
+
+    def _await(self, kind: str, stop, **data):
+        """Send a request event and wait for its answer. Returns (answered, answer)."""
+        rid = uuid.uuid4().hex[:12]
+        self._event(kind, id=rid, **data)
+        while True:
+            if stop is not None and stop.is_set():
+                return False, None
+            try:
+                got, answer = self._answers.get(timeout=0.25)
+            except queue.Empty:
+                continue
+            if got is None:
+                self._answers.put((None, None))  # keep "closed" visible to later requests
+                return False, None
+            if got == rid:
+                return True, answer
 
     def _ask(self, prompt: str) -> str:
         if self.stream is None:
@@ -47,6 +97,10 @@ class TerminalHost:
         return sys.stdin.readline().rstrip("\n")
 
     def emit(self, type, **data):
+        if self.events:
+            if type not in QUIET_EVENTS:
+                self._event(type, **{k: v for k, v in data.items() if k not in BULKY_FIELDS})
+            return
         c = self.COLORS.get(type, "")
         reset = "\033[0m" if c else ""
         if type == "script_generated":
@@ -72,12 +126,30 @@ class TerminalHost:
             self._print(f"  [{type}] {json.dumps(data, default=str)[:200]}")
 
     def ask_user(self, question, stop):
+        from .sdk.errors import InputMissingError
+
+        if self.events:
+            answered, answer = self._await("ask_request", stop, question=question)
+            if not answered:
+                raise InputMissingError(f"Nobody answered: {question}")
+            return "" if answer is None else str(answer)
+        if self.no_ask:
+            # Never carry on with an empty answer the user didn't give.
+            raise InputMissingError(f"The task asked a question and --no-ask is set: {question}")
         return self._ask(f"\n? {question}\n> ")
 
     def confirm(self, summary, stop):
         if self.yes:
+            if self.events:
+                self._event("confirm_auto", summary=summary)
             self._print(f"  (auto-confirmed) {summary}")
             return True
+        if self.events:
+            answered, answer = self._await("confirm_request", stop, summary=summary)
+            return bool(answered and answer is True)
+        if self.no_ask:
+            self._print(f"  (declined: --no-ask) {summary}")
+            return False
         return self._ask(f"\n! Confirm: {summary} [y/N] ").strip().lower() in ("y", "yes")
 
     def before_capture(self):
@@ -146,7 +218,11 @@ def cmd_run(argv: list[str], prog: str = "engine.cli run") -> int:
     p.add_argument("--inputs-json", help="task inputs as a JSON object")
     p.add_argument("--json", action="store_true", help="progress to stderr, one JSON result on stdout")
     p.add_argument("--yes", action="store_true", help="auto-confirm sensitive actions")
-    p.add_argument("--no-ask", action="store_true", help="fail on a missing input instead of asking")
+    p.add_argument("--no-ask", action="store_true",
+                   help="never prompt on the terminal: a missing input or a question fails the run, a confirmation is declined")
+    p.add_argument("--events", action="store_true",
+                   help="with --json: JSON event lines on stderr; answer ask_request/confirm_request on stdin as "
+                        "{\"id\": ..., \"answer\": ...}")
     p.add_argument("--wait-lock", type=float, default=0.0, metavar="SECONDS",
                    help="wait this long for another run to free the screen (default 0: answer \"busy\" at once)")
     p.add_argument("-v", "--verbose", action="store_true")
@@ -154,7 +230,14 @@ def cmd_run(argv: list[str], prog: str = "engine.cli run") -> int:
 
     real_stdout = sys.stdout
     if args.json:
-        sys.stdout = sys.stderr  # stdout carries only the final JSON object
+        # stdout carries only the final JSON object. Keep a private copy of it, then point file descriptor 1 (and
+        # sys.stdout) at stderr, so nothing else, not even native libraries, can write a stray line into it.
+        try:
+            real_stdout = os.fdopen(os.dup(1), "w", encoding="utf-8")
+            os.dup2(2, 1)
+        except OSError:
+            pass
+        sys.stdout = sys.stderr
 
     def finish(status: str, outputs: dict | None = None, error: str | None = None, run_id=None) -> int:
         if args.json:
@@ -178,7 +261,8 @@ def cmd_run(argv: list[str], prog: str = "engine.cli run") -> int:
         from .agent import Agent
         from .runner.schema import schema_of
 
-        host = TerminalHost(args.yes, args.verbose, stream=sys.stderr if args.json else None)
+        host = TerminalHost(args.yes, args.verbose, stream=sys.stderr if args.json else None, no_ask=args.no_ask,
+                            events=args.json and args.events)
         agent = Agent(host)
         agent.lock_wait = args.wait_lock
         task_text, script, task_id = args.task, None, None
