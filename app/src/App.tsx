@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  ArrowUpRight, BarChart3, GraduationCap, LayoutList, ListChecks, MoreHorizontal, PanelRightClose, Plus, Power, ShieldOff,
+  BarChart3, GraduationCap, KeyRound, LayoutList, ListChecks, Mic, MoreHorizontal, PanelRightClose, Power, ShieldOff,
   SquarePen,
 } from "lucide-react";
 import { engine } from "./lib/engine";
@@ -10,7 +10,7 @@ import { initialState, reducer, uid } from "./lib/state";
 import type { ChatItem } from "./lib/types";
 import { AgentNote, AgentTurn, ConfirmCard, ErrorNote, QuestionCard, SummaryCard, TeachCard, UserMessage } from "./components/Cards";
 import { Composer } from "./components/Composer";
-import { MetricsCard, PermissionsCard, TasksCard } from "./components/InlineCards";
+import { MetricsCard, PermissionsCard, PermissionsList, TasksCard } from "./components/InlineCards";
 import { Logo } from "./components/Logo";
 import { Menu } from "./components/Menu";
 import { Pill } from "./components/Pill";
@@ -18,11 +18,6 @@ import { ResultCard } from "./components/ResultCard";
 import { RunActivity } from "./components/RunActivity";
 import { ScriptView } from "./components/ScriptView";
 
-const SUGGESTIONS = [
-  "Create an invoice for every row in the orders table",
-  "Copy the orders table into a new spreadsheet",
-  "Summarize the page I'm looking at",
-];
 
 // Engine events that drive the on-screen overlay (grounding box, clicks, verdicts).
 const OVERLAY_EVENTS = new Set([
@@ -72,9 +67,16 @@ export default function App() {
   }, []);
   const sendToEngine = useCallback((msg: Record<string, unknown>) => engine.send(msg as any), []);
   const [running, setRunningState] = useState(false);
-  const wake = useWakeWord(sendToEngine, running); // utterances aren't sent while a run is on the screen
+  // The approval or question the run is waiting on, if any (answerable by voice: "approve", "agent input ...").
+  const waiting = [...s.items]
+    .reverse()
+    .find((i) => (i.kind === "confirm" || i.kind === "question") && i.answer === undefined && !i.closed);
+  // While a run is on the screen, utterances are only sent when it's waiting for an answer.
+  const wake = useWakeWord(sendToEngine, running && !waiting);
   const wakeRef = useRef(wake);
   wakeRef.current = wake;
+  const composer = useRef<{ submit: () => void } | null>(null);
+  const voiceRef = useRef<(action: string, text: string) => void>(() => {});
   const bottom = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -87,6 +89,7 @@ export default function App() {
         window.agent?.overlay(light);
       }
       if (msg.type === "wake_heard") wakeRef.current.heard();
+      if (msg.type === "voice_action") voiceRef.current(msg.action, msg.text || "");
       if (msg.type === "wake_unavailable") wakeRef.current.off();
       if (msg.type === "run_started") {
         setRunningState(true);
@@ -130,6 +133,7 @@ export default function App() {
     add({ id: uid(), kind: "tasks" });
   };
   const showMetrics = () => add({ id: uid(), kind: "metrics" });
+  const showPermissions = () => add({ id: uid(), kind: "permissions" });
   const send = (text: string) => {
     add({ id: uid(), kind: "user", text });
     if (TASKS_RE.test(text.trim())) return showTasks();
@@ -137,6 +141,28 @@ export default function App() {
     engine.send({ type: "command", text });
   };
   const toggleTeach = () => engine.send({ type: s.recording ? "teach_stop" : "teach_start" });
+  const answerQuestion = (item: Extract<ChatItem, { kind: "question" }>, value: string) => {
+    engine.send({ type: "answer_user", id: item.qid, value });
+    dispatch({ type: "patchItem", id: item.id, patch: { answer: value } });
+    backToPillIfRunning();
+  };
+  const replyConfirm = (item: Extract<ChatItem, { kind: "confirm" }>, value: boolean | "all") => {
+    engine.send({ type: "confirm_reply", id: item.qid, value });
+    dispatch({ type: "patchItem", id: item.id, patch: { answer: value !== false } });
+    if (value !== false) backToPillIfRunning();
+  };
+  // Spoken commands (engine/models/wake.py), done exactly as the matching button would.
+  voiceRef.current = (action, text) => {
+    if (action === "approve" && waiting?.kind === "confirm") replyConfirm(waiting, true);
+    else if (action === "decline" && waiting?.kind === "confirm") replyConfirm(waiting, false);
+    else if (action === "input") {
+      if (waiting?.kind === "question") answerQuestion(waiting, text);
+      else if (!running && text) send(text);
+    } else if (action === "send") composer.current?.submit();
+    else if (action === "teach" && !s.recording) toggleTeach();
+    else if (action === "teach_stop" && s.recording) toggleTeach();
+    else if (action === "listen_off") wake.off();
+  };
   const toggleReview = () => {
     engine.send({ type: "settings", auto_run: !s.autoRun });
     dispatch({ type: "setAutoRun", value: !s.autoRun });
@@ -205,22 +231,14 @@ export default function App() {
         return (
           <QuestionCard
             item={item}
-            onAnswer={(value) => {
-              engine.send({ type: "answer_user", id: item.qid, value });
-              dispatch({ type: "patchItem", id: item.id, patch: { answer: value } });
-              backToPillIfRunning();
-            }}
+            onAnswer={(value) => answerQuestion(item, value)}
           />
         );
       case "confirm":
         return (
           <ConfirmCard
             item={item}
-            onReply={(value) => {
-              engine.send({ type: "confirm_reply", id: item.qid, value });
-              dispatch({ type: "patchItem", id: item.id, patch: { answer: value !== false } });
-              if (value !== false) backToPillIfRunning();
-            }}
+            onReply={(value) => replyConfirm(item, value)}
           />
         );
       case "teach":
@@ -234,6 +252,8 @@ export default function App() {
             onDelete={(id) => engine.send({ type: "delete_task", task_id: id })}
           />
         );
+      case "permissions":
+        return <PermissionsList />;
       case "metrics":
         return (
           <MetricsCard
@@ -302,27 +322,6 @@ export default function App() {
           </span>
         )}
         <span className="flex-1" />
-        <Menu
-          align="right"
-          width={260}
-          trigger={(open, toggle) => (
-            <button
-              onClick={toggle}
-              title="Actions"
-              className={`flex h-8 w-8 items-center justify-center rounded-lg text-fg-2 hover:bg-surface-2 ${open ? "bg-surface-2" : ""}`}
-            >
-              <Plus className="h-[18px] w-[18px]" strokeWidth={1.75} />
-            </button>
-          )}
-          items={[
-            { label: s.recording ? "Finish demonstration" : "Teach by demonstration", icon: GraduationCap, onSelect: toggleTeach },
-            { label: "Saved tasks", icon: LayoutList, hint: "/tasks", onSelect: showTasks },
-            { label: "Run metrics", icon: BarChart3, hint: "/metrics", onSelect: showMetrics },
-            { kind: "separator" },
-            { kind: "toggle", label: "Review before running", icon: ListChecks, checked: !s.autoRun, onSelect: toggleReview },
-            { kind: "toggle", label: "Skip approvals", icon: ShieldOff, checked: s.bypass, onSelect: toggleBypass },
-          ]}
-        />
         <button
           onClick={() => dispatch({ type: "clearChat" })}
           title="New conversation"
@@ -332,7 +331,6 @@ export default function App() {
         </button>
         <Menu
           align="right"
-          width={220}
           trigger={(open, toggle) => (
             <button
               onClick={toggle}
@@ -342,7 +340,19 @@ export default function App() {
               <MoreHorizontal className="h-[18px] w-[18px]" strokeWidth={1.75} />
             </button>
           )}
-          items={[{ label: "Quit Agent", icon: Power, onSelect: () => window.agent?.quit() }]}
+          width={260}
+          items={[
+            { label: s.recording ? "Finish demonstration" : "Teach by demonstration", icon: GraduationCap, onSelect: toggleTeach },
+            { label: "Saved tasks", icon: LayoutList, hint: "/tasks", onSelect: showTasks },
+            { label: "Run metrics", icon: BarChart3, hint: "/metrics", onSelect: showMetrics },
+            { label: "Permissions", icon: KeyRound, onSelect: showPermissions },
+            { kind: "separator" },
+            { kind: "toggle", label: "Listen for “Hey Agent”", icon: Mic, checked: wake.on, onSelect: wake.toggle },
+            { kind: "toggle", label: "Review before running", icon: ListChecks, checked: !s.autoRun, onSelect: toggleReview },
+            { kind: "toggle", label: "Skip approvals", icon: ShieldOff, checked: s.bypass, onSelect: toggleBypass },
+            { kind: "separator" },
+            { label: "Quit Agent", icon: Power, onSelect: () => window.agent?.quit() },
+          ]}
         />
         <button
           onClick={goPill}
@@ -382,21 +392,6 @@ export default function App() {
                   </div>
                 </div>
               )}
-              <div>
-                <div className="mb-1 px-1 text-[12px] text-fg-3">Try</div>
-                <div className="divide-y divide-line-soft">
-                  {SUGGESTIONS.map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => send(t)}
-                      className="group flex w-full items-center gap-2 rounded-lg px-1 py-2.5 text-left text-[13.5px] text-fg-2 hover:text-fg"
-                    >
-                      <span className="flex-1">{t}</span>
-                      <ArrowUpRight className="h-4 w-4 text-fg-4 transition group-hover:text-fg" strokeWidth={1.75} />
-                    </button>
-                  ))}
-                </div>
-              </div>
             </div>
           </div>
         ) : (
@@ -424,6 +419,7 @@ export default function App() {
       </div>
 
       <Composer
+        apiRef={composer}
         running={s.running}
         recording={s.recording}
         reviewMode={!s.autoRun}

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld("agent", {
   engineInfo: () => ipcRenderer.invoke("engine-info"),
   restartEngine: () => ipcRenderer.invoke("restart-engine"),
   permissions: () => ipcRenderer.invoke("permissions"),
+  revokePermission: (kind) => ipcRenderer.invoke("revoke-permission", kind),
   askAccessibility: () => ipcRenderer.invoke("ask-accessibility"),
   askMicrophone: () => ipcRenderer.invoke("ask-microphone"),
   askScreen: () => ipcRenderer.invoke("ask-screen"),

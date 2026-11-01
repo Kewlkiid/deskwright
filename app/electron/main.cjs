@@ -274,16 +274,66 @@ function freshScreenStatus() {
   });
 }
 
+// Speech Recognition (the wake word) and Input Monitoring (teach mode) can only be read from a process of our own:
+// the engine's Python, which macOS attributes to Agent.
+const SPEECH = ["not asked", "denied", "restricted", "granted"];
+function helperStatuses() {
+  if (!IS_MAC) return Promise.resolve({});
+  return new Promise((resolve) => {
+    const code =
+      "import json\nout={}\ntry:\n import Speech; out['speech']=int(Speech.SFSpeechRecognizer.authorizationStatus())\n" +
+      "except Exception: pass\ntry:\n import Quartz; out['input']=bool(Quartz.CGPreflightListenEventAccess())\n" +
+      "except Exception: pass\nprint(json.dumps(out))";
+    const p = spawn(pythonPath(), ["-c", code], { stdio: ["ignore", "pipe", "ignore"] });
+    let out = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.on("error", () => resolve({}));
+    p.on("close", () => {
+      try {
+        resolve(JSON.parse(out));
+      } catch {
+        resolve({});
+      }
+    });
+  });
+}
+
 async function permissionStatus() {
   if (!IS_MAC) return { platform: process.platform, screen: "granted", accessibility: true, microphone: "granted" };
-  const screen = await freshScreenStatus();
+  const [screen, extra] = await Promise.all([freshScreenStatus(), helperStatuses()]);
   return {
     platform: process.platform,
     screen,
     restart: screen === "granted" && SCREEN_AT_START !== "granted",
     microphone: systemPreferences.getMediaAccessStatus("microphone"),
     accessibility: systemPreferences.isTrustedAccessibilityClient(false),
+    speech: typeof extra.speech === "number" ? SPEECH[extra.speech] || "unknown" : "unknown",
+    input: typeof extra.input === "boolean" ? extra.input : null,
   };
+}
+
+// Taking a permission back: macOS lets an app clear its own entries (tccutil reset <service> <bundle id>). The
+// change shows in System Settings at once; some (Screen Recording, Accessibility) apply after Agent restarts.
+const TCC_SERVICES = {
+  screen: "ScreenCapture",
+  accessibility: "Accessibility",
+  microphone: "Microphone",
+  speech: "SpeechRecognition",
+  input: "ListenEvent",
+  automation: "AppleEvents",
+};
+function revokePermission(kind) {
+  const service = TCC_SERVICES[kind];
+  if (!IS_MAC || !service) return Promise.resolve(false);
+  const bundle = app.isPackaged ? "dev.alex.agent" : "com.github.Electron";
+  return new Promise((resolve) => {
+    const p = spawn("/usr/bin/tccutil", ["reset", service, bundle], { stdio: "ignore" });
+    p.on("error", () => resolve(false));
+    p.on("close", (code) => {
+      if (kind === "screen" && code === 0) screenNow = "denied";
+      resolve(code === 0);
+    });
+  });
 }
 
 const PANES = {
@@ -291,6 +341,8 @@ const PANES = {
   accessibility: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
   microphone: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
   input: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent",
+  speech: "x-apple.systempreferences:com.apple.preference.security?Privacy_SpeechRecognition",
+  automation: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation",
 };
 
 // ---------------------------------------------------------------- IPC
@@ -301,6 +353,7 @@ function registerIpc() {
     return startEngine();
   });
   ipcMain.handle("permissions", () => permissionStatus());
+  ipcMain.handle("revoke-permission", (_e, kind) => revokePermission(kind));
   ipcMain.on("relaunch", () => {
     app.relaunch();
     app.quit();

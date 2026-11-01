@@ -7,7 +7,7 @@ export type WakeState = "off" | "listening" | "hearing" | "command";
 
 const RATE = 16000;
 const PRE_ROLL_S = 0.4; // audio kept from just before speech started, so the first word isn't clipped
-const END_SILENCE_S = 0.9; // this much quiet ends an utterance
+const END_SILENCE_S = 1.2; // this much quiet ends an utterance (shorter splits sentences at a pause)
 const MAX_UTTERANCE_S = 12;
 const MIN_SPEECH_S = 0.35;
 const COMMAND_WINDOW_MS = 7000; // after a bare "Hey Agent", how long the next utterance counts as the task
@@ -82,7 +82,7 @@ export function useWakeWord(send: (msg: Record<string, unknown>) => void, paused
         let take: Float32Array[] | null = null;
         let speech = 0;
         let quiet = 0;
-        let floor = 0.01;
+        const levels: number[] = []; // recent loudness, to tell the room's background from speech
         const frameS = 2048 / RATE;
         setState("listening");
         node.onaudioprocess = (e) => {
@@ -90,8 +90,12 @@ export function useWakeWord(send: (msg: Record<string, unknown>) => void, paused
           let sum = 0;
           for (let i = 0; i < x.length; i++) sum += x[i] * x[i];
           const rms = Math.sqrt(sum / x.length);
-          const loud = rms > Math.max(0.02, floor * 3);
-          if (!loud) floor = floor * 0.95 + rms * 0.05; // track the room's background level
+          // Background = the quieter end of the last few seconds, so it follows the room up as well as down (a fan
+          // or music starting would otherwise read as one endless sentence).
+          levels.push(rms);
+          if (levels.length * frameS > 4) levels.shift();
+          const floor = [...levels].sort((a, b) => a - b)[Math.floor(levels.length * 0.2)] ?? 0.01;
+          const loud = rms > Math.max(0.02, floor * 2.5);
           if (!take) {
             pre.push(x);
             while (pre.length * frameS > PRE_ROLL_S) pre.shift();

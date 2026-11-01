@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type MutableRefObject, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, BarChart3, GraduationCap, LayoutList, ListChecks, Mic, Trash2 } from "lucide-react";
 import type { WakeState } from "../lib/wake";
@@ -35,7 +35,9 @@ export function Composer({
   onShowMetrics,
   onToggleReview,
   onClear,
+  apiRef,
 }: {
+  apiRef?: MutableRefObject<{ submit: () => void } | null>;
   running: boolean;
   recording: boolean;
   reviewMode: boolean;
@@ -71,7 +73,7 @@ export function Composer({
     const el = ta.current;
     if (!el) return;
     el.style.height = "0px";
-    el.style.height = Math.min(168, el.scrollHeight) + "px";
+    el.style.height = Math.min(200, el.scrollHeight) + "px";
   };
   useEffect(fit, [text]);
   useEffect(() => {
@@ -88,6 +90,7 @@ export function Composer({
     return () => ro.disconnect();
   }, []);
 
+  if (apiRef) apiRef.current = { submit: () => submit() }; // "agent send" presses Send
   const submit = () => {
     if (slash.length) {
       slash[Math.min(sel, slash.length - 1)].run();
@@ -163,10 +166,10 @@ export function Composer({
         )}
       </AnimatePresence>
 
-      <div className="flex items-end gap-1 rounded-[26px] bg-white py-1.5 pl-2 pr-1.5 shadow-composer">
+      <div className="flex items-stretch gap-1.5 rounded-[24px] bg-white py-1.5 pl-2 pr-1.5 shadow-composer">
         <textarea
           ref={ta}
-          rows={1}
+          rows={3}
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
@@ -179,26 +182,29 @@ export function Composer({
             }
           }}
           placeholder={placeholder}
-          className="block max-h-[168px] min-h-[36px] flex-1 resize-none self-center bg-transparent px-2.5 py-[7px] text-[14.5px] leading-[1.45] outline-none placeholder:text-fg-3"
+          className="block max-h-[200px] min-h-[96px] flex-1 resize-none bg-transparent px-2.5 py-2 text-[14.5px] leading-[1.45] outline-none placeholder:text-fg-3"
         />
-        <button
-          onClick={onToggleWake}
-          title={wakeOn ? "Stop listening for “Hey Agent”" : "Listen for “Hey Agent”"}
-          className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
-            wakeOn ? "bg-focus/10 text-focus" : "text-fg-2 hover:bg-surface-2"
-          }`}
-        >
-          {hot && <span className="absolute inset-0 animate-ping rounded-full bg-focus/20" />}
-          <Mic className="relative h-[18px] w-[18px]" strokeWidth={wakeOn ? 2.25 : 1.75} />
-        </button>
-        <button
-          onClick={submit}
-          disabled={!text.trim() || running}
-          title="Send"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-fg text-white transition hover:bg-[#2b2b2b] disabled:bg-surface-3 disabled:text-fg-4"
-        >
-          <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
-        </button>
+        {/* Mic on top, a tall Send below it */}
+        <div className="flex w-9 shrink-0 flex-col gap-1.5">
+          <button
+            onClick={onToggleWake}
+            title={wakeOn ? "Stop listening for “Hey Agent”" : "Listen for “Hey Agent”"}
+            className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
+              wakeOn ? "bg-focus/10 text-focus" : "text-fg-2 hover:bg-surface-2"
+            }`}
+          >
+            {hot && <span className="absolute inset-0 animate-ping rounded-full bg-focus/20" />}
+            <Mic className="relative h-[18px] w-[18px]" strokeWidth={wakeOn ? 2.25 : 1.75} />
+          </button>
+          <button
+            onClick={submit}
+            disabled={!text.trim() || running}
+            title="Send"
+            className="flex min-h-9 w-9 flex-1 items-center justify-center rounded-full bg-fg text-white transition hover:bg-[#2b2b2b] disabled:bg-surface-3 disabled:text-fg-4"
+          >
+            <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
+          </button>
+        </div>
       </div>
       {(running || bypass) && (
         <div className="mt-1.5 text-center text-[11.5px] text-fg-3">

@@ -1,7 +1,7 @@
 // Saved tasks, metrics and permissions, shown as cards inside the conversation instead of separate tabs.
 import { useEffect, useState } from "react";
 import { Check, ChevronRight, GraduationCap, Play, Trash2 } from "lucide-react";
-import type { Metrics, Permissions, SavedTask } from "../lib/types";
+import type { Metrics, PermissionKind, Permissions, SavedTask } from "../lib/types";
 import { RunChart } from "./RunChart";
 
 export function TasksCard({
@@ -248,6 +248,96 @@ export function PermissionsCard() {
           </button>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Every macOS permission Agent uses: whether it's allowed, a way to allow it, and a way to take it back. */
+export function PermissionsList() {
+  const [perm, setPerm] = useState<Permissions | null>(null);
+  const [busy, setBusy] = useState<PermissionKind | null>(null);
+  const [note, setNote] = useState("");
+  const poll = () => window.agent?.permissions().then(setPerm);
+  useEffect(() => {
+    poll();
+    const t = setInterval(poll, 3000);
+    return () => clearInterval(t);
+  }, []);
+  if (!perm) return <div className="text-[13px] text-fg-3">Checking permissions…</div>;
+  if (perm.platform !== "darwin") return <div className="text-[13px] text-fg-2">Permissions are only needed on macOS.</div>;
+
+  const rows: { kind: PermissionKind; label: string; why: string; ok: boolean | null; ask: () => void }[] = [
+    { kind: "screen", label: "Screen Recording", why: "see your screen (required)", ok: perm.screen === "granted",
+      ask: () => { window.agent?.askScreen(); window.agent?.openPermission("screen"); } },
+    { kind: "accessibility", label: "Accessibility", why: "move the mouse and type (required)", ok: perm.accessibility,
+      ask: () => { window.agent?.askAccessibility(); window.agent?.openPermission("accessibility"); } },
+    { kind: "microphone", label: "Microphone", why: "hear “Hey Agent”", ok: perm.microphone === "granted",
+      ask: () => window.agent?.askMicrophone().then(poll) },
+    { kind: "speech", label: "Speech Recognition", why: "understand speech on this Mac",
+      ok: perm.speech === "granted" ? true : perm.speech === "denied" ? false : null,
+      ask: () => window.agent?.openPermission("speech") },
+    { kind: "input", label: "Input Monitoring", why: "record your demonstrations in teach mode", ok: perm.input ?? null,
+      ask: () => window.agent?.openPermission("input") },
+    { kind: "automation", label: "Automation", why: "open and switch apps", ok: null,
+      ask: () => window.agent?.openPermission("automation") },
+  ];
+
+  const revoke = async (kind: PermissionKind, label: string) => {
+    setBusy(kind);
+    const ok = await window.agent?.revokePermission(kind);
+    setBusy(null);
+    setNote(ok ? `${label} was taken back. macOS asks again the next time Agent needs it.` : `Couldn't change ${label}; use System Settings.`);
+    poll();
+  };
+
+  return (
+    <div className="rounded-2xl border border-line p-3.5 text-left">
+      <div className="text-[14px] font-medium">Permissions</div>
+      <div className="mt-0.5 text-[12.5px] text-fg-2">What macOS lets Agent do. Changes to Screen Recording and Accessibility apply after a restart.</div>
+      <div className="mt-2.5 divide-y divide-line-soft">
+        {rows.map((r) => (
+          <div key={r.kind} className="flex items-center gap-2.5 py-2">
+            <span
+              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                r.ok ? "border-ok bg-ok" : r.ok === false ? "border-bad" : "border-fg-4"
+              }`}
+            >
+              {r.ok && <Check className="h-2.5 w-2.5 text-white" strokeWidth={3} />}
+            </span>
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="text-[13px]">{r.label}</div>
+              <div className="truncate text-[11.5px] text-fg-3">
+                {r.ok ? "Allowed" : r.ok === false ? "Not allowed" : "Not asked yet"} · {r.why}
+              </div>
+            </div>
+            {r.ok ? (
+              <button
+                disabled={busy === r.kind}
+                onClick={() => revoke(r.kind, r.label)}
+                className="h-7 shrink-0 rounded-full border border-line px-2.5 text-[12px] text-fg-2 hover:bg-surface disabled:opacity-50"
+              >
+                {busy === r.kind ? "…" : "Revoke"}
+              </button>
+            ) : (
+              <button
+                onClick={r.ask}
+                className="h-7 shrink-0 rounded-full bg-fg px-2.5 text-[12px] font-medium text-white hover:bg-[#2b2b2b]"
+              >
+                Allow
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+      {note && <div className="mt-2 text-[12px] text-fg-2">{note}</div>}
+      {perm.restart && (
+        <button
+          onClick={() => window.agent?.relaunch()}
+          className="mt-2 h-8 rounded-full bg-fg px-3.5 text-[12.5px] font-medium text-white hover:bg-[#2b2b2b]"
+        >
+          Restart Agent
+        </button>
+      )}
     </div>
   );
 }

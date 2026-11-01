@@ -349,13 +349,12 @@ class Agent:
 
     # Voice -----------------------------------------------------------------
     def hear(self, audio: bytes, mime: str, command: bool = False, auto_run: bool = True):
-        """One utterance from wake-word listening. `command`: the user already said the wake phrase and this is the
-        task. Heard on this Mac only; ignored unless it starts with the wake phrase."""
+        """One utterance from wake-word listening. `command`: the user already said "Hey Agent" and this is the task.
+        Recognised on this Mac only; anything that isn't for the agent is dropped. UI commands (approve, send, input,
+        teach...) go back to the app as `voice_action`; while a run is on the screen only answers to it count."""
         from .models.voice import to_wav
-        from .models.wake import match_wake, transcribe_on_device
+        from .models.wake import parse_voice, transcribe_on_device
 
-        if self._busy.locked():
-            return  # a run is on the screen; Esc is how to talk to it
         wav = audio if mime.startswith("audio/wav") else to_wav(audio)
         text = transcribe_on_device(wav) if wav else None
         if text is None:
@@ -364,18 +363,20 @@ class Agent:
                                                            "wake word can't listen privately.")
                 return
             text = self.models.voice.transcribe(audio, mime)  # the user asked for this one: the cloud model is fine
-        if not command:
-            heard, text = match_wake(text)
-            if not heard:
-                return
-            if not text:
-                self.host.emit("wake_heard")  # "Hey Agent" on its own: the next utterance is the task
-                return
-        text = text.strip()
-        if not text:
+        parsed = ("task", text.strip()) if command else parse_voice(text)
+        if parsed is None:
             return
-        self.host.emit("transcript", text=text, voice=True)
-        self.handle_command(text, auto_run)
+        action, value = parsed
+        if self._busy.locked() and action not in ("approve", "decline", "input"):
+            return  # a run is on the screen; Esc is how to stop it
+        if action == "wake":
+            self.host.emit("wake_heard")  # "Hey Agent" on its own: the next utterance is the task
+        elif action == "task":
+            if value:
+                self.host.emit("transcript", text=value, voice=True)
+                self.handle_command(value, auto_run)
+        else:
+            self.host.emit("voice_action", action=action, text=value, heard=text)
 
     def transcribe(self, audio: bytes, mime: str) -> str:
         t0 = time.time()

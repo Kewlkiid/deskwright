@@ -5,9 +5,10 @@ export interface AgentBridge {
   engineInfo(): Promise<{ port: number; token: string } | null>;
   restartEngine(): Promise<{ port: number; token: string } | null>;
   permissions(): Promise<Permissions>;
+  revokePermission(kind: PermissionKind): Promise<boolean>;
   askAccessibility(): Promise<boolean>;
   askMicrophone(): Promise<boolean>;
-  openPermission(kind: "screen" | "accessibility" | "microphone" | "input"): void;
+  openPermission(kind: PermissionKind): void;
   setMode(mode: "panel" | "pill" | "mini"): void;
   setRunning(running: boolean): void;
   suppressEsc(): void;
@@ -24,12 +25,16 @@ export interface AgentBridge {
   onEngineExit(cb: (code: number) => void): () => void;
 }
 
+export type PermissionKind = "screen" | "accessibility" | "microphone" | "speech" | "input" | "automation";
+
 export interface Permissions {
   platform: string;
   screen: string;
   restart?: boolean; // Screen Recording was granted while Agent was running: a restart puts it into effect
   microphone: string;
   accessibility: boolean;
+  speech?: string; // Speech Recognition, for the wake word: "granted" | "denied" | "not asked" | ...
+  input?: boolean | null; // Input Monitoring, for teach mode
 }
 
 declare global {
@@ -134,6 +139,7 @@ export type ChatItem =
   | { id: string; kind: "summary"; runKey: string }
   | { id: string; kind: "tasks" }
   | { id: string; kind: "metrics" }
+  | { id: string; kind: "permissions" }
   | {
       id: string;
       kind: "teach";

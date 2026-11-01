@@ -37,6 +37,45 @@ def match_wake(text: str) -> tuple[bool, str]:
     return True, text[m.end():].strip()
 
 
+# Spoken commands besides "Hey Agent, <task>". `name` is the wake word; most commands work with or without it.
+CLOSE_WORDS = r"(?:send|send it|done|over|enter|that's it)"
+
+
+def _commands(name: str) -> list[tuple[str, re.Pattern]]:
+    a = rf"(?:(?:hey|hi|ok|okay)\W+)?{name}"  # "agent", "hey agent"
+    return [
+        # "enter input <text>", "agent input <text>", "task input <text>": typed in and sent; a trailing close word
+        # ("... send", "... done") is dropped
+        ("input", re.compile(rf"^\W*(?:enter|{a}|task)\W+input\W+(?P<text>.+?)(?:\W+{CLOSE_WORDS})?\W*$", re.I)),
+        ("approve", re.compile(rf"^\W*(?:{a}\W+)?(?:yes\W+)?(?:approve|approved|i approve|go ahead|confirm(?:ed)?)"
+                               rf"(?:\W+(?:it|that))?(?:\W+{name})?\W*$", re.I)),
+        ("decline", re.compile(rf"^\W*(?:{a}\W+)?(?:no\W+)?(?:decline|declined|deny|denied|reject)(?:\W+(?:it|that))?"
+                               rf"(?:\W+{name})?\W*$", re.I)),
+        ("teach_stop", re.compile(rf"^\W*(?:{a}\W+)?(?:i'?m\W+|i\W+am\W+|we'?re\W+)?(?:done|finish(?:ed)?|stop(?:ped)?)"
+                                  rf"\W+(?:teaching|recording)(?:\W+{name})?\W*$", re.I)),
+        ("teach", re.compile(rf"^\W*(?:{a}\W+teach(?:\W+mode)?|teach\W+mode|teach\W+{name}|let\W+me\W+teach\W+you"
+                             rf"(?:\W+{name})?|{a}\W+let\W+me\W+teach\W+you)\W*$", re.I)),
+        # "sent" too: on-device recognition often hears "agent send" as "agent sent"
+        ("send", re.compile(rf"^\W*(?:{a}\W+sen[dt](?:\W+it)?|sen[dt](?:\W+it)?\W+{name})\W*$", re.I)),
+        ("listen_off", re.compile(rf"^\W*{a}\W+stop\W+listening\W*$", re.I)),
+    ]
+
+
+def parse_voice(text: str) -> tuple[str, str] | None:
+    """What an utterance asks for: ("input", text), ("approve"|"decline"|"teach"|"teach_stop"|"send"|"listen_off", ""),
+    ("task", text) for "Hey Agent, <task>", ("wake", "") for a bare "Hey Agent", or None (not for the agent)."""
+    text = (text or "").strip()
+    name = re.escape(config.wake_word.strip().lower())
+    for action, pat in _commands(name):
+        m = pat.match(text)
+        if m:
+            return action, (m.groupdict().get("text") or "").strip()
+    heard, rest = match_wake(text)
+    if heard:
+        return ("task", rest) if rest else ("wake", "")
+    return None
+
+
 def on_device_available() -> bool:
     if Speech is None:
         return False

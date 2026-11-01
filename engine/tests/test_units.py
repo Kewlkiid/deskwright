@@ -331,3 +331,29 @@ def test_wake_phrase_matching():
     assert match_wake("what time is it")[0] is False
     assert match_wake("the agent said hey")[0] is False  # only at the start
     assert match_wake("hey agents")[0] is False
+
+
+def test_voice_commands():
+    from engine.models.wake import parse_voice
+
+    assert parse_voice("Hey agent, open notes") == ("task", "open notes")
+    assert parse_voice("hey agent") == ("wake", "")
+    assert parse_voice("Approve") == ("approve", "")
+    assert parse_voice("approved") == ("approve", "")
+    assert parse_voice("Agent, approve it") == ("approve", "")
+    assert parse_voice("decline that") == ("decline", "")
+    assert parse_voice("agent send") == ("send", "")
+    assert parse_voice("Send it agent") == ("send", "")
+    assert parse_voice("Agent sent") == ("send", "")
+    assert parse_voice("Enter input the red one, send") == ("input", "the red one")
+    assert parse_voice("agent input 42 Main Street done") == ("input", "42 Main Street")
+    assert parse_voice("task input hello world") == ("input", "hello world")
+    assert parse_voice("teach mode") == ("teach", "")
+    assert parse_voice("let me teach you") == ("teach", "")
+    assert parse_voice("agent teach") == ("teach", "")
+    assert parse_voice("I'm done teaching") == ("teach_stop", "")
+    assert parse_voice("I am done teaching") == ("teach_stop", "")
+    assert parse_voice("agent stop recording") == ("teach_stop", "")
+    assert parse_voice("hey agent stop listening") == ("listen_off", "")
+    assert parse_voice("I approve of this movie") is None  # only whole phrases count
+    assert parse_voice("what should we send to grandma") is None
