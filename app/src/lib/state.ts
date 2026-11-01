@@ -261,7 +261,7 @@ function onEvent(s: State, m: any): State {
             id: uid(),
             kind: "agent",
             icon: "sparkle",
-            text: `**A task was requested:** ${m.describe}\n\nPress ● and do it once, then ■. I'll save it as “${m.name || "the requested task"}”, and whoever asked can use it right away.`,
+            text: `A task was requested: ${String(m.describe).replace(/[.\s]+$/, "")}. Press ● and do it once, then ■. I'll save it as “${m.name || "the requested task"}”, and whoever asked can use it right away.`,
           },
         ],
       };
