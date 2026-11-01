@@ -2,7 +2,6 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUp, Check, CircleSlash, Copy, FolderOpen, Mic, Save, Sparkles, TriangleAlert, X } from "lucide-react";
 import type { ChatItem, Metrics, RunView } from "../lib/types";
-import { Logo } from "./Logo";
 import { ScriptView } from "./ScriptView";
 
 const fade = { initial: { opacity: 0, y: 4 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.18 } };
@@ -19,11 +18,11 @@ export function UserMessage({ text, voice }: { text: string; voice?: boolean }) 
 }
 
 /** An assistant turn: the mark on the left, content on the right, no bubble. */
-export function AgentTurn({ children, mark = true }: { children: React.ReactNode; mark?: boolean }) {
+/** The agent's side of the conversation: plain, no avatar. */
+export function AgentTurn({ children }: { children: React.ReactNode; mark?: boolean }) {
   return (
-    <motion.div {...fade} className="flex gap-3">
-      <div className="w-5 shrink-0 pt-[2px]">{mark && <Logo size={20} />}</div>
-      <div className="min-w-0 flex-1 space-y-2.5">{children}</div>
+    <motion.div {...fade} className="min-w-0 space-y-2.5">
+      {children}
     </motion.div>
   );
 }

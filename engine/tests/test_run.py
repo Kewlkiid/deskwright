@@ -138,3 +138,26 @@ def test_enter_after_typing_a_message_asks(screen, agent_factory):
     assert out["status"] == "declined"
     out = agent.run_task("search", 'open_app("Finder")\ntype_into("search field", "notes")\npress("enter")')
     assert out["status"] == "succeeded"  # Enter in a search box sends nothing to anyone
+
+
+def test_chat_replies_without_running_and_hands_over_tasks(screen, agent_factory):
+    agent, host = agent_factory()
+
+    class StubChat:
+        def __init__(self):
+            self.notes = []
+
+        def respond(self, text, saved):
+            return ("Hi! What can I do for you?", None) if text == "hi" else ("Opening it now.", "open_app test task")
+
+        def note(self, text):
+            self.notes.append(text)
+
+    agent.models.chat = StubChat()
+    agent.handle_command("hi")
+    kinds = [t for t, _ in host.events]
+    assert "chat_reply" in kinds and "run_started" not in kinds  # just a reply
+    agent.handle_command("open the invoices app")
+    kinds = [t for t, _ in host.events]
+    assert "run_started" in kinds  # the chat handed over a task
+    assert agent.models.chat.notes and "Ran the task" in agent.models.chat.notes[-1]  # and heard how it went

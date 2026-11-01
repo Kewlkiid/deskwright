@@ -5,6 +5,7 @@ import {
   SquarePen,
 } from "lucide-react";
 import { engine } from "./lib/engine";
+import { Markdown } from "./lib/markdown";
 import { useWakeWord } from "./lib/wake";
 import { initialState, reducer, uid } from "./lib/state";
 import type { ChatItem } from "./lib/types";
@@ -133,11 +134,16 @@ export default function App() {
     add({ id: uid(), kind: "tasks" });
   };
   const showMetrics = () => add({ id: uid(), kind: "metrics" });
+  const clearChat = () => {
+    dispatch({ type: "clearChat" });
+    engine.send({ type: "clear_chat" }); // the engine's conversation memory too
+  };
   const showPermissions = () => add({ id: uid(), kind: "permissions" });
   const send = (text: string) => {
     add({ id: uid(), kind: "user", text });
     if (TASKS_RE.test(text.trim())) return showTasks();
     if (METRICS_RE.test(text.trim())) return showMetrics();
+    dispatch({ type: "thinking" });
     engine.send({ type: "command", text });
   };
   const toggleTeach = () => engine.send({ type: s.recording ? "teach_stop" : "teach_start" });
@@ -182,6 +188,12 @@ export default function App() {
     switch (item.kind) {
       case "agent":
         return <AgentNote item={item} />;
+      case "reply":
+        return (
+          <div className="selectable text-[14px] leading-relaxed text-fg">
+            <Markdown text={item.text} />
+          </div>
+        );
       case "error":
         return <ErrorNote text={item.text} />;
       case "run": {
@@ -302,7 +314,7 @@ export default function App() {
       {/* Header */}
       <div className={`flex h-12 shrink-0 items-center gap-2 px-3 transition-shadow ${scrolled ? "shadow-[0_1px_0_#efefef]" : ""}`}>
         <Logo size={22} />
-        <span className="text-[15px] font-semibold tracking-tight">Agent</span>
+        <span className="text-[15px] font-semibold tracking-tight">Deskwright</span>
         {!s.connected && (
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11.5px] text-fg-2">
             {s.engineDown ? "Engine offline" : "Connecting…"}
@@ -324,7 +336,7 @@ export default function App() {
         )}
         <span className="flex-1" />
         <button
-          onClick={() => dispatch({ type: "clearChat" })}
+          onClick={() => clearChat()}
           title="New conversation"
           className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-2 hover:bg-surface-2"
         >
@@ -408,6 +420,11 @@ export default function App() {
                 )}
               </div>
             ))}
+            {s.thinking && (
+              <AgentTurn>
+                <span className="shimmer text-[13.5px]">Thinking…</span>
+              </AgentTurn>
+            )}
             {s.teachStatus && (
               <AgentTurn>
                 <span className="shimmer text-[13.5px]">{s.teachStatus}…</span>
@@ -433,7 +450,7 @@ export default function App() {
         onShowTasks={showTasks}
         onShowMetrics={showMetrics}
         onToggleReview={toggleReview}
-        onClear={() => dispatch({ type: "clearChat" })}
+        onClear={() => clearChat()}
       />
     </motion.div>
       )}

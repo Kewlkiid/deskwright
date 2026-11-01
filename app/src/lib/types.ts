@@ -131,6 +131,7 @@ export interface ElementInfo {
 export type ChatItem =
   | { id: string; kind: "user"; text: string; voice?: boolean }
   | { id: string; kind: "agent"; text: string; path?: string; icon?: "save" | "copy" | "sparkle" }
+  | { id: string; kind: "reply"; text: string } // a chat answer
   | { id: string; kind: "error"; text: string }
   | { id: string; kind: "run"; runKey: string }
   | { id: string; kind: "result"; result: ResultItem }

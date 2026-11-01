@@ -247,6 +247,11 @@ class Agent:
             self.last_run = {"final_script": final_script, "detours": learned}
             metrics = ctx.metrics.snapshot()
             self.db.finish_run(run_id, status, metrics)
+            chat = getattr(self.models, "chat", None)
+            if chat is not None:  # so the conversation can refer to what just happened
+                said = " ".join(str(r.get("text") or r.get("title") or "") for r in ctx.results)[:400]
+                chat.note(f"[Ran the task “{task}”: {status}." + (f" Result: {said}" if said else "") +
+                          (f" Error: {(error or {}).get('message', '')[:200]}" if error else "") + "]")
             if ctx.debug is not None:
                 ctx.debug.finish(status, metrics, error)
             self.host.emit(
@@ -342,7 +347,23 @@ class Agent:
         saved = self.find_saved_by_phrase(text)
         if saved:
             self.run_task(saved["description"] or saved["name"], saved["script"], saved["id"])
-        elif auto_run:
+            return
+        # A normal conversation first: the chat replies, and hands over a task only when something should be done.
+        chat = getattr(self.models, "chat", None)
+        if chat is not None:
+            try:
+                names = [r["name"] for r in self.db.query("SELECT name FROM tasks ORDER BY updated DESC LIMIT 20")]
+                reply, task = chat.respond(text, names)
+            except Exception as e:  # noqa: BLE001 - the chat being down shouldn't block tasks
+                self.host.emit("status", text=f"Chat unavailable ({type(e).__name__}); treating that as a task")
+                reply, task = "", text
+            if reply:
+                self.host.emit("chat_reply", text=reply, task=task)
+            if not task:
+                self.host.emit("chat_done")
+                return
+            text = task
+        if auto_run:
             self.run_task(text)
         else:
             self.draft_task(text)

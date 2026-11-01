@@ -15,6 +15,7 @@ export interface State {
   totals: { runs: number; success_rate: number; fix_success_rate: number } | null;
   recording: boolean;
   teachStatus: string;
+  thinking: boolean; // a message was sent and the chat hasn't answered yet
   autoRun: boolean;
   bypass: boolean; // approvals off: sensitive actions run without asking
   lastCacheHit: string | null;
@@ -35,6 +36,7 @@ export const initialState: State = {
   totals: null,
   recording: false,
   teachStatus: "",
+  thinking: false,
   autoRun: true,
   bypass: false,
   lastCacheHit: null,
@@ -74,7 +76,8 @@ export type Action =
   | { type: "patchItem"; id: string; patch: Partial<ChatItem> }
   | { type: "setAutoRun"; value: boolean }
   | { type: "setBypass"; value: boolean }
-  | { type: "clearChat" };
+  | { type: "clearChat" }
+  | { type: "thinking" };
 
 export function reducer(s: State, a: Action): State {
   switch (a.type) {
@@ -87,9 +90,14 @@ export function reducer(s: State, a: Action): State {
     case "setAutoRun":
       return { ...s, autoRun: a.value };
     case "clearChat":
-      return { ...s, items: [], runs: {}, draftKey: null };
-    case "event":
-      return onEvent(s, a.msg);
+      return { ...s, items: [], runs: {}, draftKey: null, thinking: false };
+    case "thinking":
+      return { ...s, thinking: true };
+    case "event": {
+      const next = onEvent(s, a.msg);
+      // A run or draft starting means the chat handed over: stop showing "Thinking…".
+      return ["run_started", "script_generated", "status"].includes(a.msg.type) && next.thinking ? { ...next, thinking: false } : next;
+    }
   }
 }
 
@@ -243,6 +251,10 @@ function onEvent(s: State, m: any): State {
         items: [...next.items, { id: uid(), kind: "summary", runKey: key }],
       };
     }
+    case "chat_reply":
+      return { ...s, thinking: false, items: [...s.items, { id: uid(), kind: "reply", text: m.text }] };
+    case "chat_done":
+      return { ...s, thinking: false };
     case "task_updated":
       return { ...s, items: [...s.items, { id: uid(), kind: "agent", text: m.note, icon: "sparkle" }] };
     case "transcript":
@@ -298,7 +310,7 @@ function onEvent(s: State, m: any): State {
     case "wake_unavailable":
       return { ...s, items: [...s.items, { id: uid(), kind: "agent", text: m.message, icon: "sparkle" }] };
     case "error":
-      return { ...s, items: [...s.items, { id: uid(), kind: "error", text: m.message }], teachStatus: "" };
+      return { ...s, items: [...s.items, { id: uid(), kind: "error", text: m.message }], teachStatus: "", thinking: false };
     default:
       return s;
   }

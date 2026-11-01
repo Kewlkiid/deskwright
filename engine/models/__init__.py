@@ -11,6 +11,7 @@ class Models:
     vision: Any
     grounder: Any
     voice: Any
+    chat: Any = None  # chat.py: replies in conversation and decides when to take control; None = every message is a task
 
 
 _models: Models | None = None
@@ -27,6 +28,7 @@ def get_models() -> Models:
 
             _models = Models(FakePlanner(), FakeVision(), GroundingRouter(sam=FakeGrounder()), FakeVoice())
         else:
+            from .chat import Chat
             from .client import ModelClient
             from .grid import GridGrounder
             from .grounding import SamGrounder
@@ -41,7 +43,7 @@ def get_models() -> Models:
             # SAM proposes precise candidate boxes; the vision model picks the one the script means.
             sam = SamGrounder(client, picker=vision.pick_box) if config.grounding_model else None
             grid = GridGrounder(client) if config.grid_model else None
-            _models = Models(Planner(client), vision, GroundingRouter(sam, grid), Voice(client))
+            _models = Models(Planner(client), vision, GroundingRouter(sam, grid), Voice(client), Chat(client))
     return _models
 
 

@@ -35,6 +35,8 @@ class Config:
     ocr_candidates: bool = field(default_factory=lambda: _flag("AGENT_OCR", "1"))
     # Wake word: "hey <wake_word>, ..." starts a task while the voice button is on (models/wake.py).
     wake_word: str = field(default_factory=lambda: os.environ.get("WAKE_WORD", "agent"))
+    # Conversation turns (models/chat.py): quick replies, and the decision to take control. Defaults to the vision model.
+    chat_model: str = field(default_factory=lambda: os.environ.get("CHAT_MODEL", "") or os.environ.get("VISION_MODEL", "muse-spark-1.3"))
     voice_model: str = field(default_factory=lambda: os.environ.get("VOICE_MODEL", "muse-voice-transcribe-1.0"))
     fake_models: bool = field(default_factory=lambda: _flag("AGENT_FAKE_MODELS"))
     # Synthetic screen and no real input at all: UI development and tests without screen permissions.

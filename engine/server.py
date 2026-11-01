@@ -191,6 +191,9 @@ class Server:
                 if m.get("auto_send", True) and text:
                     a.handle_command(text, self.settings.get("auto_run", True))
             self._bg(go)
+        elif t == "clear_chat":
+            if getattr(a.models, "chat", None) is not None:
+                a.models.chat.clear()
         elif t == "wake_audio":
             self._bg(a.hear, base64.b64decode(m["data"]), m.get("mime", "audio/wav"), bool(m.get("command")),
                      self.settings.get("auto_run", True))
