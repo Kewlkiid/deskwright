@@ -191,6 +191,9 @@ class Server:
                 if m.get("auto_send", True) and text:
                     a.handle_command(text, self.settings.get("auto_run", True))
             self._bg(go)
+        elif t == "wake_audio":
+            self._bg(a.hear, base64.b64decode(m["data"]), m.get("mime", "audio/wav"), bool(m.get("command")),
+                     self.settings.get("auto_run", True))
         elif t == "teach_start":
             self._bg(a.teach_start)
         elif t == "teach_stop":
@@ -209,9 +212,6 @@ class Server:
                 where = export_data(m["data"], m.get("fmt", "csv"), m.get("name"))
                 self.host.emit("exported", path=where, fmt=m.get("fmt", "csv"))
             self._bg(go)
-        elif t == "set_capture_paused":
-            (a.capture_paused.set if m.get("paused") else a.capture_paused.clear)()
-            self.host.emit("capture_paused", paused=a.capture_paused.is_set())
         elif t == "settings":
             self.settings.update({k: v for k, v in m.items() if k != "type"})
             self.host.bypass = bool(self.settings.get("bypass_approvals"))

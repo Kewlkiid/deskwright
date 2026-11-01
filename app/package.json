@@ -57,9 +57,10 @@
         "dir"
       ],
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Agent listens when you press the mic button so you can speak tasks.",
+        "NSMicrophoneUsageDescription": "Agent listens for “Hey Agent” when you turn on the mic button, so you can speak tasks.",
         "NSAppleEventsUsageDescription": "Agent opens and switches between apps you ask it to use.",
-        "LSUIElement": false
+        "LSUIElement": false,
+        "NSSpeechRecognitionUsageDescription": "Agent recognises “Hey Agent” and your spoken task on this Mac."
       }
     }
   }

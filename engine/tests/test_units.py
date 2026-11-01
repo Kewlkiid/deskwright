@@ -320,3 +320,14 @@ def test_router_strikes_only_count_when_the_grid_found_what_sam_missed():
     for _ in range(SAM_STRIKES + 2):
         r.locate(Image.new("RGB", (100, 100)), "Something that isn't on screen")
     assert r.sam_failures == 0 and r.label == "SAM 3.1"
+
+
+def test_wake_phrase_matching():
+    from engine.models.wake import match_wake
+
+    assert match_wake("Hey agent open Notes and write hello") == (True, "open Notes and write hello")
+    assert match_wake("Okay, Agent. What's on my calendar?") == (True, "What's on my calendar?")
+    assert match_wake("hey agent") == (True, "")
+    assert match_wake("what time is it")[0] is False
+    assert match_wake("the agent said hey")[0] is False  # only at the start
+    assert match_wake("hey agents")[0] is False

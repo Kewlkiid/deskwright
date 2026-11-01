@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUpRight, BarChart3, LayoutList, MoreHorizontal, PanelRightClose, Power, SquarePen } from "lucide-react";
+import {
+  ArrowUpRight, BarChart3, GraduationCap, LayoutList, ListChecks, MoreHorizontal, PanelRightClose, Plus, Power, ShieldOff,
+  SquarePen,
+} from "lucide-react";
 import { engine } from "./lib/engine";
+import { useWakeWord } from "./lib/wake";
 import { initialState, reducer, uid } from "./lib/state";
 import type { ChatItem } from "./lib/types";
 import { AgentNote, AgentTurn, ConfirmCard, ErrorNote, QuestionCard, SummaryCard, TeachCard, UserMessage } from "./components/Cards";
@@ -66,6 +70,11 @@ export default function App() {
     requestAnimationFrame(() => setModeState("opening"));
     timer.current = setTimeout(() => setModeState("panel"), TRANSITION_MS + 40);
   }, []);
+  const sendToEngine = useCallback((msg: Record<string, unknown>) => engine.send(msg as any), []);
+  const [running, setRunningState] = useState(false);
+  const wake = useWakeWord(sendToEngine, running); // utterances aren't sent while a run is on the screen
+  const wakeRef = useRef(wake);
+  wakeRef.current = wake;
   const bottom = useRef<HTMLDivElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [scrolled, setScrolled] = useState(false);
@@ -77,13 +86,17 @@ export default function App() {
         const { thumbnail, results, history, final_script, ...light } = msg;
         window.agent?.overlay(light);
       }
+      if (msg.type === "wake_heard") wakeRef.current.heard();
+      if (msg.type === "wake_unavailable") wakeRef.current.off();
       if (msg.type === "run_started") {
+        setRunningState(true);
         runningRef.current = true;
         window.agent?.setRunning(true);
         window.agent?.yieldFocus();
         goPill();
       }
       if (msg.type === "run_finished") {
+        setRunningState(false);
         runningRef.current = false;
         window.agent?.setRunning(false);
         goPanel();
@@ -123,7 +136,6 @@ export default function App() {
     if (METRICS_RE.test(text.trim())) return showMetrics();
     engine.send({ type: "command", text });
   };
-  const stop = () => engine.send({ type: "stop" });
   const toggleTeach = () => engine.send({ type: s.recording ? "teach_stop" : "teach_start" });
   const toggleReview = () => {
     engine.send({ type: "settings", auto_run: !s.autoRun });
@@ -133,7 +145,6 @@ export default function App() {
     engine.send({ type: "settings", bypass_approvals: !s.bypass });
     dispatch({ type: "setBypass", value: !s.bypass });
   };
-  const toggleCapture = () => engine.send({ type: "set_capture_paused", paused: !s.captureMuted });
   const saveTask = (name: string, script: string, description = "", source = "chat") =>
     engine.send({ type: "save_task", name, script, description, source });
   const runScript = (script: string) => engine.send({ type: "run_script", script });
@@ -291,6 +302,27 @@ export default function App() {
           </span>
         )}
         <span className="flex-1" />
+        <Menu
+          align="right"
+          width={260}
+          trigger={(open, toggle) => (
+            <button
+              onClick={toggle}
+              title="Actions"
+              className={`flex h-8 w-8 items-center justify-center rounded-lg text-fg-2 hover:bg-surface-2 ${open ? "bg-surface-2" : ""}`}
+            >
+              <Plus className="h-[18px] w-[18px]" strokeWidth={1.75} />
+            </button>
+          )}
+          items={[
+            { label: s.recording ? "Finish demonstration" : "Teach by demonstration", icon: GraduationCap, onSelect: toggleTeach },
+            { label: "Saved tasks", icon: LayoutList, hint: "/tasks", onSelect: showTasks },
+            { label: "Run metrics", icon: BarChart3, hint: "/metrics", onSelect: showMetrics },
+            { kind: "separator" },
+            { kind: "toggle", label: "Review before running", icon: ListChecks, checked: !s.autoRun, onSelect: toggleReview },
+            { kind: "toggle", label: "Skip approvals", icon: ShieldOff, checked: s.bypass, onSelect: toggleBypass },
+          ]}
+        />
         <button
           onClick={() => dispatch({ type: "clearChat" })}
           title="New conversation"
@@ -310,12 +342,7 @@ export default function App() {
               <MoreHorizontal className="h-[18px] w-[18px]" strokeWidth={1.75} />
             </button>
           )}
-          items={[
-            { label: "Saved tasks", icon: LayoutList, onSelect: showTasks },
-            { label: "Run metrics", icon: BarChart3, onSelect: showMetrics },
-            { kind: "separator" },
-            { label: "Quit Agent", icon: Power, onSelect: () => window.agent?.quit() },
-          ]}
+          items={[{ label: "Quit Agent", icon: Power, onSelect: () => window.agent?.quit() }]}
         />
         <button
           onClick={goPill}
@@ -401,16 +428,14 @@ export default function App() {
         recording={s.recording}
         reviewMode={!s.autoRun}
         bypass={s.bypass}
-        onToggleBypass={toggleBypass}
-        captureMuted={s.captureMuted}
+        wakeOn={wake.on}
+        wakeState={wake.state}
+        onToggleWake={wake.toggle}
         onSend={send}
-        onStop={stop}
-        onAudio={(data, mime) => engine.send({ type: "audio", data, mime })}
         onTeach={toggleTeach}
         onShowTasks={showTasks}
         onShowMetrics={showMetrics}
         onToggleReview={toggleReview}
-        onToggleCapture={toggleCapture}
         onClear={() => dispatch({ type: "clearChat" })}
       />
     </motion.div>

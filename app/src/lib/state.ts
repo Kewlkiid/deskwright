@@ -15,7 +15,6 @@ export interface State {
   totals: { runs: number; success_rate: number; fix_success_rate: number } | null;
   recording: boolean;
   teachStatus: string;
-  captureMuted: boolean;
   autoRun: boolean;
   bypass: boolean; // approvals off: sensitive actions run without asking
   lastCacheHit: string | null;
@@ -36,7 +35,6 @@ export const initialState: State = {
   totals: null,
   recording: false,
   teachStatus: "",
-  captureMuted: false,
   autoRun: true,
   bypass: false,
   lastCacheHit: null,
@@ -293,8 +291,8 @@ function onEvent(s: State, m: any): State {
           },
         ],
       };
-    case "capture_paused":
-      return { ...s, captureMuted: !!m.paused };
+    case "wake_unavailable":
+      return { ...s, items: [...s.items, { id: uid(), kind: "agent", text: m.message, icon: "sparkle" }] };
     case "error":
       return { ...s, items: [...s.items, { id: uid(), kind: "error", text: m.message }], teachStatus: "" };
     default:

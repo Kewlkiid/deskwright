@@ -30,7 +30,6 @@ class Agent:
         self.db = db or DB(config.db_path)
         self.cache = PositionCache(self.db)
         self.stop_event = threading.Event()
-        self.capture_paused = threading.Event()
         self._busy = threading.Lock()
         # One run on the screen at a time across processes (the app's engine and CLI runs from other programs).
         from .runner.screen_lock import ScreenLock
@@ -70,7 +69,7 @@ class Agent:
     def _new_context(self, task: str, run_id: int = 0, task_id: int | None = None) -> RunContext:
         ctx = RunContext(
             host=self.host, models=self.models, db=self.db, cache=self.cache, task=task, run_id=run_id,
-            task_id=task_id, stop_event=self.stop_event, capture_paused=self.capture_paused,
+            task_id=task_id, stop_event=self.stop_event,
             panel_bounds=lambda: self.ui_bounds,
         )
         ctx.progress = Progress(run_id, self.db if run_id else None)
@@ -349,6 +348,35 @@ class Agent:
             self.draft_task(text)
 
     # Voice -----------------------------------------------------------------
+    def hear(self, audio: bytes, mime: str, command: bool = False, auto_run: bool = True):
+        """One utterance from wake-word listening. `command`: the user already said the wake phrase and this is the
+        task. Heard on this Mac only; ignored unless it starts with the wake phrase."""
+        from .models.voice import to_wav
+        from .models.wake import match_wake, transcribe_on_device
+
+        if self._busy.locked():
+            return  # a run is on the screen; Esc is how to talk to it
+        wav = audio if mime.startswith("audio/wav") else to_wav(audio)
+        text = transcribe_on_device(wav) if wav else None
+        if text is None:
+            if not command:
+                self.host.emit("wake_unavailable", message="On-device speech recognition isn't available, so the "
+                                                           "wake word can't listen privately.")
+                return
+            text = self.models.voice.transcribe(audio, mime)  # the user asked for this one: the cloud model is fine
+        if not command:
+            heard, text = match_wake(text)
+            if not heard:
+                return
+            if not text:
+                self.host.emit("wake_heard")  # "Hey Agent" on its own: the next utterance is the task
+                return
+        text = text.strip()
+        if not text:
+            return
+        self.host.emit("transcript", text=text, voice=True)
+        self.handle_command(text, auto_run)
+
     def transcribe(self, audio: bytes, mime: str) -> str:
         t0 = time.time()
         text = self.models.voice.transcribe(audio, mime)

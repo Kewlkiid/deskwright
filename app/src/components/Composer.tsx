@@ -1,20 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUp, BarChart3, Eye, GraduationCap, LayoutList, ListChecks, Mic, Plus, ShieldOff, Square, Trash2 } from "lucide-react";
-import { Menu } from "./Menu";
+import { ArrowUp, BarChart3, GraduationCap, LayoutList, ListChecks, Mic, Trash2 } from "lucide-react";
+import type { WakeState } from "../lib/wake";
 
 export interface SlashCommand {
   name: string;
   label: string;
   icon: any;
   run: () => void;
-}
-
-async function blobToBase64(blob: Blob): Promise<string> {
-  const buf = new Uint8Array(await blob.arrayBuffer());
-  let s = "";
-  for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
-  return btoa(s);
 }
 
 function useElapsed(active: boolean) {
@@ -33,39 +26,32 @@ export function Composer({
   recording,
   reviewMode,
   bypass,
-  onToggleBypass,
-  captureMuted,
+  wakeOn,
+  wakeState,
+  onToggleWake,
   onSend,
-  onStop,
-  onAudio,
   onTeach,
   onShowTasks,
   onShowMetrics,
   onToggleReview,
-  onToggleCapture,
   onClear,
 }: {
   running: boolean;
   recording: boolean;
   reviewMode: boolean;
   bypass: boolean;
-  onToggleBypass: () => void;
-  captureMuted: boolean;
+  wakeOn: boolean;
+  wakeState: WakeState;
+  onToggleWake: () => void;
   onSend: (text: string) => void;
-  onStop: () => void;
-  onAudio: (b64: string, mime: string) => void;
   onTeach: () => void;
   onShowTasks: () => void;
   onShowMetrics: () => void;
   onToggleReview: () => void;
-  onToggleCapture: () => void;
   onClear: () => void;
 }) {
   const [text, setText] = useState("");
-  const [listening, setListening] = useState(false);
   const [sel, setSel] = useState(0);
-  const rec = useRef<MediaRecorder | null>(null);
-  const chunks = useRef<Blob[]>([]);
   const ta = useRef<HTMLTextAreaElement>(null);
   const elapsed = useElapsed(recording);
 
@@ -98,32 +84,16 @@ export function Composer({
     setText("");
   };
 
-  const toggleMic = async () => {
-    if (listening) {
-      rec.current?.stop();
-      return;
-    }
-    try {
-      await window.agent?.askMicrophone();
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
-      const r = new MediaRecorder(stream, { mimeType: mime });
-      chunks.current = [];
-      r.ondataavailable = (e) => e.data.size && chunks.current.push(e.data);
-      r.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setListening(false);
-        const blob = new Blob(chunks.current, { type: mime });
-        if (blob.size > 1000) onAudio(await blobToBase64(blob), mime);
-      };
-      rec.current = r;
-      r.start();
-      setListening(true);
-    } catch (e) {
-      console.error("microphone", e);
-      setListening(false);
-    }
-  };
+  const placeholder = running
+    ? "Working on it…"
+    : wakeState === "command"
+      ? "Listening… say the task"
+      : wakeState === "hearing"
+        ? "Hearing you…"
+        : wakeOn
+          ? "Say “Hey Agent…” or type a task"
+          : "Ask Agent to do something";
+  const hot = wakeState === "hearing" || wakeState === "command";
 
   return (
     <div className="no-drag relative px-3 pb-2 pt-1">
@@ -177,7 +147,7 @@ export function Composer({
         )}
       </AnimatePresence>
 
-      <div className="rounded-[26px] bg-white px-2 pb-2 pt-1 shadow-composer">
+      <div className="flex items-end gap-1 rounded-[26px] bg-white py-1.5 pl-2 pr-1.5 shadow-composer">
         <textarea
           ref={ta}
           rows={1}
@@ -192,61 +162,27 @@ export function Composer({
               submit();
             }
           }}
-          placeholder={listening ? "Listening…" : running ? "Working on it…" : "Ask Agent to do something"}
-          className="block max-h-[168px] min-h-[44px] w-full resize-none bg-transparent px-2.5 pt-2.5 text-[14.5px] leading-[1.45] outline-none placeholder:text-fg-3"
+          placeholder={placeholder}
+          className="block max-h-[168px] min-h-[36px] flex-1 resize-none self-center bg-transparent px-2.5 py-[7px] text-[14.5px] leading-[1.45] outline-none placeholder:text-fg-3"
         />
-        <div className="flex items-center gap-1">
-          <Menu
-            side="top"
-            width={260}
-            trigger={(open, toggle) => (
-              <button
-                onClick={toggle}
-                title="More"
-                className={`flex h-9 w-9 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2 ${open ? "bg-surface-2" : ""}`}
-              >
-                <Plus className="h-[18px] w-[18px]" strokeWidth={1.75} />
-              </button>
-            )}
-            items={[
-              { label: recording ? "Finish demonstration" : "Teach by demonstration", icon: GraduationCap, onSelect: onTeach },
-              { label: "Saved tasks", icon: LayoutList, hint: "/tasks", onSelect: onShowTasks },
-              { label: "Run metrics", icon: BarChart3, hint: "/metrics", onSelect: onShowMetrics },
-              { kind: "separator" },
-              { kind: "toggle", label: "Review before running", icon: ListChecks, checked: reviewMode, onSelect: onToggleReview },
-              { kind: "toggle", label: "Skip approvals", icon: ShieldOff, checked: bypass, onSelect: onToggleBypass },
-              { kind: "toggle", label: "Pause screen capture", icon: Eye, checked: captureMuted, onSelect: onToggleCapture },
-            ]}
-          />
-          <span className="flex-1" />
-          <button
-            onClick={toggleMic}
-            title={listening ? "Stop and send" : "Voice"}
-            className={`flex h-9 w-9 items-center justify-center rounded-full transition ${
-              listening ? "bg-[#fef2f2] text-bad" : "text-fg-2 hover:bg-surface-2"
-            }`}
-          >
-            {listening ? <span className="h-2.5 w-2.5 animate-rec rounded-sm bg-bad" /> : <Mic className="h-[18px] w-[18px]" strokeWidth={1.75} />}
-          </button>
-          {running ? (
-            <button
-              onClick={onStop}
-              title="Stop (⌘⇧X)"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-fg text-white hover:bg-[#2b2b2b]"
-            >
-              <Square className="h-3 w-3 fill-white" />
-            </button>
-          ) : (
-            <button
-              onClick={submit}
-              disabled={!text.trim()}
-              title="Send"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-fg text-white transition hover:bg-[#2b2b2b] disabled:bg-surface-3 disabled:text-fg-4"
-            >
-              <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
-            </button>
-          )}
-        </div>
+        <button
+          onClick={onToggleWake}
+          title={wakeOn ? "Stop listening for “Hey Agent”" : "Listen for “Hey Agent”"}
+          className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition ${
+            wakeOn ? "bg-focus/10 text-focus" : "text-fg-2 hover:bg-surface-2"
+          }`}
+        >
+          {hot && <span className="absolute inset-0 animate-ping rounded-full bg-focus/20" />}
+          <Mic className="relative h-[18px] w-[18px]" strokeWidth={wakeOn ? 2.25 : 1.75} />
+        </button>
+        <button
+          onClick={submit}
+          disabled={!text.trim() || running}
+          title="Send"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-fg text-white transition hover:bg-[#2b2b2b] disabled:bg-surface-3 disabled:text-fg-4"
+        >
+          <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
+        </button>
       </div>
       {(running || bypass) && (
         <div className="mt-1.5 text-center text-[11.5px] text-fg-3">

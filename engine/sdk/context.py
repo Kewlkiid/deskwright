@@ -88,7 +88,6 @@ class RunContext:
     run_id: int = 0
     task_id: int | None = None
     stop_event: threading.Event = field(default_factory=threading.Event)
-    capture_paused: threading.Event = field(default_factory=threading.Event)
     metrics: Metrics = field(default_factory=Metrics)
     progress: Any = None
     pending: Pending | None = None
@@ -168,9 +167,6 @@ class RunContext:
     # Screen ----------------------------------------------------------------
     def capture(self) -> cap.Shot:
         self.check_stop()
-        while self.capture_paused.is_set():
-            self.status("Capture paused")
-            self.sleep(0.3)
         self.host.before_capture()
         try:
             shot = cap.grab()
