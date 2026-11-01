@@ -142,11 +142,16 @@ NO_PREV_BLOCK = 'There is no previous step to check: set prev_expect_met to null
 
 CHECK_PROMPT = """Image size: {w}x{h}.
 Is this condition true on the screen right now? CONDITION: "{condition}"
+Be strict. Quoted text must appear exactly, letter for letter (a missing or extra character makes it false). A named \
+place, app, person or item must be that exact one, not something that only shares words with it (a "Central Park \
+Family Restaurant" in Florida is not Central Park; an app "Todo List for Notion" is not Notion). If unsure, false.
 {prev_block}
 Reply with JSON only: {{"result": true|false, "reason": "...", "prev_expect_met": true|false|null, "observation": "..."}}"""
 
 ASK_PROMPT = """Image size: {w}x{h}.
 Answer this question about the screen: "{question}"
+Report what the screen actually shows, exactly as written. If the question asks you to confirm something and the \
+screen shows something different (a different place, item or name that only shares words), say so plainly.
 {prev_block}
 Reply with JSON only: {{"answer": "...", "prev_expect_met": true|false|null, "observation": "..."}}"""
 
