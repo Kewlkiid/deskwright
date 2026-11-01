@@ -203,6 +203,9 @@ class SamGrounder:
             for b in self._parse_response_all(data, small.size):
                 if all(_iou(b, o) < 0.7 for o in sam):
                     sam.append(b)
+        if re.search(r"\bicons?\b", phrase, re.I):
+            # Icons are roughly square; a thin strip (a window edge, a selection bar) is never the icon.
+            sam = [b for b in sam if 0.45 <= (b[2] - b[0]) / max(1, b[3] - b[1]) <= 2.2] or sam
         if len(sam) > MAX_CANDIDATES:
             sam = in_zone(sam, phrase, small.size) or sam  # e.g. 67 icons, "far-left sidebar": keep the left ones
         texts = text_candidates(small, phrase) if config.ocr_candidates else []

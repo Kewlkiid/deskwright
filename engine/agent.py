@@ -380,8 +380,11 @@ class Agent:
             try:
                 from .runner.schema import parse_header
 
-                saved = [{"name": t["name"], "description": t["description"], "inputs": parse_header(t["script"])["inputs"]}
-                         for t in self.db.query("SELECT name, description, script FROM tasks ORDER BY updated DESC LIMIT 20")]
+                saved = []
+                for t in self.db.query("SELECT name, description, script FROM tasks ORDER BY updated DESC LIMIT 20"):
+                    h = parse_header(t["script"])
+                    saved.append({"name": t["name"], "description": t["description"], "inputs": h["inputs"],
+                                  "outputs": h["outputs"]})
                 reply, action = chat.respond(text, saved)
             except Exception as e:  # noqa: BLE001 - the chat being down shouldn't block tasks
                 self.host.emit("status", text=f"Chat unavailable ({type(e).__name__}); treating that as a task")

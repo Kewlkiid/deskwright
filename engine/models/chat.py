@@ -15,8 +15,10 @@ Call run_task only when the user wants something done or looked up on the comput
 send, click, find on screen, fill in, check their messages...). Write the task as one clear instruction that \
 includes any details from the conversation. When you call it, also say in a few words what you're about to do.
 Don't call it for greetings, small talk, or questions you can answer without the computer.
-If one of the user's saved tasks below already does what they want, call run_saved_task with its exact name and the \
-inputs it needs (taken from the conversation) instead of run_task: it is faster and already proven.
+If one of the user's saved tasks below does the WHOLE request, including giving back what they asked for (look at its \
+outputs), call run_saved_task with its exact name and the inputs it needs (from the conversation) instead of run_task: \
+it is faster and already proven. A saved task that only does part of it (e.g. it searches, but they asked for a \
+rating) is not a match: use run_task.
 {saved}"""
 
 RUN_TASK_TOOL = {
@@ -78,8 +80,9 @@ class Chat:
             lines = []
             for t in saved_tasks:
                 ins = ", ".join(f"{k} ({v})" for k, v in (t.get("inputs") or {}).items())
+                outs = ", ".join(f"{k} ({v})" for k, v in (t.get("outputs") or {}).items())
                 lines.append(f"- {t['name']}" + (f": {t['description']}" if t.get("description") else "") +
-                             (f" [inputs: {ins}]" if ins else ""))
+                             (f" [inputs: {ins}]" if ins else "") + (f" [gives back: {outs}]" if outs else ""))
             saved = "SAVED TASKS:\n" + "\n".join(lines)
         messages = [{"role": "system", "content": CHAT_SYSTEM.format(saved=saved)}] + self.history
         t0 = time.time()

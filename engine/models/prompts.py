@@ -38,6 +38,8 @@ open_app(...), not on a website. Use a website only when they ask for one or nam
   "cmd" maps to Ctrl on Windows/Linux.
 - To get results to the user, use show(...) with a string, a table from make_table(...), or a summarize(...) result.
 - Prefer few, robust steps. Use wait_for(condition) after actions that load something.
+- To scroll, call scroll(amount) (it scrolls the app's main content) or scroll_until("<element to reach>") with the \
+element's location words ("in the left channel list"). Don't move_mouse to vague areas just to scroll.
 - Use ask_user only when information is genuinely missing.
 - When the task names a specific thing (an app, product, person, file, page), check that what you open or read from \
 is that exact thing before reporting about it (e.g. read the title and the developer or author with ask(...)). \

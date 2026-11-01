@@ -411,9 +411,10 @@ def drag(from_target: str, to_target: str, expect: str | None = None, confirm: b
         ctx.push_metrics()
 
 
-def point_at_content(ctx: RunContext, only_if_outside: bool = False):
+def point_at_content(ctx: RunContext, only_if_outside: bool = False, target: str = ""):
     """Scrolling happens under the pointer. After clicking a sidebar search field the pointer still sits on the
-    sidebar, so the main content never moves: put it in the middle of the app's window first."""
+    sidebar, so the main content never moves: put it where the target is described to be (a "left sidebar" item:
+    the left part of the window), else in the main content, right of a typical sidebar."""
     from ..screen.windows import app_window_bounds
 
     bounds = app_window_bounds(ctx.scope_app) if ctx.scope_app and not config.fake_screen else None
@@ -424,7 +425,12 @@ def point_at_content(ctx: RunContext, only_if_outside: bool = False):
         mx, my = inp.mouse_position()
         if x <= mx <= x + w and y <= my <= y + h:
             return
-    run_input(inp.move, x + w * 0.6, y + h * 0.55)  # a bit right of centre: past a typical left sidebar
+    fx = 0.6  # a bit right of centre: past a typical left sidebar
+    if re.search(r"\b(left|sidebar|side bar|channel list|server list|navigation|nav)\b", target, re.I):
+        fx = 0.12
+    elif re.search(r"\b(right|member list|details pane|inspector)\b", target, re.I):
+        fx = 0.88
+    run_input(inp.move, x + w * fx, y + h * 0.55)
 
 
 def scroll_until(target: str, direction: str = "down", max_scrolls: int = 15) -> None:
@@ -437,7 +443,7 @@ def scroll_until(target: str, direction: str = "down", max_scrolls: int = 15) ->
         if b and browser_find(ctx, b, target, "scroll to") is not None:  # the page scrolls it into view
             ctx.pending = None
             return
-        point_at_content(ctx)
+        point_at_content(ctx, target=target)
         for _ in range(max_scrolls):
             ctx.check_stop()
             f = find(ctx, target, "scroll to", raise_missing=False)

@@ -268,6 +268,21 @@ class RunContext:
             return sig_changed_pixels(signature(shot.image, p.region), p.before_region) >= REGION_CHANGE_MIN
         return False
 
+    def _late_success(self, p: "Pending") -> bool:
+        """Look once more after a short wait: the expected result may still have been animating in."""
+        if not p.expect or config.fake_models:
+            return False
+        self.sleep(1.5)
+        try:
+            r = self.models.vision.check(self.capture().image, p.expect, None)
+        except Exception:  # noqa: BLE001 - the original verdict stands
+            return False
+        if r.get("result"):
+            self.log(f'"{p.expect}" appeared a moment later')
+            self.emit("expect_met", line=p.line, segment=self.segment, expect=p.expect, box=p.target_box)
+            return True
+        return False
+
     def resolve_pending(self, shot: cap.Shot, verdict: bool | None = None, observation: str = ""):
         """Check the previous action's expectation against this screenshot.
 
@@ -284,6 +299,8 @@ class RunContext:
             self.emit("expect_met", line=p.line, segment=self.segment, expect=p.expect, box=p.target_box)
             return
         if verdict is False:
+            if (p.explicit or not changed) and self._late_success(p):
+                return  # it just hadn't finished appearing (a panel sliding in, a page loading)
             if p.explicit or not changed:
                 self.emit("expect_failed", line=p.line, segment=self.segment, expect=p.expect,
                           observation=observation, box=p.target_box)
@@ -296,6 +313,10 @@ class RunContext:
             self.log(f'soft expectation "{p.expect}" not confirmed ({observation}); screen did change, continuing')
             return
         if p.require_change and not changed:
+            self.sleep(1.2)  # slow apps: give the screen a moment before calling it "nothing happened"
+            if self.screen_changed(p, self.capture()):
+                self.emit("expect_met", line=p.line, segment=self.segment, expect=p.expect, box=p.target_box)
+                return
             self.emit("expect_failed", line=p.line, segment=self.segment, expect=p.expect,
                       observation="nothing changed on screen", box=p.target_box)
             raise NoChangeError(
