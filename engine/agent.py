@@ -92,7 +92,7 @@ class Agent:
                 raise AgentError("The planner's script failed validation: " + "; ".join(problems), retryable=False)
         # Values the request already gave ("send sam hi") fill the inputs, so a chat run doesn't ask for them again.
         declared, _ = schema_of(script)
-        given = getattr(self.models.planner, "request_inputs", {}) or {}
+        given = {**literal_defaults(script), **(getattr(self.models.planner, "request_inputs", {}) or {})}
         for k, v in given.items():
             if k in declared and k not in ctx.inputs:
                 ctx.inputs[k] = v
@@ -425,3 +425,21 @@ class Agent:
                 self.db.add_detour(task_id, d)  # the ways back learned while making this task
         self.host.emit("tasks", tasks=self.db.list_tasks())
         return task_id
+
+
+def literal_defaults(script: str) -> dict:
+    """`inp("message") or "hi"` in a freshly written script: the planner put the request's value there itself."""
+    import ast
+
+    try:
+        tree = ast.parse(script)
+    except SyntaxError:
+        return {}
+    found = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.BoolOp) and isinstance(node.op, ast.Or) and len(node.values) == 2:
+            call, value = node.values
+            if (isinstance(call, ast.Call) and isinstance(call.func, ast.Name) and call.func.id == "inp" and call.args
+                    and isinstance(call.args[0], ast.Constant) and isinstance(value, ast.Constant)):
+                found[str(call.args[0].value)] = value.value
+    return found

@@ -197,3 +197,10 @@ def test_cli_older_forms_still_work(saved, tmp_path):
     assert "hi Initech x2" in r.stdout
     r = _cli(["--saved", "greet", "--yes"], saved, stdin="Umbrella\n1\n")
     assert r.returncode == 0 and "hi Umbrella x1" in r.stdout
+
+
+def test_a_default_written_into_the_script_fills_the_input():
+    from engine.agent import literal_defaults
+
+    script = 'INPUTS = {"message": "str: text"}\nOUTPUTS = {}\nmessage = inp("message") or "hi there"\nn = inp("n")'
+    assert literal_defaults(script) == {"message": "hi there"}

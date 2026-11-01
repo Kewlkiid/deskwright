@@ -40,7 +40,8 @@ class Planner:
             # Muse Wonder occasionally answers with only the explanation sentence; ask once more for the code.
             messages += [
                 {"role": "assistant", "content": reply},
-                {"role": "user", "content": "That reply had no code. Reply with the ```python code block only."},
+                {"role": "user", "content": "That reply had no code. Reply in the required format now: the ```python "
+                                            "code block, then the ```json block of input values if the script has inputs."},
             ]
             reply = self.client.chat("planner", config.planner_model, messages, max_tokens=max_tokens, temperature=0.2)
         return reply
