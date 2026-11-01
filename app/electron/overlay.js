@@ -17,9 +17,9 @@
   window.addEventListener("resize", alignStage);
 
   window.setPanel = (b) => {
-    // In "panel" mode the agent occupies the right column; in "pill" mode it is a small bar in the corner,
+    // In "panel" mode the agent occupies the right column; in "pill"/"mini" mode it is a small bar in the corner,
     // so the whole width is the stage. The status bar always stays centred on the screen.
-    panelLeft = b.mode === "pill" ? window.innerWidth : Math.max(200, b.x);
+    panelLeft = b.mode !== "panel" ? window.innerWidth : Math.max(200, b.x);
     scan.style.width = panelLeft + "px";
     alignStage();
   };

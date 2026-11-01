@@ -30,6 +30,7 @@ const PANEL_WIDTH = 420;
 const PANEL_MIN = 360;
 const PANEL_MAX = 640;
 const PILL = { width: 392, height: 76 }; // includes a transparent margin for the CSS shadow
+const MINI = { width: 104, height: 76 }; // collapsed by hand, nothing running: just the icon and the open button
 const PILL_MARGIN = 6;
 
 let win = null;
@@ -38,7 +39,7 @@ let engine = null;
 let engineInfo = null;
 let engineReady = null;
 let panelWidth = PANEL_WIDTH;
-let mode = "panel"; // "panel": full-height right column, "pill": compact bar in the top-right corner
+let mode = "panel"; // "panel": full-height right column, "pill": status bar while running, "mini": collapsed and idle
 let escRegistered = false;
 let ignoreEscUntil = 0;
 
@@ -118,13 +119,13 @@ function panelBounds() {
   return { x: workArea.x + workArea.width - panelWidth, y: workArea.y, width: panelWidth, height: workArea.height };
 }
 
-function pillBounds() {
+function pillBounds(size = PILL) {
   const { workArea } = screen.getPrimaryDisplay();
   return {
-    x: workArea.x + workArea.width - PILL.width - PILL_MARGIN,
+    x: workArea.x + workArea.width - size.width - PILL_MARGIN,
     y: workArea.y + PILL_MARGIN,
-    width: PILL.width,
-    height: PILL.height,
+    width: size.width,
+    height: size.height,
   };
 }
 
@@ -133,7 +134,8 @@ function dock(animate = false) {
   if (!win) return;
   docking = true;
   win.setResizable(mode === "panel");
-  win.setBounds(mode === "pill" ? pillBounds() : panelBounds(), animate && IS_MAC);
+  win.setMinimumSize(mode === "panel" ? PANEL_MIN : MINI.width, 60); // the panel's minimum would stop the bar shrinking
+  win.setBounds(mode === "pill" ? pillBounds() : mode === "mini" ? pillBounds(MINI) : panelBounds(), animate && IS_MAC);
   // Animated resizes emit "resize" events afterwards; keep ignoring them until the animation is over.
   setTimeout(() => {
     docking = false;
@@ -142,7 +144,7 @@ function dock(animate = false) {
 }
 
 function setMode(next) {
-  if (!win || (next !== "panel" && next !== "pill") || next === mode) return;
+  if (!win || !["panel", "pill", "mini"].includes(next) || next === mode) return;
   mode = next;
   dock(true);
 }

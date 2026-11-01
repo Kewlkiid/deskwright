@@ -35,11 +35,15 @@ export default function App() {
   const [mode, setModeState] = useState<"panel" | "pill">("panel");
   const modeRef = useRef(mode);
   const runningRef = useRef(false);
+  const pillSize = useRef<"pill" | "mini">("pill");
   const goPill = useCallback(() => {
-    if (modeRef.current === "pill") return;
+    // Running: the status bar. Collapsed while idle: only the icon and the open button.
+    const size = runningRef.current ? "pill" : "mini";
+    if (modeRef.current === "pill" && pillSize.current === size) return;
     modeRef.current = "pill";
+    pillSize.current = size;
     setModeState("pill"); // render the pill first (anchored top-right), then shrink the window around it
-    window.agent?.setMode("pill");
+    window.agent?.setMode(size);
   }, []);
   const goPanel = useCallback(() => {
     if (modeRef.current === "panel") return;

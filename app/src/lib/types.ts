@@ -8,7 +8,7 @@ export interface AgentBridge {
   askAccessibility(): Promise<boolean>;
   askMicrophone(): Promise<boolean>;
   openPermission(kind: "screen" | "accessibility" | "microphone" | "input"): void;
-  setMode(mode: "panel" | "pill"): void;
+  setMode(mode: "panel" | "pill" | "mini"): void;
   setRunning(running: boolean): void;
   suppressEsc(): void;
   overlay(evt: Record<string, unknown>): void;
