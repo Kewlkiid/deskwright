@@ -192,7 +192,7 @@ class RunContext:
         if self.scope_app:
             return
         app = (self.window() or "").split("|")[0]
-        if app and app not in ("Agent", "Electron"):
+        if app and app not in ("Deskwright", "Agent", "Electron"):
             self.scope_app = app
             self.log(f"looking at {app} (the app in front)")
 

@@ -479,12 +479,12 @@ def cmd_teach(argv: list[str]) -> int:
         put_request(args.describe, args.name, args.request_id)
         status = "queued"  # the request waits until the app's window is open
         if sys.platform == "darwin" and not os.environ.get("AGENT_NO_OPEN"):  # AGENT_NO_OPEN: tests
-            candidates = [os.environ.get("AGENT_APP", ""), "/Applications/Agent.app",
-                          str(ROOT / "app" / "release" / "mac-arm64" / "Agent.app")]
+            candidates = [os.environ.get("AGENT_APP", ""), "/Applications/Deskwright.app", "/Applications/Agent.app",
+                          str(ROOT / "app" / "release" / "mac-arm64" / "Deskwright.app")]
             app = next((c for c in candidates if c and Path(c).exists()), None)
             if app and subprocess.run(["open", "-a", app], capture_output=True).returncode == 0:
                 status = "opened"
-        obj = {"status": status, "error": None if status == "opened" else "the request is saved; open the Agent app to see it"}
+        obj = {"status": status, "error": None if status == "opened" else "the request is saved; open the Deskwright app to see it"}
     except Exception as e:  # noqa: BLE001
         obj = {"status": "failed", "error": f"{type(e).__name__}: {e}"}
     return _json_or_text(args.json, obj if obj["status"] != "queued" else {**obj, "error": None}, obj["status"])

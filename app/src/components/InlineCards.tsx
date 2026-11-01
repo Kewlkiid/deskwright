@@ -222,13 +222,13 @@ export function PermissionsCard() {
       {perm.restart && (
         <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-[#f0fdf4] px-3 py-2.5">
           <span className="flex-1 text-[12.5px] text-fg-2">
-            Screen Recording is on. macOS applies it after Agent restarts.
+            Screen Recording is on. macOS applies it after Deskwright restarts.
           </span>
           <button
             onClick={() => window.agent?.relaunch()}
             className="h-8 shrink-0 rounded-full bg-fg px-3.5 text-[12.5px] font-medium text-white hover:bg-[#2b2b2b]"
           >
-            Restart Agent
+            Restart Deskwright
           </button>
         </div>
       )}
@@ -252,7 +252,7 @@ export function PermissionsCard() {
   );
 }
 
-/** Every macOS permission Agent uses: whether it's allowed, a way to allow it, and a way to take it back. */
+/** Every macOS permission Deskwright uses: whether it's allowed, a way to allow it, and a way to take it back. */
 export function PermissionsList() {
   const [perm, setPerm] = useState<Permissions | null>(null);
   const [busy, setBusy] = useState<PermissionKind | null>(null);
@@ -286,14 +286,14 @@ export function PermissionsList() {
     setBusy(kind);
     const ok = await window.agent?.revokePermission(kind);
     setBusy(null);
-    setNote(ok ? `${label} was taken back. macOS asks again the next time Agent needs it.` : `Couldn't change ${label}; use System Settings.`);
+    setNote(ok ? `${label} was taken back. macOS asks again the next time Deskwright needs it.` : `Couldn't change ${label}; use System Settings.`);
     poll();
   };
 
   return (
     <div className="rounded-2xl border border-line p-3.5 text-left">
       <div className="text-[14px] font-medium">Permissions</div>
-      <div className="mt-0.5 text-[12.5px] text-fg-2">What macOS lets Agent do. Changes to Screen Recording and Accessibility apply after a restart.</div>
+      <div className="mt-0.5 text-[12.5px] text-fg-2">What macOS lets Deskwright do. Changes to Screen Recording and Accessibility apply after a restart.</div>
       <div className="mt-2.5 divide-y divide-line-soft">
         {rows.map((r) => (
           <div key={r.kind} className="flex items-center gap-2.5 py-2">
@@ -335,7 +335,7 @@ export function PermissionsList() {
           onClick={() => window.agent?.relaunch()}
           className="mt-2 h-8 rounded-full bg-fg px-3.5 text-[12.5px] font-medium text-white hover:bg-[#2b2b2b]"
         >
-          Restart Agent
+          Restart Deskwright
         </button>
       )}
     </div>

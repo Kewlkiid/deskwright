@@ -190,7 +190,7 @@ function createWindow() {
     backgroundColor: "#00000000",
     show: false,
     icon: ICON,
-    title: "Agent",
+    title: "Deskwright",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -413,7 +413,7 @@ function registerIpc() {
 }
 
 // ---------------------------------------------------------------- app
-app.setName("Agent");
+app.setName("Deskwright");
 
 app.whenReady().then(async () => {
   if (IS_MAC && fs.existsSync(ICON)) app.dock.setIcon(nativeImage.createFromPath(ICON));

@@ -176,7 +176,7 @@
         setHud("#b45309", `<b>Rewrote line ${e.failed_line}</b><span class="sub">resuming</span>`, true);
         break;
       case "confirm_request":
-        setHud("#b45309", `<b>Waiting for your approval</b><span class="sub">in the Agent panel</span>`, true);
+        setHud("#b45309", `<b>Waiting for your approval</b><span class="sub">in the Deskwright panel</span>`, true);
         break;
       case "run_finished": {
         glow.classList.remove("on");

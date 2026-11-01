@@ -1,4 +1,4 @@
-// Build Agent.app and install it in /Applications.
+// Build Deskwright.app and install it in /Applications.
 //   node scripts/package-mac.cjs
 // The app runs the engine from this project folder (recorded in electron/root.json), so .env, saved tasks and
 // the Chrome extension's pairing stay where they are; keep the folder in place after installing.
@@ -9,6 +9,7 @@ const path = require("node:path");
 const APP_DIR = path.resolve(__dirname, "..");
 const ROOT = path.resolve(APP_DIR, "..");
 const run = (cmd) => execSync(cmd, { cwd: APP_DIR, stdio: "inherit" });
+const NAME = require(path.join(APP_DIR, "package.json")).build.productName; // "Deskwright"
 
 fs.writeFileSync(path.join(APP_DIR, "electron", "root.json"), JSON.stringify({ root: ROOT }, null, 2) + "\n");
 try {
@@ -18,12 +19,12 @@ try {
   fs.rmSync(path.join(APP_DIR, "electron", "root.json"), { force: true }); // dev runs use the relative path
 }
 
-const built = fs.readdirSync(path.join(APP_DIR, "release")).map((d) => path.join(APP_DIR, "release", d, "Agent.app"))
+const built = fs.readdirSync(path.join(APP_DIR, "release")).map((d) => path.join(APP_DIR, "release", d, `${NAME}.app`))
   .find((p) => fs.existsSync(p));
-if (!built) throw new Error("Agent.app was not built");
+if (!built) throw new Error(`${NAME}.app was not built`);
 // Ignore ELECTRON_RUN_AS_NODE (set in VS Code terminals, it would turn the app into plain Node and exit at once).
 run(`node -e "require('@electron/fuses').flipFuses(process.argv[1], {version: require('@electron/fuses').FuseVersion.V1, ` +
-  `[require('@electron/fuses').FuseV1Options.RunAsNode]: false})" "${path.join(built, "Contents/MacOS/Agent")}"`);
+  `[require('@electron/fuses').FuseV1Options.RunAsNode]: false})" "${path.join(built, "Contents/MacOS", NAME)}"`);
 // Sign with a stable certificate when there is one: macOS keys privacy permissions (Screen Recording,
 // Accessibility) to the signature, so a stable one keeps them across rebuilds; an ad-hoc one changes every build.
 const identity = (() => {
@@ -37,7 +38,8 @@ const identity = (() => {
 })();
 run(`codesign --force --deep --sign "${identity}" "${built}"`);
 console.log(`Signed with: ${identity === "-" ? "ad-hoc (permissions reset on each rebuild)" : identity}`);
-const target = "/Applications/Agent.app";
+const target = `/Applications/${NAME}.app`;
 fs.rmSync(target, { recursive: true, force: true });
+fs.rmSync("/Applications/Agent.app", { recursive: true, force: true }); // the app's name before it was Deskwright
 run(`ditto "${built}" "${target}"`);
 console.log(`\nInstalled ${target}`);

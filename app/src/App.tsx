@@ -377,7 +377,7 @@ export default function App() {
             { kind: "toggle", label: "Review before running", icon: ListChecks, checked: !s.autoRun, onSelect: toggleReview },
             { kind: "toggle", label: "Skip approvals", icon: ShieldOff, checked: s.bypass, onSelect: toggleBypass },
             { kind: "separator" },
-            { label: "Quit Agent", icon: Power, onSelect: () => window.agent?.quit() },
+            { label: "Quit Deskwright", icon: Power, onSelect: () => window.agent?.quit() },
           ]}
         />
         <button

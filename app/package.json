@@ -38,7 +38,7 @@
   },
   "build": {
     "appId": "dev.alex.agent",
-    "productName": "Agent",
+    "productName": "Deskwright",
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -57,10 +57,10 @@
         "dir"
       ],
       "extendInfo": {
-        "NSMicrophoneUsageDescription": "Agent listens for “Hey Agent” when you turn on the mic button, so you can speak tasks.",
-        "NSAppleEventsUsageDescription": "Agent opens and switches between apps you ask it to use.",
+        "NSMicrophoneUsageDescription": "Deskwright listens for “Hey Agent” when you turn on the mic button, so you can speak tasks.",
+        "NSAppleEventsUsageDescription": "Deskwright opens and switches between apps you ask it to use.",
         "LSUIElement": false,
-        "NSSpeechRecognitionUsageDescription": "Agent recognises “Hey Agent” and your spoken task on this Mac."
+        "NSSpeechRecognitionUsageDescription": "Deskwright recognises “Hey Agent” and your spoken task on this Mac."
       }
     }
   }
