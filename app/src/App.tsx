@@ -370,8 +370,7 @@ export default function App() {
             <div className="flex flex-1 flex-col items-center justify-center pb-4 pt-6 text-center">
               <h1 className="font-serif text-[28px] font-normal leading-tight tracking-tight">What should I do?</h1>
               <p className="mt-2 max-w-[300px] text-[13.5px] leading-relaxed text-fg-2">
-                Describe a task. I'll write a program for it, run it on your screen, and fix my own code if something
-                changes.
+                Describe a task and I'll do it on your screen.
               </p>
             </div>
             <div className="space-y-4">
