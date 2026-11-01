@@ -1,15 +1,25 @@
 """SAM 3.1 grounding: finds the element a script line names (e.g. "Save button") on the full screenshot
 and returns its box and mask. The click goes to the mask centroid (or box centre).
 
-The exact SAM 3.1 request/response shape on the Meta Model API is not confirmed yet. Everything
-provider-specific lives in `_build_request` / `_parse_response` below; adjust those two once the
-docs are available. Two transports are supported:
-  - GROUNDING_ENDPOINT set (e.g. "/segment"): POST JSON to {MODEL_BASE_URL}{GROUNDING_ENDPOINT}
-  - otherwise: chat.completions with model=sam-3.1, image + JSON text prompt
+On the Meta Model API, SAM 3.1 is served on the Responses endpoint (/v1/responses, not chat completions):
+the input is the image plus a short object phrase, and the answer is text with one token per found object:
+
+    <|box;x1=1040;y1=100;x2=1240;y2=150;w=1280;h=800|><|mask;x=0;y=0;data=51,201,...|>
+
+Box coordinates are in a w x h frame (the image as SAM saw it). An empty answer means nothing matched. The mask's
+encoding isn't documented yet, so only the box is used (the click goes to its centre).
+
+SAM returns every instance of what it's asked for, with precise boxes, but it matches the kind of object ("button")
+far better than the label on it ("Rename Save button" often comes back as a different button). So SAM proposes
+candidates, for the phrase and for the element kind in it, and the vision model (Muse Spark), which reads labels,
+picks the target from the candidates drawn as numbered boxes. No candidates, or none that is the target, means
+"not found" and the router falls back to the grid.
+GROUNDING_ENDPOINT (e.g. "/segment") still switches to a plain JSON POST for other providers.
 """
 from __future__ import annotations
 
 import base64
+import re
 import io
 import time
 from dataclasses import dataclass
@@ -76,15 +86,39 @@ def _decode_mask(raw, crop_size: tuple[int, int]) -> Image.Image | None:
     return None
 
 
+# Element kinds SAM finds well as plain objects; a phrase naming one is also searched as that kind.
+KINDS = [
+    (r"\b(field|input|textbox|text box|search box|box)\b", "input field"),
+    (r"\bbutton\b", "button"),
+    (r"\blink\b", "link"),
+    (r"\bcheck ?box\b", "checkbox"),
+    (r"\btab\b", "tab"),
+    (r"\bicon\b", "icon"),
+    (r"\b(dropdown|drop-down|select|menu)\b", "dropdown"),
+    (r"\b(toggle|switch)\b", "switch"),
+]
+MAX_CANDIDATES = 12
+
+
+def _iou(a: Box, b: Box) -> float:
+    ix = max(0.0, min(a[2], b[2]) - max(a[0], b[0]))
+    iy = max(0.0, min(a[3], b[3]) - max(a[1], b[1]))
+    inter = ix * iy
+    union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+    return inter / union if union > 0 else 0.0
+
+
 class SamGrounder:
     label = "SAM 3.1"
 
-    def __init__(self, client: ModelClient):
+    def __init__(self, client: ModelClient, picker=None):
         self.client = client
+        # picker(image, boxes, phrase) -> index of the target among the boxes, or None (the vision model).
+        self.picker = picker
 
     # Provider-specific -----------------------------------------------------
     def _build_request(self, img: Image.Image, phrase: str) -> dict:
-        # TODO(meta-api): confirm SAM 3.1 field names once the API docs are out.
+        # Only for GROUNDING_ENDPOINT (a plain JSON segmentation endpoint); the Meta API uses /v1/responses.
         return {
             "model": config.grounding_model,
             "image": to_data_url(img, "PNG"),
@@ -92,7 +126,28 @@ class SamGrounder:
             "output": ["box", "mask"],
         }
 
+    @staticmethod
+    def _parse_all(text: str, size: tuple[int, int]) -> list[Box]:
+        """Every `<|box;x1=..;y1=..;x2=..;y2=..;w=..;h=..|>` token, scaled from SAM's frame to `size`."""
+        boxes = []
+        for m in re.finditer(r"<\|box;([^|]*)\|>", text or ""):
+            v = dict(kv.split("=", 1) for kv in m.group(1).split(";") if "=" in kv)
+            try:
+                w, h = float(v.get("w") or size[0]), float(v.get("h") or size[1])
+                sx, sy = size[0] / w, size[1] / h
+                boxes.append([float(v["x1"]) * sx, float(v["y1"]) * sy, float(v["x2"]) * sx, float(v["y2"]) * sy])
+            except (KeyError, ValueError, ZeroDivisionError):
+                continue
+        return boxes
+
+    @classmethod
+    def _parse_text(cls, text: str, size: tuple[int, int]) -> Box | None:
+        boxes = cls._parse_all(text, size)
+        return boxes[0] if boxes else None
+
     def _parse_response(self, data: dict, size: tuple[int, int]) -> tuple[Box | None, Image.Image | None]:
+        if "text" in data:
+            return self._parse_text(data["text"], size), None
         # TODO(meta-api): confirm response shape. Tolerates common variants.
         item = data
         for key in ("results", "masks", "objects", "predictions", "data"):
@@ -126,42 +181,46 @@ class SamGrounder:
             )
             r.raise_for_status()
             return r.json()
-        prompt = (
-            f"Segment the UI element: {phrase!r} (image is {img.width}x{img.height} pixels). "
-            'Reply with JSON only: {"box": [x1, y1, x2, y2], "mask": <polygon [[x,y],...] or base64 PNG>, "score": 0-1}, '
-            'or {"box": null} if it is not visible.'
+        resp = self.client.client.responses.create(
+            model=config.grounding_model,
+            input=[{"role": "user", "content": [{"type": "input_image", "image_url": req["image"]},
+                                                {"type": "input_text", "text": phrase}]}],
         )
-        reply = self.client.chat(
-            "grounding",
-            config.grounding_model,
-            [{"role": "user", "content": [image_part(req["image"]), text_part(prompt)]}],
-            max_tokens=1500,
-            temperature=0.0,
-        )
-        return extract_json(reply)
+        return {"text": getattr(resp, "output_text", "") or ""}
 
     # Public ----------------------------------------------------------------
+    def candidates(self, small: Image.Image, phrase: str) -> list[Box]:
+        """SAM's boxes for the phrase and for the element kind it names, without near-duplicates."""
+        queries = [phrase] + [kind for pat, kind in KINDS if re.search(pat, phrase, re.I) and kind != phrase.lower()]
+        boxes: list[Box] = []
+        for q in queries:
+            t0 = time.time()
+            data = self._call(small, q)
+            self.client.record_external("grounding", time.time() - t0, config.price_per_grounding_call)
+            for b in self._parse_response_all(data, small.size):
+                if all(_iou(b, o) < 0.7 for o in boxes):
+                    boxes.append(b)
+        return boxes[:MAX_CANDIDATES]
+
+    def _parse_response_all(self, data, size) -> list[Box]:
+        if isinstance(data, dict) and "text" in data:
+            return self._parse_all(data["text"], size)
+        box, _ = self._parse_response(data if isinstance(data, dict) else {}, size)
+        return [box] if box else []
+
     def locate(self, img: Image.Image, phrase: str) -> Grounded:
         small, f = fit(img, config.model_image_max)
-        t0 = time.time()
         try:
-            data = self._call(small, phrase)
-            box, mask = self._parse_response(data if isinstance(data, dict) else {}, small.size)
+            boxes = self.candidates(small, phrase)
         except Exception as e:
-            box, mask = None, None
-            reason = f"Grounding failed: {e}"
-        else:
-            reason = f"No element matching {phrase!r} is visible."
-        if config.grounding_endpoint:
-            self.client.record_external("grounding", time.time() - t0, config.price_per_grounding_call)
-        if box is None:
-            return Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False, reason=reason)
-        box = clamp_box([v * f for v in box], img.size)
-        point = ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2)
-        full_mask = None
-        if mask is not None:
-            full_mask = mask.resize(img.size)
-            c = mask_centroid(mask)
-            if c:
-                point = (c[0] * f, c[1] * f)
-        return Grounded(box=box, point=point, mask=full_mask)
+            return Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False, reason=f"Grounding failed: {e}")
+        if not boxes:
+            return Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False, reason=f"No element matching {phrase!r} is visible.")
+        index = 0
+        if self.picker is not None:
+            index = self.picker(small, boxes, phrase)
+            if index is None or not 0 <= index < len(boxes):
+                return Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False,
+                                reason=f"SAM found {len(boxes)} candidate(s), but none of them is {phrase!r}.")
+        box = clamp_box([v * f for v in boxes[index]], img.size)
+        return Grounded(box=box, point=((box[0] + box[2]) / 2, (box[1] + box[3]) / 2))

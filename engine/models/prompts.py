@@ -192,3 +192,8 @@ VISIBLE TEXT OF THE PAGE (may be truncated):
 Judge only from this text and these network calls. If the condition is about something visual (colors, layout, \
 images, highlighted state) or the text can't settle it, answer null.
 Reply with JSON only: {{"result": true|false|null, "reason": "..."}}"""
+
+PICK_BOX_PROMPT = """Image size: {w}x{h}. Numbered red boxes mark candidate elements on this screen.
+Which numbered box is exactly this target: "{target}"? Read the labels and text inside the boxes; the target's \
+words must match what the element says or shows. If none of the boxes is the target, answer null.
+Reply with JSON only: {{"index": <number>, "reason": "..."}} or {{"index": null, "reason": "..."}}"""

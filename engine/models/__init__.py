@@ -37,9 +37,11 @@ def get_models() -> Models:
 
             client = ModelClient(config)
             # SAM 3.1 first, the labelled grid as the backup (see routing.py).
-            sam = SamGrounder(client) if config.grounding_model else None
+            vision = Vision(client)
+            # SAM proposes precise candidate boxes; the vision model picks the one the script means.
+            sam = SamGrounder(client, picker=vision.pick_box) if config.grounding_model else None
             grid = GridGrounder(client) if config.grid_model else None
-            _models = Models(Planner(client), Vision(client), GroundingRouter(sam, grid), Voice(client))
+            _models = Models(Planner(client), vision, GroundingRouter(sam, grid), Voice(client))
     return _models
 
 

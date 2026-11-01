@@ -129,6 +129,22 @@ class Vision:
         except (TypeError, ValueError):
             return None
 
+    def pick_box(self, img: Image.Image, boxes: list, target: str) -> int | None:
+        """Choose the target among candidate boxes, drawn numbered on the screenshot (one call)."""
+        view = img.convert("RGB").copy()
+        d = ImageDraw.Draw(view)
+        for i, b in enumerate(boxes):
+            d.rectangle(b, outline=(230, 0, 0), width=3)
+            label = str(i)
+            tx, ty = b[0], max(0, b[1] - 18)
+            d.rectangle([tx, ty, tx + 9 * len(label) + 8, ty + 17], fill=(230, 0, 0))
+            d.text((tx + 4, ty + 2), label, fill=(255, 255, 255))
+        data = self._ask_json([view], prompts.PICK_BOX_PROMPT.format(w=view.width, h=view.height, target=target))
+        try:
+            return None if data.get("index") is None else int(data["index"])
+        except (TypeError, ValueError):
+            return None
+
     def check_text(self, condition: str, text: str, url: str = "", network: list[str] | None = None) -> dict:
         """Judge a condition from page text; result is True, False, or None (can't tell from text)."""
         net = ("RECENT NETWORK CALLS:\n" + "\n".join(network) + "\n") if network else ""
