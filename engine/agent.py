@@ -96,6 +96,58 @@ class Agent:
                 ctx.inputs[k] = v
         return script
 
+    def create_from_description(self, description: str, name: str = "", inputs: dict | None = None,
+                                outputs: dict | None = None, test_inputs: dict | None = None,
+                                request_id: str | None = None) -> dict:
+        """Write and save a task from a text request, without a demonstration (CLI `create --describe`).
+        Returns {"status": "ok" | "needs_demo" | "failed", "name", "inputs", "outputs", "error", "tested"}.
+        "needs_demo": the planner couldn't produce a script that validates, or the test run with `test_inputs`
+        failed, so someone has to show the task once (teach mode)."""
+        import json as _json
+        import re
+
+        from .runner.schema import with_header
+
+        name = (name or "").strip() or re.sub(r"\s+", " ", description).strip()[:48]
+        result = {"status": "failed", "name": name, "inputs": {}, "outputs": {}, "error": None, "tested": False}
+        if self.db.get_task(name=name):
+            result["error"] = f"a task named {name!r} already exists"
+            return result
+        task = description
+        if inputs is not None or outputs is not None:
+            task += ("\n\nThis is a reusable task. Its header must declare exactly these:\n"
+                     f"INPUTS = {_json.dumps(inputs or {})}\nOUTPUTS = {_json.dumps(outputs or {})}")
+        ctx = self._new_context(task)
+        set_current(ctx)
+        try:
+            script = self.write_script(ctx, task)
+            if inputs is not None or outputs is not None:
+                # The caller's schema is the contract: put it in the header exactly as given.
+                header = f"INPUTS = {_json.dumps(inputs or {})}\nOUTPUTS = {_json.dumps(outputs or {})}"
+                script = with_header(script, header)
+                problems = validate(script, SDK_NAMES) + header_problems(script)
+                if problems:
+                    raise AgentError("the script doesn't fit the requested inputs/outputs: " + "; ".join(problems),
+                                     retryable=False)
+        except Exception as e:  # noqa: BLE001
+            result.update(status="needs_demo", error=f"couldn't write it from the description: {e}")
+            return result
+        finally:
+            set_current(None)
+        result["inputs"], result["outputs"] = schema_of(script)
+        if test_inputs is not None:
+            out = self.run_task(description, script, inputs=test_inputs, no_ask=True)
+            result["tested"] = True
+            if out.get("status") != "succeeded":
+                err = out.get("error")
+                result.update(status="needs_demo",
+                              error=f"the test run didn't work: {(err or {}).get('message') if isinstance(err, dict) else err}")
+                return result
+            script = out.get("final_script") or script
+        self.db.save_task(name, script, description=description, source="describe", request_id=request_id)
+        result["status"] = "ok"
+        return result
+
     def draft_task(self, task: str):
         """Write a script and show it without running it (review mode). 'start' runs it."""
         if not self._busy.acquire(blocking=False):

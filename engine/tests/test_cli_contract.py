@@ -137,3 +137,20 @@ def test_stats_show_rename_delete_history(data_dir):
     assert "shout" not in names and "echo" not in names
     hist = json.loads(cli(data_dir, "history", "--json", "--limit", "5")[1])
     assert hist and hist[0]["status"] == "succeeded"
+
+
+def test_create_from_a_description(data_dir):
+    code, out, _ = cli(data_dir, "create", "--describe", "Look up a customer", "--name", "lookup",
+                       "--inputs-json", '{"customer": "str: who"}', "--request-id", "req-1", "--json")
+    r = one_json(out)
+    assert code == 0 and r["status"] == "ok" and r["inputs"] == {"customer": "str: who"}
+    rows = {t["name"]: t for t in json.loads(cli(data_dir, "tasks", "--json", "--stats")[1])}
+    assert rows["lookup"]["request_id"] == "req-1" and rows["lookup"]["source"] == "describe"
+
+
+def test_create_needs_a_demo_when_the_test_run_fails(data_dir):
+    # The fake planner's script confirms a Save; without --yes nobody approves it, so the test run can't pass.
+    code, out, _ = cli(data_dir, "create", "--describe", "Make invoices", "--name", "inv", "--test-inputs-json", "{}", "--json")
+    r = one_json(out)
+    assert code == 1 and r["status"] == "needs_demo" and r["tested"] is True
+    assert "inv" not in [t["name"] for t in json.loads(cli(data_dir, "tasks", "--json")[1])]

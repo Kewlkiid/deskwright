@@ -412,6 +412,55 @@ def cmd_run(argv: list[str], prog: str = "engine.cli run") -> int:
     except Exception as e:  # noqa: BLE001
         return finish("failed", error=f"{type(e).__name__}: {e}")
 
+def cmd_create(argv: list[str]) -> int:
+    """create --describe TEXT: write and save a task without a demonstration."""
+    p = argparse.ArgumentParser(prog="engine.cli create", description="Write and save a task from a description.")
+    p.add_argument("--describe", required=True, help="what the task should do")
+    p.add_argument("--name", default="", help="task name (default: from the description)")
+    p.add_argument("--inputs-json", help='expected INPUTS, e.g. {"query": "str: what to search"}')
+    p.add_argument("--outputs-json", help="expected OUTPUTS, same form")
+    p.add_argument("--test-inputs-json", help="values for a test run before saving (the run uses the screen)")
+    p.add_argument("--request-id", help="the outside request this task answers (recorded on the task)")
+    p.add_argument("--dry-run", action="store_true", help="test run moves the mouse but never clicks or types")
+    p.add_argument("--yes", action="store_true", help="auto-confirm sensitive steps in the test run")
+    p.add_argument("--json", action="store_true")
+    p.add_argument("--events", action="store_true", help="with --json: JSON event lines on stderr")
+    args = p.parse_args(argv)
+    real_stdout = sys.stdout
+    if args.json:
+        try:
+            real_stdout = os.fdopen(os.dup(1), "w", encoding="utf-8")
+            os.dup2(2, 1)
+        except OSError:
+            pass
+        sys.stdout = sys.stderr
+
+    def finish(obj: dict) -> int:
+        if args.json:
+            real_stdout.write(json.dumps(obj, ensure_ascii=False, default=str) + "\n")
+            real_stdout.flush()
+        else:
+            print(obj.get("error") or f"saved {obj.get('name')!r}", file=sys.stderr if obj.get("error") else sys.stdout)
+        return 0 if obj.get("status") == "ok" else 1
+
+    try:
+        parse = lambda s: json.loads(s) if s else None  # noqa: E731
+        inputs, outputs, test_inputs = parse(args.inputs_json), parse(args.outputs_json), parse(args.test_inputs_json)
+        from .agent import Agent
+        from .config import config
+
+        if args.dry_run:
+            config.dry_run = True
+        host = TerminalHost(args.yes, False, stream=sys.stderr if args.json else None, no_ask=True,
+                            events=args.json and args.events)
+        result = Agent(host).create_from_description(args.describe, args.name, inputs, outputs, test_inputs,
+                                                     args.request_id)
+    except Exception as e:  # noqa: BLE001
+        result = {"status": "failed", "name": args.name, "inputs": {}, "outputs": {}, "error": f"{type(e).__name__}: {e}",
+                  "tested": False}
+    return finish(result)
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["tasks"]:
@@ -422,6 +471,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_task(argv[1:])
     if argv[:1] == ["history"]:
         return cmd_history(argv[1:])
+    if argv[:1] == ["create"]:
+        return cmd_create(argv[1:])
     return cmd_run(argv, prog="engine.cli")  # older forms: "task text", --script FILE, --saved NAME
 
 
