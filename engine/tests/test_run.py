@@ -111,3 +111,30 @@ def test_never_clicks_behind_own_panel(screen, agent_factory):
     assert out["status"] == "stopped"
     assert not [i for i in screen.inputs if i[0] in ("click", "move")]
     assert "behind the agent" in events(host, "line_failed")[0]["error"]["message"]
+
+
+def test_a_rewrite_of_a_step_that_needed_approval_still_asks(screen, agent_factory):
+    """The send button isn't there, so the fixer switches to Enter: that Enter must still be approved."""
+    agent, host = agent_factory(fail_on="Send button", confirm=False)
+    base = agent.models.planner
+
+    class EnterInstead:
+        def __getattr__(self, n):
+            return getattr(base, n)
+
+        def fix_script(self, **kw):
+            return {"explanation": "no send button; Enter sends", "wrong_state": "", "recovery": "",
+                    "continuation": 'press("enter")', "full_script": 'open_app("Chat")\npress("enter")'}
+
+    agent.models.planner = EnterInstead()
+    out = agent.run_task("send", 'open_app("Chat")\ntype_into("message box", "hi")\nclick("Send button", confirm=True)')
+    assert out["status"] == "declined"
+    assert "needed your approval" in host.confirms[-1] and "Press enter" in host.confirms[-1]
+
+
+def test_enter_after_typing_a_message_asks(screen, agent_factory):
+    agent, host = agent_factory(confirm=False)
+    out = agent.run_task("send", 'open_app("Chat")\ntype_into("message input at the bottom", "hi")\npress("enter")')
+    assert out["status"] == "declined"
+    out = agent.run_task("search", 'open_app("Finder")\ntype_into("search field", "notes")\npress("enter")')
+    assert out["status"] == "succeeded"  # Enter in a search box sends nothing to anyone

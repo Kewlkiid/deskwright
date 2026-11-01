@@ -19,7 +19,7 @@ from ..screen.fingerprint import frame_diff
 from .context import ACTION_LOCK, RunContext, current
 from .errors import ElementNotFoundError, FieldChangedError, NoChangeError, UserDeclinedError
 from .raw import run_input
-from .safety import is_sensitive
+from .safety import ask_approval, is_sensitive, owed_summary
 
 if TYPE_CHECKING:
     from ..browser.backend import Browser, Element
@@ -140,14 +140,15 @@ def present(ctx: RunContext, f: Found, kind: str):
 
 
 def require_confirmation(ctx: RunContext, verb: str, target: str, expect: str | None, confirm: bool, extra: str = ""):
+    summary = f"{verb.capitalize()} “{target}”" + (f"\nExpected result: {expect}" if expect else "") + (
+        f"\n{extra}" if extra else ""
+    )
     if confirm or is_sensitive(target, expect, extra):
-        summary = f"{verb.capitalize()} “{target}”" + (f"\nExpected result: {expect}" if expect else "") + (
-            f"\n{extra}" if extra else ""
-        )
         ctx.status(f"Waiting for confirmation: {verb} {target}")
-        if not ctx.host.confirm(summary, ctx.stop_event):
-            raise UserDeclinedError(f"User declined: {verb} {target}")
-        ctx.check_stop()
+        ask_approval(ctx, summary)
+    elif ctx.owed_confirm and verb != "type into":  # typing commits nothing; the click or Enter after it asks
+        ask_approval(ctx, owed_summary(ctx, summary))
+    ctx.typed_target = target if verb == "type into" else None
 
 
 def browser_find(ctx: RunContext, b: Browser, target: str, verb: str) -> tuple[Element, cap.Shot, list | None] | None:

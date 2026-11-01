@@ -41,6 +41,7 @@ class NullHost:
         self.events: list[tuple[str, dict]] = []
         self.answers = list(answers or [])
         self._confirm = confirm
+        self.confirms: list[str] = []  # every approval asked for
 
     def emit(self, type, **data):
         self.events.append((type, data))
@@ -49,6 +50,7 @@ class NullHost:
         return self.answers.pop(0) if self.answers else ""
 
     def confirm(self, summary, stop):
+        self.confirms.append(summary)
         return self._confirm
 
     def before_capture(self):
@@ -114,6 +116,10 @@ class RunContext:
     browser_capture: bool = False
     browser_used: bool = False
     debug: Any = None  # runner/debug.py RunDebug when debug folders are on
+    # Approval safety (sdk/safety.py): a failed step that needed approval leaves it owed to whatever replaces it;
+    # typed_target is the field text was just typed into (Enter there may send it).
+    owed_confirm: str | None = None
+    typed_target: str | None = None
     _window: tuple[str, float] = ("", 0.0)
 
     # Control ---------------------------------------------------------------

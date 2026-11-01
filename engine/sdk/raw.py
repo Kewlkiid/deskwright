@@ -8,6 +8,7 @@ from ..screen import capture as cap
 from ..screen import input as inp
 from .context import ACTION_LOCK, current
 from .errors import StoppedError
+from .safety import MESSAGE_FIELD, ask_approval, is_sensitive, owed_summary
 
 
 @contextmanager
@@ -37,11 +38,16 @@ def run_input(fn, *args, **kwargs):
         fn(*args, **kwargs)
 
 
-def _before_raw():
-    """Check the previous action's expectation (pixel diff only) before the raw input changes the screen."""
+def _before_raw(action: str = "", sends: bool = False, commits: bool = True):
+    """Check the previous action's expectation (pixel diff only) before the raw input changes the screen, and ask
+    first when this input stands in for a step that needed approval or sends a message that was just typed."""
     ctx = current()
     if ctx.pending is not None:
         ctx.resolve_pending(ctx.capture())
+    if ctx.owed_confirm and commits:
+        ask_approval(ctx, owed_summary(ctx, action))
+    elif sends and ctx.typed_target and (MESSAGE_FIELD.search(ctx.typed_target) or is_sensitive(ctx.typed_target)):
+        ask_approval(ctx, f"{action}: sends the text typed into “{ctx.typed_target}”")
 
 
 def _announce_escape(*keys: str):
@@ -63,7 +69,7 @@ def type_text(text: str) -> None:
     """Type text at the current keyboard focus. No model call."""
     with ACTION_LOCK:
         text = str(text)
-        _before_raw()
+        _before_raw(commits=False)
         current().status(f"Typing: {text[:40]}")
         for i in range(0, len(text), 40):
             run_input(inp.type_text, text[i : i + 40])
@@ -74,7 +80,7 @@ def press(key: str, times: int = 1) -> None:
     """Press a key, e.g. press("enter"), press("tab", times=3). Names: enter, tab, escape, backspace, delete,
     up, down, left, right, home, end, pageup, pagedown, space, f1-f12."""
     with ACTION_LOCK:
-        _before_raw()
+        _before_raw(f"Press {key}", sends=inp.norm_key(key) in ("enter", "return"))
         current().status(f"Pressing: {key}")
         _announce_escape(key)
         run_input(inp.press, key, times)
@@ -84,7 +90,7 @@ def press(key: str, times: int = 1) -> None:
 def hotkey(*keys: str) -> None:
     """Press a key combination, e.g. hotkey("cmd", "s"). "cmd" is Command on macOS and Ctrl elsewhere."""
     with ACTION_LOCK:
-        _before_raw()
+        _before_raw("Shortcut " + "+".join(keys), sends=any(inp.norm_key(k) in ("enter", "return") for k in keys))
         current().status("Shortcut: " + "+".join(keys))
         _announce_escape(*keys)
         run_input(inp.hotkey, *keys)
@@ -95,7 +101,7 @@ def hotkey(*keys: str) -> None:
 def scroll(amount: int) -> None:
     """Scroll at the current mouse position. Negative scrolls down, positive scrolls up (about 3 lines per unit)."""
     with ACTION_LOCK:
-        _before_raw()
+        _before_raw(commits=False)
         current().status(f"Scrolling {'down' if amount < 0 else 'up'}")
         run_input(inp.scroll, int(amount))
         _after_raw(f"scroll({amount})")
@@ -104,7 +110,7 @@ def scroll(amount: int) -> None:
 def clear_focused_input() -> None:
     """Select everything in the focused text field and delete it."""
     with ACTION_LOCK:
-        _before_raw()
+        _before_raw(commits=False)
         run_input(inp.select_all)
         run_input(inp.press, "backspace")
         _after_raw("clear_focused_input()")

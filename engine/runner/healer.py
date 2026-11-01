@@ -11,6 +11,7 @@ from ..sdk import SDK_NAMES, build_namespace
 from ..sdk.context import RunContext
 from ..sdk.errors import TERMINAL_ERRORS, StoppedError
 from ..sdk.results import show
+from ..sdk.safety import needs_approval
 from . import detours, schema
 from .executor import execute, failing_line, to_agent_error
 from .validate import safe_builtins, validate
@@ -130,6 +131,8 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
             line = failing_line(raw, ctx) or 1
             lines = current.splitlines()
             src = lines[line - 1].strip() if 0 < line <= len(lines) else ""
+            if needs_approval(src):
+                ctx.owed_confirm = src  # whatever the rewrite does instead must still ask first
             ctx.emit(
                 "line_failed",
                 segment=segment,

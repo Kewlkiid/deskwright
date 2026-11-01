@@ -21,4 +21,7 @@ def confirm_with_user(summary: str) -> bool:
     ok = ctx.host.confirm(summary, ctx.stop_event)
     ctx.check_stop()
     ctx.log(f"confirm_with_user -> {ok}")
+    if ok:
+        ctx.owed_confirm = None
+        ctx.typed_target = None
     return ok

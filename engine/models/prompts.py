@@ -67,6 +67,9 @@ or a wait. Keep target descriptions visual and specific.
 - If the error shows SAM 3.1 failing to find an element that IS visible in the screenshot, start the continuation \
 with use_grounding("grid") so elements are found with the labelled-grid method instead.
 - Same rules as the planner: only SDK functions and basic Python, no imports, no try/except, no names starting with "_".
+- If the failing step needed the user's approval (confirm=True, or it sends/posts/submits/buys/deletes), whatever \
+replaces it must ask too: keep confirm=True on the new click, or call confirm_with_user(...) before a press("enter") \
+that sends.
 - The script's INPUTS / OUTPUTS header is its contract with whoever runs it: keep it exactly as it is in full_script \
 (same names, same descriptions) unless the task itself changed. The continuation doesn't repeat the header; read \
 inputs with inp(...) and report results with output(...) as the script does.
