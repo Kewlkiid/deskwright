@@ -105,6 +105,23 @@ class Server:
         from .browser.bridge import start_bridge
 
         self.bridge = start_bridge()  # the Chrome extension connects here (extension/config.js)
+        threading.Thread(target=self._watch_teach_requests, name="teach-requests", daemon=True).start()
+
+    def _watch_teach_requests(self):
+        """Another program asked for a task to be shown once (`engine.cli teach --describe`): it leaves a
+        request file; once the window is connected, show the request there and remember it for teach_stop."""
+        import time as _time
+
+        from .teach.requests import take_request
+
+        while True:
+            _time.sleep(1)
+            if not self.host.connected.is_set():
+                continue
+            req = take_request()
+            if req:
+                self.agent.teach_request = req
+                self.host.emit("teach_request", **req)
 
     def _bg(self, fn, *args, **kwargs):
         threading.Thread(target=self._safe, args=(fn, *args), kwargs=kwargs, daemon=True).start()

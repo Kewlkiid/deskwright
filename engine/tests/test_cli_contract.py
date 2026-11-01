@@ -154,3 +154,23 @@ def test_create_needs_a_demo_when_the_test_run_fails(data_dir):
     r = one_json(out)
     assert code == 1 and r["status"] == "needs_demo" and r["tested"] is True
     assert "inv" not in [t["name"] for t in json.loads(cli(data_dir, "tasks", "--json")[1])]
+
+
+def test_teach_request_is_left_for_the_app_and_answered_by_a_taught_task(data_dir, monkeypatch):
+    env = {**os.environ, "AGENT_DATA_DIR": str(data_dir), "AGENT_NO_OPEN": "1"}
+    p = subprocess.run([sys.executable, "-m", "engine.cli", "teach", "--describe", "Export my orders", "--name",
+                        "export orders", "--request-id", "req-9", "--json"], cwd=ROOT, env=env, capture_output=True, text=True)
+    assert json.loads(p.stdout)["status"] == "queued"
+    req = json.loads((data_dir / "teach_request.json").read_text())
+    assert req["describe"] == "Export my orders" and req["request_id"] == "req-9"
+    # The app's engine picks it up; a task saved from teach mode then answers that request.
+    code = (
+        "from engine.agent import Agent\nfrom engine.teach.requests import take_request\n"
+        "class H:\n    def emit(self, *a, **k): pass\n"
+        "a = Agent(H())\na.teach_request = take_request()\n"
+        "a.save_task('export orders', 'INPUTS = {}\\nOUTPUTS = {}\\nshow(\"x\")\\n', 'Export my orders', 'teach')\n"
+        "print(a.db.get_task(name='export orders')['request_id'], a.teach_request)\n"
+    )
+    out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
+    assert out.stdout.split() == ["req-9", "None"], out.stderr
+    assert not (data_dir / "teach_request.json").exists()

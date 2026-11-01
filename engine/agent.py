@@ -42,6 +42,8 @@ class Agent:
         self.teach_dir = None
         self.teach_browser = False  # the Chrome extension is recording too
         self.last_run: dict | None = None  # final script + detours of the latest run, for save_task
+        # A pending "show me once" request from another program: {describe, name, request_id}.
+        self.teach_request: dict | None = None
         self.ui_bounds: list[float] | None = None  # logical [x, y, w, h] of the floating window
 
     @property
@@ -386,7 +388,9 @@ class Agent:
         self.teach_browser = False
         self.host.emit("teach_recording", recording=False, events=len(meta["events"]),
                        browser_events=len((browser or {}).get("events") or []))
-        name = name or f"Taught task {time.strftime('%H:%M')}"
+        req = self.teach_request or {}
+        name = name or req.get("name") or f"Taught task {time.strftime('%H:%M')}"
+        description = description or req.get("describe") or ""
         try:
             out = compile_recording(meta, name, description, self.models, self.host.emit, browser=browser)
             self.host.emit("teach_compiled", name=name, description=description, script=out["script"],
@@ -400,7 +404,11 @@ class Agent:
         if problems:
             self.host.emit("error", message="Can't save: " + "; ".join(problems))
             return None
-        task_id = self.db.save_task(name, script, description, source)
+        # A taught task that answers a pending outside request gets that request's id, so the asker can find it.
+        req = self.teach_request if source == "teach" else None
+        task_id = self.db.save_task(name, script, description, source, request_id=(req or {}).get("request_id"))
+        if req:
+            self.teach_request = None
         last = self.last_run or {}
         if last.get("detours") and last.get("final_script", "").strip() == script.strip():
             for d in last["detours"]:

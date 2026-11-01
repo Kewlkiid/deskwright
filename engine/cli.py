@@ -461,6 +461,35 @@ def cmd_create(argv: list[str]) -> int:
     return finish(result)
 
 
+def cmd_teach(argv: list[str]) -> int:
+    """teach --describe TEXT: open the app in teach mode with this request filled in."""
+    p = argparse.ArgumentParser(prog="engine.cli teach", description="Ask the user to show a task once in the app.")
+    p.add_argument("--describe", required=True)
+    p.add_argument("--name", default="")
+    p.add_argument("--request-id")
+    p.add_argument("--json", action="store_true")
+    args = p.parse_args(argv)
+    try:
+        import subprocess
+        from pathlib import Path
+
+        from .config import ROOT
+        from .teach.requests import put_request
+
+        put_request(args.describe, args.name, args.request_id)
+        status = "queued"  # the request waits until the app's window is open
+        if sys.platform == "darwin" and not os.environ.get("AGENT_NO_OPEN"):  # AGENT_NO_OPEN: tests
+            candidates = [os.environ.get("AGENT_APP", ""), "/Applications/Agent.app",
+                          str(ROOT / "app" / "release" / "mac-arm64" / "Agent.app")]
+            app = next((c for c in candidates if c and Path(c).exists()), None)
+            if app and subprocess.run(["open", "-a", app], capture_output=True).returncode == 0:
+                status = "opened"
+        obj = {"status": status, "error": None if status == "opened" else "the request is saved; open the Agent app to see it"}
+    except Exception as e:  # noqa: BLE001
+        obj = {"status": "failed", "error": f"{type(e).__name__}: {e}"}
+    return _json_or_text(args.json, obj if obj["status"] != "queued" else {**obj, "error": None}, obj["status"])
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["tasks"]:
@@ -473,6 +502,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_history(argv[1:])
     if argv[:1] == ["create"]:
         return cmd_create(argv[1:])
+    if argv[:1] == ["teach"]:
+        return cmd_teach(argv[1:])
     return cmd_run(argv, prog="engine.cli")  # older forms: "task text", --script FILE, --saved NAME
 
 

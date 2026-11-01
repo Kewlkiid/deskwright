@@ -251,6 +251,20 @@ function onEvent(s: State, m: any): State {
       return { ...s, items: [...s.items, { id: uid(), kind: "user", text: m.text, voice: true }] };
     case "teach_recording":
       return { ...s, recording: !!m.recording, teachStatus: m.recording ? "" : "Analysing your demonstration" };
+    case "teach_request":
+      // Another program wants a task the agent can't write on its own: the user shows it once.
+      return {
+        ...s,
+        items: [
+          ...s.items,
+          {
+            id: uid(),
+            kind: "agent",
+            icon: "sparkle",
+            text: `**A task was requested:** ${m.describe}\n\nPress ● and do it once, then ■. I'll save it as “${m.name || "the requested task"}”, and whoever asked can use it right away.`,
+          },
+        ],
+      };
     case "teach_status":
       return { ...s, teachStatus: m.text };
     case "teach_compiled":

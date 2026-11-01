@@ -70,7 +70,7 @@ export default function App() {
         goPanel();
       }
       // The run needs you: open the panel for the approval or question, then tuck away again.
-      if (msg.type === "confirm_request" || msg.type === "ask_user") goPanel();
+      if (msg.type === "confirm_request" || msg.type === "ask_user" || msg.type === "teach_request") goPanel();
       if (msg.type === "suppress_esc") window.agent?.suppressEsc();
       if (msg.type === "request_hide") window.agent?.hideForCapture().then(() => engine.send({ type: "hidden_ack" }));
       if (msg.type === "request_show") window.agent?.showAfterCapture();
