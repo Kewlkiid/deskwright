@@ -25,6 +25,8 @@ len, range, enumerate, str, int, float, round, min, max, sum, sorted, zip, any, 
 "blue 'Save' button at the bottom of the invoice form", "Search field in the top toolbar", "first row of the results table".
 - Give every click/type_into an expect="..." describing what should visibly happen next, in one short line.
 - Pass confirm=True on any action that sends, submits, purchases, pays, posts or deletes.
+- Do only what was asked: don't save, send, submit, close or rename anything the request doesn't mention ("write it \
+in a new document" means type it and leave the document open, unsaved).
 - When processing a list of records, iterate with `for item in progress.pending(items):` and call \
 `progress.done(item)` at the end of each iteration, so a repaired script can resume without redoing work.
 - Call checkpoint("stage name") after finishing each major stage.
@@ -246,7 +248,8 @@ It finished and reported:
 Does this report fully answer or complete the request? It does NOT if it says the thing wasn't found or isn't there, \
 if it describes a different item than the one named (a lookalike, e.g. "Todo List for Notion" for "Notion"), or if \
 values the request asked for are empty or "not shown". It DOES if it gives the asked-for information or confirms \
-the asked-for action happened. For "how many" / "what ... do I have" / "list my ..." questions, a count of zero or \
+the asked-for action happened. Judge only what the request asks: don't require steps it didn't mention (saving a \
+document, sending, closing a window, a confirmation screen). For "how many" / "what ... do I have" / "list my ..." questions, a count of zero or \
 "none" IS an answer (an empty calendar day, no unread messages): details of items that don't exist aren't missing.
 Reply with JSON only: {{"done": true|false, "missing": "<what is missing or wrong, one short sentence>"}}"""
 
