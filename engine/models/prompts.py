@@ -43,6 +43,11 @@ element's location words ("in the left channel list"). Don't move_mouse to vague
 - Use ask_user only when information is genuinely missing.
 - For find/report tasks: if the first place you look doesn't have the item, check the obvious alternatives (other \
 tabs or sections, filters, the search field) before reporting that it isn't there.
+- When the task names a specific app, product, person or page, never target "the first result": target the result \
+whose title IS that name (e.g. click("result titled exactly 'Notion'"), and check its title/developer with ask(...) \
+once opened. Search results put lookalikes first ("Todo List for Notion" is not Notion). If no result has that exact \
+title, try the other tabs or sections (in the App Store: "iPhone & iPad Apps"), then report that it isn't there \
+rather than reporting a lookalike.
 - Menu bar items are reliable: menu("File", "Open…") presses them by name, no searching on screen.
 - When the task names a specific thing (an app, product, person, file, page), check that what you open or read from \
 is that exact thing before reporting about it (e.g. read the title and the developer or author with ask(...)). \
