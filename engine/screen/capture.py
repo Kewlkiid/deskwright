@@ -101,6 +101,20 @@ def _fake_grab() -> Shot:
     return Shot(image=img, scale=2.0)
 
 
+def screen_locked() -> bool:
+    """macOS: the session is locked or the display is off (screenshots come back empty then)."""
+    try:
+        import Quartz
+
+        d = Quartz.CGSessionCopyCurrentDictionary() or {}
+        if d.get("CGSSessionScreenIsLocked"):
+            return True
+        err, ids, count = Quartz.CGGetActiveDisplayList(8, None, None)
+        return count == 0
+    except Exception:  # noqa: BLE001 - not macOS
+        return False
+
+
 def grab() -> Shot:
     from ..config import config
 
@@ -110,6 +124,9 @@ def grab() -> Shot:
     if len(sct.monitors) < 2 or not sct.monitors[1].get("width"):
         from ..sdk.errors import AgentError
 
+        if screen_locked():
+            raise AgentError("The screen is locked or asleep, so there's nothing to see or click. Unlock the Mac and "
+                             "try again.", retryable=False)
         raise AgentError(
             "No display available for screenshots. On macOS, grant Screen Recording to the app that launched the "
             "agent (Terminal, VS Code or Electron) in System Settings > Privacy & Security, then restart it.",

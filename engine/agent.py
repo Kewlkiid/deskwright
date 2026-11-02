@@ -279,6 +279,7 @@ class Agent:
         set_current(ctx)
         status, final_script, error = "failed", script or "", None
         self.host.emit("run_started", run_id=run_id, task=task, task_id=task_id)
+        awake = keep_awake()  # the display mustn't sleep (and lock) in the middle of a run
         try:
             if script is None:
                 script = self.write_script(ctx, task)
@@ -351,6 +352,8 @@ class Agent:
                 debug_dir=str(ctx.debug.dir) if ctx.debug is not None else None,
             )
             set_current(None)
+            if awake is not None:
+                awake.terminate()
             self.screen_lock.release()
             self._busy.release()
         return {"status": status, "final_script": final_script, "error": error, "metrics": metrics,
@@ -749,3 +752,17 @@ def warm_up_apps(task: str):
             subprocess.Popen(["open", "-g", "-a", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError:
             pass
+
+
+def keep_awake():
+    """Hold the display and system awake for a run (macOS caffeinate); returns the process to end it, or None."""
+    import subprocess
+    import sys as _sys
+
+    if _sys.platform != "darwin" or config.fake_screen:
+        return None
+    try:
+        return subprocess.Popen(["caffeinate", "-d", "-i", "-w", str(os.getpid())],
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        return None
