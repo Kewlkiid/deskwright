@@ -521,30 +521,87 @@ def point_at_content(ctx: RunContext, only_if_outside: bool = False, target: str
     run_input(inp.move, x + w * fx, y + h * 0.55)
 
 
+def _target_words(target: str) -> list[str]:
+    from ..models.grounding import _words
+
+    return [w.strip("#") for w in _words(re.sub(r"\b(in|at|on|of|the|left|right|top|bottom)\b.*$", "", target))
+            if len(w.strip("#")) > 2][:4]
+
+
+def _words_on_screen(ctx: RunContext, shot: cap.Shot, words: list[str]) -> bool:
+    from .screen_text import _screen_text
+
+    text = _screen_text(ctx, shot)
+    return not text or all(w in text for w in words)  # no text to go on: let the model look
+
+
+def _reveal_offscreen(ctx: RunContext, target: str) -> bool:
+    """When the app lists the item even though it's scrolled out of view (Accessibility), scroll it into view
+    directly (AXScrollToVisible). No model call, no scrolling screen by screen."""
+    if config.fake_screen or not ctx.scope_app:
+        return False
+    from ..models.grounding import ax_candidates
+    from ..screen import ax
+
+    try:
+        els = ax.elements(ctx.scope_app)
+        win = ax.window_box(ctx.scope_app)
+    except Exception:  # noqa: BLE001
+        return False
+    if not els or not win:
+        return False
+    w = win[2] - win[0]
+    shift = 500_000  # score every element, visible or not: rows above and below the window both stay "on screen"
+    rel = [([e.box[0] - win[0], e.box[1] - win[1] + shift, e.box[2] - win[0], e.box[3] - win[1] + shift], e.role, e.label)
+           for e in els]
+    picks = ax_candidates(rel, target, (int(w) + 1, 2 * shift), limit=3)
+    for pick in picks:
+        cy = (pick[1] + pick[3]) / 2
+        el = min(els, key=lambda e, cy=cy: abs((e.box[1] + e.box[3]) / 2 - win[1] + shift - cy))
+        visible = win[1] <= el.box[1] and el.box[3] <= win[3]
+        if visible:
+            return False  # already on screen: the normal lookup finds it
+        if "AXScrollToVisible" in ax.actions(el) and ax.perform(el, "AXScrollToVisible"):
+            ctx.log(f'"{target}" was off screen: scrolled it into view ({el.label[:40]})')
+            ctx.settle(1.0)
+            return True
+    return False
+
+
 def scroll_until(target: str, direction: str = "down", max_scrolls: int = 15) -> None:
     """Scroll the app's main content (the middle of its window) until the described element is visible.
     Raises ElementNotFoundError if it never appears or the content stops moving."""
     ctx = current()
-    amount = -5 if direction.lower().startswith("d") else 5
+    amount = -8 if direction.lower().startswith("d") else 8
     with ACTION_LOCK:
         b = browser_for(ctx)
         if b and browser_find(ctx, b, target, "scroll to") is not None:  # the page scrolls it into view
             ctx.pending = None
             return
-        point_at_content(ctx, target=target)
-        for _ in range(max_scrolls):
-            ctx.check_stop()
+        if _reveal_offscreen(ctx, target):
             f = find(ctx, target, "scroll to", raise_missing=False)
             if f is not None:
                 announce(ctx, f, target, "found", None)
                 ctx.pending = None
                 return
-            before = ctx.last_shot.image if ctx.last_shot else None
+        point_at_content(ctx, target=target)
+        words = _target_words(target)
+        for _ in range(max_scrolls):
+            ctx.check_stop()
+            shot = ctx.capture()
+            # Only ask the models once the item's words are on screen; until then just keep scrolling.
+            if not words or _words_on_screen(ctx, shot, words):
+                f = find(ctx, target, "scroll to", raise_missing=False)
+                if f is not None:
+                    announce(ctx, f, target, "found", None)
+                    ctx.pending = None
+                    return
+            before = shot.image
             run_input(inp.scroll, amount)
             ctx.metrics.steps += 1
             ctx.settle(1.0)
             after = ctx.capture().image
-            if before is not None and frame_diff(before, after) < 0.3:
+            if frame_diff(before, after) < 0.3:
                 break
         raise ElementNotFoundError(
             f'Scrolled {direction} but "{target}" never appeared',

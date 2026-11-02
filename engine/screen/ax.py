@@ -34,6 +34,7 @@ class AXElement:
     role: str
     label: str
     box: list[float]  # global logical [x1, y1, x2, y2]
+    ref: object = None  # the AXUIElement itself, to act on it (press, scroll into view, focus)
 
 
 def available() -> bool:
@@ -97,7 +98,7 @@ def elements(app: str) -> list[AXElement]:
             box = _frame(el)
             label = _label(el)
             if box and (label or role not in ("AXStaticText", "AXImage", "AXRow", "AXCell")):
-                out.append(AXElement(role=role, label=label, box=box))
+                out.append(AXElement(role=role, label=label, box=box, ref=el))
         kids = _attr(el, "AXChildren") or []
         stack.extend(reversed(list(kids)))
     return out
@@ -128,6 +129,38 @@ def scroll_areas(app: str) -> list[AXElement]:
                 out.append(AXElement(role=role, label=_label(el), box=box))
         stack.extend(reversed(list(_attr(el, "AXChildren") or [])))
     return sorted(out, key=lambda e: (e.box[2] - e.box[0]) * (e.box[3] - e.box[1]))
+
+
+def actions(el: AXElement) -> list[str]:
+    if AS is None or el.ref is None:
+        return []
+    err, names = AS.AXUIElementCopyActionNames(el.ref, None)
+    return list(names or []) if err == 0 else []
+
+
+def perform(el: AXElement, action: str) -> bool:
+    """Do one of the element's own actions (AXPress, AXScrollToVisible, AXShowMenu...)."""
+    if AS is None or el.ref is None:
+        return False
+    return AS.AXUIElementPerformAction(el.ref, action) == 0
+
+
+def focus(el: AXElement) -> bool:
+    if AS is None or el.ref is None:
+        return False
+    return AS.AXUIElementSetAttributeValue(el.ref, "AXFocused", True) == 0
+
+
+def window_box(app: str) -> list[float] | None:
+    """The front window's frame (global logical)."""
+    if AS is None:
+        return None
+    pid = _pid(app)
+    if pid is None:
+        return None
+    root = AS.AXUIElementCreateApplication(pid)
+    window = _attr(root, "AXFocusedWindow") or (_attr(root, "AXWindows") or [None])[0]
+    return _frame(window) if window is not None else None
 
 
 def press_menu(app: str, path: list[str]) -> bool:
