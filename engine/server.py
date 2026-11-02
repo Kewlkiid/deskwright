@@ -241,6 +241,8 @@ class Server:
             self._bg(a.teach_stop, m.get("name", ""), m.get("description", ""))
         elif t == "save_task":
             self._bg(a.save_task, m["name"], m["script"], m.get("description", ""), m.get("source", "chat"))
+        elif t == "resume_run":
+            self._bg(a.resume, int(m["run_id"]))
         elif t == "export_task":
             self._bg(a.export_task, int(m["task_id"]))
         elif t == "delete_task":

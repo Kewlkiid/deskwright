@@ -225,3 +225,21 @@ def test_export_writes_a_runnable_script(screen, agent_factory):
     assert text.startswith("# Deskwright task: greet someone") and "deskwright.run_script(" in text
     assert parse_header(text)["inputs"] == parse_header(GREET)["inputs"] and validate(text, SDK_NAMES) == []
     assert agent.run_task("greet", text, inputs={"customer": "Acme", "count": 1})["outputs"] == {"greeting": "hi Acme x1"}
+
+
+def test_stages_and_resume_after_the_last_checkpoint(screen, agent_factory):
+    from engine.runner.schema import resume_script, stages_of
+
+    script = ('INPUTS = {"who": "str: who"}\nOUTPUTS = {}\nSTAGES = ["opened", "sent"]\nwho = inp("who")\n'
+              'open_app("Chat")\nname = ask("whose chat is open?")\ncheckpoint("opened")\nclick("Send button")\n'
+              'checkpoint("sent")\n')
+    assert stages_of(script) == ["opened", "sent"]
+    rest = resume_script(script, "opened")
+    assert 'who = inp("who")' in rest and "STAGES" in rest and 'click("Send button")' in rest
+    assert "open_app" not in rest and "ask(" not in rest  # finished stage dropped
+    # A run stopped after its first stage can be continued from there.
+    agent, host = agent_factory()
+    out = agent.run_task("two stages", 'INPUTS = {"x": "str: x"}\nOUTPUTS = {}\nSTAGES = ["opened"]\nopen_app("Chat")\n'
+                                       'checkpoint("opened")\nx = inp("x")', no_ask=True)
+    assert out["status"] != "succeeded"
+    assert agent.resumable[out["run_id"]]["checkpoints"] == ["opened"]

@@ -59,6 +59,58 @@ def header_problems(script: str) -> list[str]:
     return parse_header(script)["problems"]
 
 
+def stages_of(script: str) -> list[str]:
+    """The script's STAGES = ["...", ...] list (named sub-tasks, each ended by checkpoint(name)); [] when none."""
+    try:
+        tree = ast.parse(script or "")
+    except SyntaxError:
+        return []
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "STAGES" for t in node.targets):
+            try:
+                value = ast.literal_eval(node.value)
+            except ValueError:
+                return []
+            return [str(v) for v in value][:20] if isinstance(value, (list, tuple)) else []
+    return []
+
+
+def resume_script(script: str, after_checkpoint: str) -> str:
+    """The script from just after checkpoint(after_checkpoint): its header and simple setup (inputs, literals) kept,
+    everything up to that checkpoint dropped. Values those dropped steps found are recomputed by the repair step if
+    the rest needs them."""
+    try:
+        tree = ast.parse(script)
+    except SyntaxError:
+        return script
+    lines = script.splitlines()
+    cut = None
+    for node in tree.body:
+        call = node.value if isinstance(node, ast.Expr) else None
+        if (isinstance(call, ast.Call) and isinstance(call.func, ast.Name) and call.func.id == "checkpoint" and call.args
+                and isinstance(call.args[0], ast.Constant) and call.args[0].value == after_checkpoint):
+            cut = node
+    if cut is None:
+        return script
+
+    def keep(node) -> bool:
+        if node.lineno > cut.end_lineno:
+            return True
+        if isinstance(node, ast.Assign):
+            v = node.value
+            if isinstance(v, ast.Constant) or isinstance(v, (ast.List, ast.Dict, ast.Tuple)):
+                return True  # INPUTS, OUTPUTS, STAGES, constants
+            if isinstance(v, ast.Call) and isinstance(v.func, ast.Name) and v.func.id == "inp":
+                return True
+        return False
+
+    out = []
+    for node in tree.body:
+        if keep(node):
+            out.append("\n".join(lines[node.lineno - 1 : node.end_lineno]))
+    return "\n".join(out) + "\n"
+
+
 def schema_of(script: str) -> tuple[dict, dict]:
     h = parse_header(script)
     return h["inputs"], h["outputs"]

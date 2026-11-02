@@ -323,6 +323,9 @@ def goal_missing(ctx: RunContext) -> str:
         return ""
     if done:
         return ""
+    # The rejected answer gives way to the repaired one (no two result cards for one run).
+    ctx.emit("results_superseded", ids=[r.get("id") for r in ctx.results])
+    ctx.results.clear()
     # Cached spots that led here may be wrong (e.g. the wrong server clicked): find them fresh next time.
     for window, target in ctx.cache_targets:
         ctx.cache.invalidate(window, target)

@@ -139,6 +139,7 @@ function onEvent(s: State, m: any): State {
       const key = `run${m.run_id}`;
       const run: RunView = {
         key, task: m.task, draft: false, status: "running", segments: [], checkpoints: [], taskId: m.task_id, trace: [],
+        runId: m.run_id,
       };
       // A draft that is now running no longer needs its Run button.
       const runs = { ...s.runs, [key]: run };
@@ -159,7 +160,7 @@ function onEvent(s: State, m: any): State {
           items: [...s.items, { id: uid(), kind: "run", runKey: key }],
         };
       }
-      return updateRun(s, s.activeRun, (r) => ({ ...r, segments: [segment(0, m.script)] }));
+      return updateRun(s, s.activeRun, (r) => ({ ...r, segments: [segment(0, m.script)], stages: m.stages || [] }));
     }
     case "line_started":
       return updateRun(s, s.activeRun, (r) => updateSeg(r, m.segment, (g) => setLine(g, m.line, "running")));
@@ -240,7 +241,15 @@ function onEvent(s: State, m: any): State {
         ),
       };
     case "result_ready":
-      return { ...s, items: [...s.items, { id: uid(), kind: "result", result: m.result }] };
+      return { ...s, items: [...s.items, { id: uid(), kind: "result", result: m.result, runKey: s.activeRun }] };
+    case "results_superseded": {
+      // The run's answer didn't meet the request and is being redone: drop the rejected cards.
+      const ids = new Set(m.ids || []);
+      return {
+        ...s,
+        items: s.items.filter((i) => !(i.kind === "result" && i.runKey === s.activeRun && ids.has(i.result.id))),
+      };
+    }
     case "run_finished": {
       const key = `run${m.run_id}`;
       let tasks = s.tasks;

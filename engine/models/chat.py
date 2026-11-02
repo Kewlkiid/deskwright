@@ -57,15 +57,27 @@ MAX_TURNS = 24  # messages kept for context
 class Chat:
     def __init__(self, client: ModelClient):
         self.client = client
-        self.history: list[dict] = []
+        self.path = config.db_path.parent / "chat.json"  # the conversation survives restarts
+        try:
+            self.history: list[dict] = json.loads(self.path.read_text())[-MAX_TURNS:]
+        except (OSError, ValueError):
+            self.history = []
+
+    def _save(self):
+        try:
+            self.path.write_text(json.dumps(self.history[-MAX_TURNS:]))
+        except OSError:
+            pass
 
     def clear(self):
         self.history = []
+        self._save()
 
     def note(self, text: str):
         """Something the user saw happen (a run finished), so later turns can refer to it."""
         self.history.append({"role": "assistant", "content": text})
         self.history[:] = self.history[-MAX_TURNS:]
+        self._save()
 
     def respond(self, text: str, saved_tasks: list[dict] | None = None) -> tuple[str, tuple | None]:
         """(reply to show, what to do): None, ("task", instruction) or ("saved", name, inputs).
@@ -114,4 +126,5 @@ class Chat:
         what = f"Running saved task {action[1]}" if action and action[0] == "saved" else (
             f"Doing: {action[1]}" if action else "")
         self.history.append({"role": "assistant", "content": reply or what})
+        self._save()
         return reply, action

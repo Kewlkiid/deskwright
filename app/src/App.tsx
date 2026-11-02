@@ -274,6 +274,7 @@ export default function App() {
             firstRun={done[0]?.metrics}
             runNumber={done.length}
             onSave={(name, script) => saveRun(run, name, script)}
+            onResume={run.runId ? () => engine.send({ type: "resume_run", run_id: run.runId }) : undefined}
           />
         );
       }
@@ -334,6 +335,13 @@ export default function App() {
   }
 
   const empty = s.items.length === 0;
+  const active = s.activeRun ? s.runs[s.activeRun] : undefined;
+  const stageText = (() => {
+    const st = active?.stages;
+    if (!s.running || !st || st.length < 2) return "";
+    const i = Math.min(active!.checkpoints.length, st.length - 1);
+    return `Stage ${i + 1} of ${st.length}`;
+  })();
   const bar =
     mode === "panel" ? null : (
       <Pill
@@ -341,6 +349,7 @@ export default function App() {
         status={s.status}
         metrics={s.metrics}
         connected={s.connected}
+        stage={stageText}
         listening={wake.on}
         visible={mode !== "opening"}
         onOpen={goPanel}

@@ -85,6 +85,8 @@ export interface RunView {
   metrics?: Metrics;
   progress?: { done: number; total: number };
   checkpoints: string[];
+  stages?: string[]; // the script's named sub-tasks (STAGES); checkpoints mark them done
+  runId?: number;
   finalScript?: string;
   taskId?: number | null;
   trace: TraceItem[];
@@ -135,7 +137,7 @@ export type ChatItem =
   | { id: string; kind: "reply"; text: string } // a chat answer
   | { id: string; kind: "error"; text: string }
   | { id: string; kind: "run"; runKey: string }
-  | { id: string; kind: "result"; result: ResultItem }
+  | { id: string; kind: "result"; result: ResultItem; runKey?: string | null }
   | { id: string; kind: "question"; qid: string; question: string; options?: string[]; answer?: string; closed?: boolean }
   | { id: string; kind: "confirm"; qid: string; summary: string; answer?: boolean; closed?: boolean }
   | { id: string; kind: "summary"; runKey: string }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUp, Check, CircleSlash, Copy, FolderOpen, Mic, Save, Sparkles, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Check, CircleSlash, Copy, FolderOpen, Mic, Play, Save, Sparkles, TriangleAlert, X } from "lucide-react";
 import type { ChatItem, Metrics, RunView } from "../lib/types";
 import { ScriptView } from "./ScriptView";
 
@@ -157,7 +157,9 @@ export function SummaryCard({
   firstRun,
   runNumber,
   onSave,
+  onResume,
 }: {
+  onResume?: () => void;
   run: RunView;
   firstRun?: Partial<Metrics> | null;
   runNumber?: number;
@@ -198,6 +200,14 @@ export function SummaryCard({
         )}
       </div>
       {run.error?.message && !ok && <div className="selectable text-[13px] text-fg-2">{run.error.message}</div>}
+      {!ok && onResume && run.checkpoints.length > 0 && run.status !== "declined" && (
+        <button
+          onClick={onResume}
+          className="flex h-8 items-center gap-1.5 rounded-full border border-line px-3 text-[13px] hover:bg-surface"
+        >
+          <Play className="h-3.5 w-3.5" strokeWidth={1.75} /> Continue after “{run.checkpoints[run.checkpoints.length - 1]}”
+        </button>
+      )}
       {m && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-fg-2">
           <span>{m.steps} steps</span>

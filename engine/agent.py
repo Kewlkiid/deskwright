@@ -32,6 +32,7 @@ class Agent:
         self.db = db or DB(config.db_path)
         self.cache = PositionCache(self.db)
         self.stop_event = threading.Event()
+        self.resumable: dict[int, dict] = {}  # run id -> what's needed to continue it from its last stage
         self._busy = threading.Lock()
         # One run on the screen at a time across processes (the app's engine and CLI runs from other programs).
         from .runner.screen_lock import ScreenLock
@@ -103,6 +104,17 @@ class Agent:
         if hasattr(self.models.grounder, "reset"):
             self.models.grounder.reset()  # every run starts in auto mode with a clean SAM failure count
         return ctx
+
+    def resume(self, run_id: int):
+        """Continue a stopped or failed run after the last stage it finished."""
+        from .runner.schema import resume_script
+
+        r = self.resumable.get(int(run_id))
+        if not r:
+            self.host.emit("error", message="That run can't be continued any more (the app restarted).")
+            return
+        script = resume_script(r["script"], r["checkpoints"][-1]) if r["checkpoints"] else r["script"]
+        return self.run_task(r["task"], script, r["task_id"], inputs=r["inputs"])
 
     def clarify(self, ctx: RunContext, question: str, options: list[str] | None = None) -> str:
         """Settle an ambiguity with the user before acting (planner or repair step). Spoken when voice is on; the
@@ -276,8 +288,10 @@ class Agent:
                     raise AgentError("Script failed validation: " + "; ".join(problems), retryable=False)
             final_script = script
             ctx.input_schema, ctx.output_schema = schema_of(script)
+            from .runner.schema import stages_of
+
             self.host.emit("script_generated", script=script, segment=0, draft=False, task=task,
-                           inputs=ctx.input_schema, outputs=ctx.output_schema)
+                           inputs=ctx.input_schema, outputs=ctx.output_schema, stages=stages_of(script))
             self._start_network_capture(ctx, script)
             result = run_with_healing(ctx, script, sdk_reference())
             if result["status"] == "succeeded":
@@ -308,6 +322,10 @@ class Agent:
                 for d in learned:
                     self.db.add_detour(task_id, d)
             self.last_run = {"final_script": final_script, "detours": learned}
+            # What "Continue" needs if this run stopped or failed partway (kept for this session).
+            reached = list(ctx.progress.log().get("checkpoints", [])) if hasattr(ctx.progress, "log") else []
+            self.resumable[run_id] = {"task": task, "script": final_script, "task_id": task_id,
+                                      "inputs": dict(ctx.inputs), "checkpoints": reached}
             metrics = ctx.metrics.snapshot()
             self.db.finish_run(run_id, status, metrics)
             chat = getattr(self.models, "chat", None)

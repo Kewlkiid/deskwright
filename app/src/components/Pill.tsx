@@ -10,6 +10,7 @@ export function Pill({
   status,
   metrics,
   connected,
+  stage = "",
   listening = false,
   visible = true,
   onOpen,
@@ -18,6 +19,7 @@ export function Pill({
   status: string;
   metrics: Metrics | null;
   connected: boolean;
+  stage?: string; // "Stage 2 of 4: write the table" for long tasks
   listening?: boolean; // wake word on: say "stop" works too
   visible?: boolean;
   onOpen: () => void;
@@ -60,7 +62,7 @@ export function Pill({
         <div className="min-w-0 flex-1 leading-tight">
           <div className="shimmer truncate text-[13.5px]">{status || "Working…"}</div>
           <div className="mt-0.5 truncate text-[11.5px] text-fg-3">
-            Press <kbd className="rounded border border-line bg-surface px-1 font-sans text-[10.5px] text-fg-2">esc</kbd>
+            {stage ? `${stage} · ` : ""}Press <kbd className="rounded border border-line bg-surface px-1 font-sans text-[10.5px] text-fg-2">esc</kbd>
             {listening ? " or say “stop”" : ""} to stop
             {metrics ? ` · ${metrics.model_calls} model calls${metrics.cache_hits ? `, ${metrics.cache_hits} cached` : ""}` : ""}
           </div>
