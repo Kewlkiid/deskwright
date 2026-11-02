@@ -56,7 +56,11 @@ class Agent:
 
     def stop(self, source: str = "esc or the stop button"):
         self.stop_event.set()
-        self.host.emit("status", text="Stopping…", source=source)  # the debug timeline records what stopped it
+        self.host.emit("status", text="Stopping…", source=source)
+        from .sdk.context import _current
+
+        if _current is not None:
+            _current.log(f"stop requested by {source}")  # into the run's debug timeline
 
     # Planning --------------------------------------------------------------
     def _context_hint(self, task: str = "") -> str:
