@@ -18,7 +18,7 @@ from ..screen import input as inp
 from ..screen.fingerprint import frame_diff
 from .context import ACTION_LOCK, RunContext, current
 from .errors import ElementNotFoundError, FieldChangedError, NoChangeError, UserDeclinedError
-from .raw import keys_reach_app, restore_typed, run_input
+from .raw import app_in_front, keys_reach_app, restore_typed, run_input
 from .safety import ask_approval, is_sensitive, owed_summary
 
 if TYPE_CHECKING:
@@ -379,6 +379,7 @@ def _pointer_action(target: str, verb: str, expect: str | None, confirm: bool, b
         f = find(ctx, target, verb)
         announce(ctx, f, target, verb, expect)
         require_confirmation(ctx, verb, target, expect, confirm)
+        app_in_front(ctx)
         present(ctx, f, "hover" if verb == "hover over" else "click")
         x, y = f.shot.to_logical(*f.point)
         if verb == "hover over":

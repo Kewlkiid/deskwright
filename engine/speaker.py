@@ -200,6 +200,14 @@ class Speaker:
                 time.sleep(0.1)  # first sentence after turning voice on: wait for the model
             self.speaking = True
             self.emit("speaking", on=True)
+            if config.speech_log:
+                try:
+                    import json
+
+                    with open(config.speech_log, "a") as f:
+                        f.write(json.dumps({"t": time.time(), "text": text, "lang": self._lang}) + "\n")
+                except OSError:
+                    pass
             try:
                 if self.backend == "Pocket TTS" and self._model is not None:
                     stream = self._play_pocket(text, stream)

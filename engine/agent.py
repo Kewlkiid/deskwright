@@ -281,6 +281,11 @@ class Agent:
                            for r in self.db.task_detours(task_id)]
         ctx.inputs = dict(inputs or {})
         ctx.no_ask = no_ask
+        if task_id and ctx.inputs:
+            # A saved task's description holds the example it was made from ("invoice for Initech for 42.50"): the
+            # final check and any repair must aim at this run's values instead.
+            ctx.task = (f"{task}\n(This run's inputs, which replace any example values above: "
+                        + ", ".join(f"{k}={v}" for k, v in ctx.inputs.items()) + ")")
         if config.debug and not config.fake_models:
             from .runner.debug import RunDebug
 

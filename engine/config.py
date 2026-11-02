@@ -45,6 +45,8 @@ class Config:
     # and a missing install stay on MMS-TTS.
     tts_engine: str = field(default_factory=lambda: os.environ.get("TTS_ENGINE", "mms"))
     tts_voice: str = field(default_factory=lambda: os.environ.get("TTS_VOICE", "alba"))
+    # Recordings: append every line Deskwright speaks, with its time, to this JSON-lines file (empty = off).
+    speech_log: str = field(default_factory=lambda: os.environ.get("SPEECH_LOG", ""))
     # The language Deskwright talks, listens and answers in (engine/i18n.py): en, es, fr, de or pt. The app's
     # language setting overrides it.
     language: str = field(default_factory=lambda: os.environ.get("DESKWRIGHT_LANGUAGE", "en"))
