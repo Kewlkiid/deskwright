@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowUp, Check, CircleSlash, Copy, FolderOpen, Mic, Play, Save, Sparkles, TriangleAlert, X } from "lucide-react";
+import { ArrowUp, Check, ChevronDown, CircleSlash, Copy, FolderOpen, Mic, Play, Save, Sparkles, TriangleAlert, X, Zap } from "lucide-react";
 import type { ChatItem, Metrics, RunView } from "../lib/types";
 import { t } from "../lib/i18n";
 import { ScriptView } from "./ScriptView";
@@ -168,6 +168,7 @@ export function SummaryCard({
 }) {
   const [name, setName] = useState(run.task.slice(0, 48));
   const [open, setOpen] = useState(false);
+  const [found, setFound] = useState(false); // the elements it found, and which came from the cache
   const m = run.metrics;
   const ok = run.status === "succeeded";
   const canSave = !run.taskId && !!run.finalScript && ok && !run.savedAs;
@@ -214,7 +215,15 @@ export function SummaryCard({
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-fg-2">
           <span>{t("{n} steps", { n: m.steps })}</span>
           <span>{t("{n} model calls", { n: m.model_calls })}</span>
-          {m.cache_hits + m.cache_misses > 0 && <span>{t("{n}% from cache", { n: Math.round(m.cache_hit_rate * 100) })}</span>}
+          {(m.cache_hits + m.cache_misses > 0 || run.trace.length > 0) && (
+            <button
+              onClick={() => setFound(!found)}
+              className="flex items-center gap-0.5 underline-offset-2 hover:text-fg hover:underline"
+            >
+              {t("{n}% from cache", { n: Math.round(m.cache_hit_rate * 100) })}
+              <ChevronDown className={`h-3 w-3 transition-transform ${found ? "rotate-180" : ""}`} />
+            </button>
+          )}
           <span>{fmtCost(m.cost)}</span>
           {m.fixes > 0 && (
             <span className="text-warn">{t("{a}/{b} self-fixes worked", { a: m.fixes_succeeded, b: m.fixes })}</span>
@@ -230,13 +239,7 @@ export function SummaryCard({
             : t("Run {n}: {x}× faster than run 1", { n: runNumber!, x: speedup.toFixed(1) })}
         </div>
       )}
-      {m && m.calls_saved > 0 && !(speedup && speedup > 1.05) && (
-        <div className="text-[12.5px] text-fg-3">
-          {t("The position cache skipped {n} model calls (about {s}s, {c}).", {
-            n: m.calls_saved, s: m.time_saved.toFixed(0), c: fmtCost(m.cost_saved),
-          })}
-        </div>
-      )}
+      {found && <FoundElements run={run} />}
       {canSave && open && (
         <form
           className="flex items-center gap-2"
@@ -254,9 +257,55 @@ export function SummaryCard({
             className="h-8 flex-1 rounded-lg border border-line px-2.5 text-[13px] outline-none focus:border-fg-3"
           />
           <button className="h-8 rounded-lg bg-fg px-3 text-[13px] font-medium text-white">{t("Save")}</button>
+          <button type="button" onClick={() => setOpen(false)} className="h-8 px-2 text-[13px] text-fg-2 hover:text-fg">
+            {t("Cancel")}
+          </button>
         </form>
       )}
-      {run.savedAs && <div className="text-[13px] text-fg-2">{t("Saved as “{name}”. Say “run {name}” any time.", { name: run.savedAs })}</div>}
+      {run.savedAs && (
+        <div className="text-[13px] text-fg-2">{t("Saved as “{name}”. Say “Agent, run {name}” any time.", { name: run.savedAs })}</div>
+      )}
+    </div>
+  );
+}
+
+/** What the run found on screen: a crop of each element, marked when it came from the position cache, plus what the
+ * cache saved. Opened from "…% from cache" under a finished run. */
+function FoundElements({ run }: { run: RunView }) {
+  const m = run.metrics;
+  return (
+    <div className="space-y-2 rounded-xl border border-line-soft bg-surface p-2.5">
+      {m && m.calls_saved > 0 && (
+        <div className="text-[12.5px] text-fg-2">
+          {t("The position cache skipped {n} model calls (about {s}s, {c}).", {
+            n: m.calls_saved, s: m.time_saved.toFixed(0), c: fmtCost(m.cost_saved),
+          })}
+        </div>
+      )}
+      {run.trace.length > 0 ? (
+        <div className="scroll-x -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+          {run.trace.map((tr, i) => (
+            <div
+              key={i}
+              title={`${tr.fromCache ? t("From the position cache") : t("Found by the vision models")}: ${tr.target}`}
+              className={`relative h-[46px] w-[66px] shrink-0 overflow-hidden rounded-lg border bg-white ${
+                tr.fromCache ? "border-[#f3c9b3]" : "border-line"
+              }`}
+            >
+              {tr.thumbnail && <img src={tr.thumbnail} alt="" className="h-full w-full object-cover" />}
+              <span
+                className={`absolute bottom-0.5 right-0.5 flex h-4 items-center gap-0.5 rounded px-1 text-[9.5px] font-semibold ${
+                  tr.fromCache ? "bg-cache text-white" : "bg-white/95 text-fg-2"
+                }`}
+              >
+                {tr.fromCache ? <Zap className="h-2.5 w-2.5 fill-white" /> : "AI"}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="text-[12.5px] text-fg-3">{t("No elements were looked up on screen in this run.")}</div>
+      )}
     </div>
   );
 }

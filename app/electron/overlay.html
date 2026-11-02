@@ -47,6 +47,16 @@
   #hud .typed { color: #222; white-space: pre; }
   #hud .typed::after { content: ""; display: inline-block; width: 1.5px; height: 13px; margin-left: 1px; vertical-align: -2px;
                        background: var(--spark); animation: caret 1s steps(1) infinite; }
+  /* Teach by demonstration: 3, 2, 1 in the middle of the screen before recording starts */
+  #countdown { position: fixed; left: 50%; top: 50%; width: 168px; height: 168px; margin: -84px 0 0 -84px;
+               border-radius: 50%; background: rgba(13,13,13,.78); color: #fff; display: flex; flex-direction: column;
+               align-items: center; justify-content: center; opacity: 0; transform: scale(.9); pointer-events: none;
+               transition: opacity .2s ease, transform .2s ease; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+  #countdown.on { opacity: 1; transform: none; }
+  #countdown .n { font: 600 72px/1 -apple-system, system-ui, sans-serif; }
+  #countdown .n.tick { animation: tick .9s cubic-bezier(.2,.8,.2,1) both; }
+  #countdown .label { margin-top: 6px; font: 500 12.5px -apple-system, system-ui, sans-serif; opacity: .8; }
+  @keyframes tick { from { transform: scale(1.35); opacity: 0; } 25% { opacity: 1; } to { transform: scale(1); opacity: 1; } }
   @keyframes keyin { from { transform: translateY(3px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
   @keyframes caret { 50% { opacity: 0; } }
   @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
@@ -115,6 +125,7 @@
   <div id="scan"></div>
 </div>
 <div id="hud"><span class="dot"></span><span class="txt"></span></div>
+<div id="countdown"><span class="n"></span><span class="label"></span></div>
 <script src="overlay.js"></script>
 </body>
 </html>

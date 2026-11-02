@@ -1,4 +1,4 @@
-import type { ChatItem, ElementInfo, Metrics, RunView, SavedTask, Segment } from "./types";
+import type { ChatItem, ElementInfo, Metrics, RunView, SavedTask, Segment, Totals } from "./types";
 import { t } from "./i18n";
 
 export interface State {
@@ -13,7 +13,7 @@ export interface State {
   element: ElementInfo | null;
   metrics: Metrics | null;
   tasks: SavedTask[];
-  totals: { runs: number; success_rate: number; fix_success_rate: number } | null;
+  totals: Totals | null;
   recording: boolean;
   teachStatus: string;
   thinking: boolean; // a message was sent and the chat hasn't answered yet

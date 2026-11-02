@@ -131,11 +131,22 @@ class Agent:
     def write_script(self, ctx: RunContext, task: str) -> str:
         ref = sdk_reference()
         ctx.status("Writing the script…")
-        warm_up_apps(task)
+        already = warm_up_apps(task)
+        context = self._context_hint(task)
+        if already:
+            # The app is open already, maybe mid-way through something (a dialog, another channel, old text in a
+            # field): bring it up and plan from how it is now rather than from a fresh window.
+            subprocess_open(already)
+            ctx.scope_app = already
+            ctx.invalidate_window()
+            ctx.sleep(0.9)
+            ctx.log(f"{already} was already open: planning from its current state")
+            context += (f"\n\n{already.upper()} IS ALREADY OPEN. The screenshot shows it as it is right now. Start from "
+                        "this state: if a dialog, menu, other page or leftover text is in the way, close it or go back "
+                        "first; don't assume a fresh window.")
         shot = ctx.capture()
         from .runner.healer import screen_labels
 
-        context = self._context_hint(task)
         labels = screen_labels(ctx, shot)
         if labels:
             context += f"\n\nWHAT IS ON SCREEN in {ctx.scope_app or 'the front app'} (text and controls): " + " | ".join(labels)
@@ -752,25 +763,56 @@ def installed_apps() -> list[str]:
     return _installed
 
 
-def warm_up_apps(task: str):
+def subprocess_open(app: str):
+    """Bring an app to the front (macOS `open -a`)."""
+    import subprocess
+
+    try:
+        subprocess.run(["open", "-a", app], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def named_apps(task: str) -> list[str]:
+    """Apps the request names ("in the weather app", "on discord"), at most two."""
+    low = f" {re.sub(r'[^a-z0-9 ]', ' ', task.lower())} "
+    aliases = {"chrome": "Google Chrome", "settings": "System Settings", "maps": "Maps", "discord": "Discord"}
+    wanted = [a for k, a in aliases.items() if f" {k} " in low]
+    for name in installed_apps():
+        if len(name) > 3 and f" {name.lower()} " in low and name not in wanted:
+            wanted.append(name)
+    return wanted[:2]
+
+
+def running_apps() -> set[str]:
+    try:
+        from AppKit import NSWorkspace
+
+        return {str(a.localizedName() or "") for a in NSWorkspace.sharedWorkspace().runningApplications()}
+    except Exception:  # noqa: BLE001
+        return set()
+
+
+def warm_up_apps(task: str) -> str | None:
     """Start apps the request names, in the background and without taking focus, while the planner writes the
-    script: by the time the script opens one it is already running."""
+    script: by the time the script opens one it is already running. Returns a named app that was ALREADY open, so
+    the planner can look at it first (it may be mid-way through something)."""
     import subprocess
     import sys as _sys
 
     if _sys.platform != "darwin" or config.fake_screen:
-        return
-    low = f" {task.lower()} "
-    aliases = {"chrome": "Google Chrome", "settings": "System Settings", "maps": "Maps", "discord": "Discord"}
-    wanted = {a for k, a in aliases.items() if f" {k} " in low or f" {k}," in low}
-    for name in installed_apps():
-        if len(name) > 3 and f" {name.lower()} " in low:
-            wanted.add(name)
-    for name in list(wanted)[:2]:
+        return None
+    wanted = named_apps(task)
+    running = running_apps()
+    already = next((a for a in wanted if a in running), None)
+    for name in wanted:
+        if name in running:
+            continue
         try:
             subprocess.Popen(["open", "-g", "-a", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except OSError:
             pass
+    return already
 
 
 def keep_awake():

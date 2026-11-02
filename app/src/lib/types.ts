@@ -154,3 +154,20 @@ export type ChatItem =
       problems: string[];
       saved?: boolean;
     };
+
+/** One day of runs (engine/store/db.py _per_day). */
+export interface DayStats {
+  day: string; // YYYY-MM-DD
+  runs: number;
+  cost: number;
+  model_calls: number;
+  first_time: number | null; // average seconds of a task's first run that day
+  repeat_time: number | null; // ...and of runs repeating a task that ran before
+}
+
+export interface Totals {
+  runs: number;
+  success_rate: number;
+  fix_success_rate: number;
+  days?: DayStats[];
+}

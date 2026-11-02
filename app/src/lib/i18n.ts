@@ -4,12 +4,12 @@
 
 export type Lang = "en" | "es" | "fr" | "de" | "pt";
 
-export const LANGUAGES: { code: Lang; name: string }[] = [
-  { code: "en", name: "English" },
-  { code: "es", name: "Español" },
-  { code: "fr", name: "Français" },
-  { code: "de", name: "Deutsch" },
-  { code: "pt", name: "Português" },
+export const LANGUAGES: { code: Lang; name: string; english: string }[] = [
+  { code: "en", name: "English", english: "English" },
+  { code: "es", name: "Español", english: "Spanish" },
+  { code: "fr", name: "Français", english: "French" },
+  { code: "de", name: "Deutsch", english: "German" },
+  { code: "pt", name: "Português", english: "Portuguese" },
 ];
 
 const ORDER: Lang[] = ["es", "fr", "de", "pt"];
@@ -113,12 +113,32 @@ const D: Record<string, [string, string, string, string]> = {
     "Der Positions-Cache hat {n} Modellaufrufe gespart (etwa {s} s, {c}).",
     "O cache de posições evitou {n} chamadas ao modelo (cerca de {s} s, {c}).",
   ],
-  "Saved as “{name}”. Say “run {name}” any time.": [
-    "Guardada como “{name}”. Di “ejecuta {name}” cuando quieras.",
-    "Enregistrée sous « {name} ». Dis « lance {name} » quand tu veux.",
-    "Gespeichert als „{name}“. Sag jederzeit „führe {name} aus“.",
-    "Salva como “{name}”. Diga “execute {name}” quando quiser.",
+  "Saved as “{name}”. Say “Agent, run {name}” any time.": [
+    "Guardada como “{name}”. Di “Agente, ejecuta {name}” cuando quieras.",
+    "Enregistrée sous « {name} ». Dis « Agent, lance {name} » quand tu veux.",
+    "Gespeichert als „{name}“. Sag jederzeit „Agent, führe {name} aus“.",
+    "Salva como “{name}”. Diga “Agente, execute {name}” quando quiser.",
   ],
+  "No elements were looked up on screen in this run.": [
+    "En esta ejecución no se buscó ningún elemento en pantalla.",
+    "Aucun élément n'a été cherché à l'écran pendant cette exécution.",
+    "In diesem Lauf wurde nichts auf dem Bildschirm gesucht.",
+    "Nenhum elemento foi procurado na tela nesta execução.",
+  ],
+  "Position cache cleared": ["Caché de posiciones borrada", "Cache de positions vidé", "Positions-Cache geleert", "Cache de posições limpo"],
+  "Cost per day": ["Coste por día", "Coût par jour", "Kosten pro Tag", "Custo por dia"],
+  "Runs and model calls per day": ["Ejecuciones y llamadas al modelo por día", "Exécutions et appels au modèle par jour", "Läufe und Modellaufrufe pro Tag", "Execuções e chamadas ao modelo por dia"],
+  "Runs": ["Ejecuciones", "Exécutions", "Läufe", "Execuções"],
+  "Average run time: first run vs. repeats": ["Tiempo medio: primera ejecución frente a repeticiones", "Durée moyenne : première exécution et répétitions", "Durchschnittliche Laufzeit: erster Lauf und Wiederholungen", "Tempo médio: primeira execução x repetições"],
+  "A repeat is a saved task or the same request run again: the position cache makes it faster.": [
+    "Una repetición es una tarea guardada o la misma petición otra vez: la caché de posiciones la acelera.",
+    "Une répétition est une tâche enregistrée ou la même demande relancée : le cache de positions l'accélère.",
+    "Eine Wiederholung ist eine gespeicherte Aufgabe oder dieselbe Anfrage noch einmal: der Positions-Cache beschleunigt sie.",
+    "Uma repetição é uma tarefa salva ou o mesmo pedido de novo: o cache de posições a deixa mais rápida.",
+  ],
+  "First run": ["Primera ejecución", "Première exécution", "Erster Lauf", "Primeira execução"],
+  "Repeat": ["Repetición", "Répétition", "Wiederholung", "Repetição"],
+  "Copy code": ["Copiar código", "Copier le code", "Code kopieren", "Copiar código"],
   "I watched your demonstration ({n} steps) and turned it into a program. Recorded values became variables, so it can run on new records.": [
     "Vi tu demostración ({n} pasos) y la convertí en un programa. Los valores grabados son variables, así que puede usarse con registros nuevos.",
     "J'ai regardé ta démonstration ({n} étapes) et l'ai transformée en programme. Les valeurs enregistrées sont devenues des variables, il peut donc traiter de nouveaux enregistrements.",

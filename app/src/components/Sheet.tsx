@@ -4,7 +4,17 @@ import { X } from "lucide-react";
 import { t } from "../lib/i18n";
 
 /** A panel that slides up over the conversation (saved tasks, metrics, permissions). × or Esc closes it. */
-export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+export function Sheet({
+  title,
+  action,
+  onClose,
+  children,
+}: {
+  title: string;
+  action?: React.ReactNode; // a button beside the title (e.g. clearing the position cache on Run metrics)
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -29,6 +39,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
       >
         <div className="flex h-12 shrink-0 items-center px-4">
           <span className="flex-1 text-[15px] font-semibold tracking-tight">{title}</span>
+          {action && <span className="mr-1.5">{action}</span>}
           <button
             onClick={onClose}
             title={t("Close")}

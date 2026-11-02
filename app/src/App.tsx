@@ -33,6 +33,11 @@ const METRICS_RE = /^(show )?(the )?(run )?(metrics|stats|statistics)\??$/i;
 
 const TRANSITION_MS = 240;
 
+// A request for information (an answer, a list, data pulled out of an app or page) rather than only an action: its
+// results get an Export menu.
+const ASKS_FOR_DATA =
+  /\?|\b(what|what's|whats|how (many|much|long|far)|which|who|when|where|tell me|find|get|list|extract|read|look ?up|check|show me|compare|summari[sz]e|collect|scrape|gather|pull|count|price|rating|weather|temperature)\b/i;
+
 /** A spoken answer to a question with options: the option sharing the most words ("the Control one" -> "Control's
  * #support"), else the words as said. */
 function matchOption(said: string, options?: string[]): string {
@@ -134,6 +139,8 @@ export default function App() {
       }
       // The run needs you: open the panel for the approval or question, then tuck away again.
       if (msg.type === "confirm_request" || msg.type === "ask_user" || msg.type === "teach_request") goPanel();
+      // Demonstration finished: open the panel to show it being turned into a program.
+      if (msg.type === "teach_recording" && !msg.recording && !msg.cancelled) goPanel();
       if (msg.type === "suppress_esc") window.agent?.suppressEsc();
       if (msg.type === "request_hide") window.agent?.hideForCapture().then(() => engine.send({ type: "hidden_ack" }));
       if (msg.type === "request_show") window.agent?.showAfterCapture();
@@ -162,7 +169,11 @@ export default function App() {
     engine.send({ type: "list_tasks" });
     setSheet("tasks");
   };
-  const showMetrics = () => setSheet("metrics");
+  const [cacheCleared, setCacheCleared] = useState(false);
+  const showMetrics = () => {
+    setCacheCleared(false);
+    setSheet("metrics");
+  };
   const clearChat = () => {
     dispatch({ type: "clearChat" });
     engine.send({ type: "clear_chat" }); // the engine's conversation memory too
@@ -175,7 +186,23 @@ export default function App() {
     dispatch({ type: "thinking" });
     engine.send({ type: "command", text });
   };
-  const toggleTeach = () => engine.send({ type: s.recording ? "teach_stop" : "teach_start" });
+  // Teach by demonstration starts after a 3-second countdown in the middle of the screen, so the first moves aren't
+  // recorded while you get to the app. Choosing it again during the countdown cancels.
+  const countdown = useRef<ReturnType<typeof setTimeout>>();
+  const toggleTeach = () => {
+    if (s.recording) return engine.send({ type: "teach_stop" });
+    if (countdown.current) {
+      clearTimeout(countdown.current);
+      countdown.current = undefined;
+      window.agent?.overlay({ type: "countdown", seconds: 0 });
+      return;
+    }
+    window.agent?.overlay({ type: "countdown", seconds: 3, lang: getLang() });
+    countdown.current = setTimeout(() => {
+      countdown.current = undefined;
+      engine.send({ type: "teach_start" });
+    }, 3000);
+  };
   const saveRun = (run: RunView, name: string, script: string) => {
     saveTask(name, script, run.task);
     dispatch({ type: "patchRun", key: run.key, patch: { savedAs: name } });
@@ -288,6 +315,7 @@ export default function App() {
         return (
           <ResultCard
             result={item.result}
+            exportable={item.result.kind === "table" || ASKS_FOR_DATA.test(s.runs[item.runKey || ""]?.task || "")}
             onExport={(fmt) => engine.send({ type: "export", data: item.result, fmt, name: item.result.title || "result" })}
           />
         );
@@ -323,8 +351,6 @@ export default function App() {
           <MetricsCard
             metrics={s.metrics}
             totals={s.totals}
-            tasks={s.tasks}
-            onClearCache={() => engine.send({ type: "clear_cache" })}
           />
         );
       default:
@@ -340,7 +366,7 @@ export default function App() {
     else turns.push({ agent: [item] });
   }
 
-  const empty = s.items.length === 0;
+  const empty = s.items.length === 0 && !s.thinking && !s.teachStatus;
   const active = s.activeRun ? s.runs[s.activeRun] : undefined;
   const stageText = (() => {
     const st = active?.stages;
@@ -517,6 +543,20 @@ export default function App() {
               sheet === "tasks" ? "Saved tasks" : sheet === "metrics" ? "Run metrics" : sheet === "language" ? "Language" : "Permissions",
             )}
             onClose={() => setSheet(null)}
+            action={
+              sheet === "metrics" ? (
+                <button
+                  onClick={() => {
+                    engine.send({ type: "clear_cache" });
+                    setCacheCleared(true);
+                  }}
+                  disabled={cacheCleared}
+                  className="h-7 rounded-full border border-line px-2.5 text-[12px] text-fg-2 hover:bg-surface disabled:opacity-60"
+                >
+                  {cacheCleared ? t("Position cache cleared") : t("Clear the position cache")}
+                </button>
+              ) : null
+            }
           >
             {sheet === "tasks" && (
               <TasksCard
@@ -527,15 +567,12 @@ export default function App() {
                   runSaved(id);
                 }}
                 onDelete={(id) => engine.send({ type: "delete_task", task_id: id })}
-                onExport={(id) => engine.send({ type: "export_task", task_id: id })}
               />
             )}
             {sheet === "metrics" && (
               <MetricsCard
                 metrics={s.metrics}
                 totals={s.totals}
-                tasks={s.tasks}
-                onClearCache={() => engine.send({ type: "clear_cache" })}
               />
             )}
             {sheet === "permissions" && <PermissionsList />}

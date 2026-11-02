@@ -229,7 +229,8 @@ class DB:
         return rows
 
     def all_runs_summary(self) -> dict:
-        rows = self.query("SELECT status, metrics FROM runs WHERE status != 'running'")
+        rows = self.query("SELECT task_id, task_text, status, started, metrics FROM runs WHERE status != 'running' "
+                          "ORDER BY started")
         total = len(rows)
         ok = sum(1 for r in rows if r["status"] == "succeeded")
         ms = [json.loads(r["metrics"]) for r in rows if r.get("metrics")]
@@ -239,6 +240,7 @@ class DB:
             "runs": total,
             "success_rate": round(ok / total, 3) if total else 0,
             "fix_success_rate": round(fixes_ok / fixes, 3) if fixes else 0,
+            "days": _per_day(rows),
         }
 
     # Progress --------------------------------------------------------------
@@ -252,3 +254,34 @@ class DB:
         return self.query(
             "SELECT key, payload FROM progress WHERE run_id = ? AND kind = ? ORDER BY ts", (run_id, kind)
         )
+
+
+def _per_day(rows: list[dict], days: int = 14) -> list[dict]:
+    """The last `days` days of runs (oldest first): runs, cost and model calls per day, and the average time of a
+    task's first run against later runs of the same task (a saved task, or the same request again)."""
+    from datetime import date, timedelta
+
+    seen: set = set()
+    by_day: dict[str, dict] = {}
+    for r in rows:
+        key = ("task", r["task_id"]) if r["task_id"] else ("text", " ".join((r["task_text"] or "").lower().split()))
+        repeat = key in seen
+        seen.add(key)
+        if not r["started"] or not r.get("metrics"):
+            continue
+        m = json.loads(r["metrics"])
+        d = by_day.setdefault(date.fromtimestamp(r["started"]).isoformat(),
+                              {"runs": 0, "cost": 0.0, "model_calls": 0, "first": [], "repeat": []})
+        d["runs"] += 1
+        d["cost"] += m.get("cost", 0) or 0
+        d["model_calls"] += m.get("model_calls", 0) or 0
+        (d["repeat"] if repeat else d["first"]).append(m.get("elapsed", 0) or 0)
+    today = date.today()
+    out = []
+    for i in range(days - 1, -1, -1):
+        day = (today - timedelta(days=i)).isoformat()
+        d = by_day.get(day, {"runs": 0, "cost": 0.0, "model_calls": 0, "first": [], "repeat": []})
+        avg = lambda xs: round(sum(xs) / len(xs), 1) if xs else None  # noqa: E731
+        out.append({"day": day, "runs": d["runs"], "cost": round(d["cost"], 4), "model_calls": d["model_calls"],
+                    "first_time": avg(d["first"]), "repeat_time": avg(d["repeat"])})
+    return out

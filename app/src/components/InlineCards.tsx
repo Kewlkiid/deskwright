@@ -1,24 +1,23 @@
 // Saved tasks, metrics and permissions, shown as cards inside the conversation instead of separate tabs.
 import { useEffect, useState } from "react";
 import { Check, ChevronRight, Code2, GraduationCap, Play, Trash2 } from "lucide-react";
-import type { Metrics, PermissionKind, Permissions, SavedTask } from "../lib/types";
+import type { Metrics, PermissionKind, Permissions, SavedTask, Totals } from "../lib/types";
 import { LANGUAGES, plural, t, t as tr } from "../lib/i18n";
-import { RunChart } from "./RunChart";
+import { DayChart, RunChart } from "./RunChart";
 
 export function TasksCard({
   tasks,
   running,
   onRun,
   onDelete,
-  onExport,
 }: {
   tasks: SavedTask[];
   running: boolean;
   onRun: (id: number) => void;
   onDelete: (id: number) => void;
-  onExport?: (id: number) => void; // writes the task's code to a file other programs can run
 }) {
   const [open, setOpen] = useState<number | null>(null);
+  const [copied, setCopied] = useState<number | null>(null);
   if (!tasks.length) {
     return (
       <div className="text-[14px] leading-relaxed text-fg-2">
@@ -79,12 +78,17 @@ export function TasksCard({
                     {t.script}
                   </pre>
                   <div className="flex items-center justify-between text-[12px] text-fg-3">
-                    <span>{t.versions.length > 1 ? tr("Latest: {note}", { note: t.versions[t.versions.length - 1].note }) : tr("Original version")}</span>
-                    {onExport && (
-                      <button onClick={() => onExport(t.id)} className="flex items-center gap-1 hover:text-fg">
-                        <Code2 className="h-3.5 w-3.5" strokeWidth={1.75} /> {tr("Export code")}
-                      </button>
-                    )}
+                    <button
+                      onClick={() => {
+                        navigator.clipboard?.writeText(t.script);
+                        setCopied(t.id);
+                        setTimeout(() => setCopied((c) => (c === t.id ? null : c)), 1500);
+                      }}
+                      className="flex items-center gap-1 hover:text-fg"
+                    >
+                      {copied === t.id ? <Check className="h-3.5 w-3.5 text-ok" /> : <Code2 className="h-3.5 w-3.5" strokeWidth={1.75} />}
+                      {copied === t.id ? tr("Copied") : tr("Copy code")}
+                    </button>
                     <button onClick={() => onDelete(t.id)} className="flex items-center gap-1 hover:text-bad">
                       <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} /> {tr("Delete")}
                     </button>
@@ -109,52 +113,76 @@ function Stat({ label, value, sub }: { label: string; value: string; sub?: strin
   );
 }
 
-export function MetricsCard({
-  metrics,
-  totals,
-  tasks,
-  onClearCache,
-}: {
-  metrics: Metrics | null;
-  totals: { runs: number; success_rate: number; fix_success_rate: number } | null;
-  tasks: SavedTask[];
-  onClearCache: () => void;
-}) {
+export function MetricsCard({ metrics, totals }: { metrics: Metrics | null; totals: Totals | null }) {
   const m = metrics;
-  const withRuns = tasks.filter((t) => t.runs.length > 1);
+  const days = totals?.days ?? [];
+  const any = days.some((d) => d.runs > 0);
   return (
-    <div className="space-y-3">
-      <div className="text-[14px]">{m ? t("Here's how the last run went.") : t("No runs yet this session.")}</div>
-      {m && (
-        <div className="grid grid-cols-3 divide-x divide-y divide-line-soft overflow-hidden rounded-xl border border-line [&>*:nth-child(-n+3)]:border-t-0">
-          <Stat label={t("Time")} value={`${m.elapsed.toFixed(1)}s`} sub={t("{s}s in models", { s: m.model_time.toFixed(1) })} />
-          <Stat label={t("Cost")} value={`$${m.cost.toFixed(3)}`} />
-          <Stat label={t("Steps")} value={String(m.steps)} />
-          <Stat
-            label={t("Model calls")}
-            value={String(m.model_calls)}
-            sub={Object.entries(m.calls_by_role || {}).map(([k, v]) => `${k} ${v}`).join(", ")}
-          />
-          <Stat label={t("From cache")} value={`${Math.round(m.cache_hit_rate * 100)}%`} sub={t("{n} calls skipped", { n: m.calls_saved })} />
-          <Stat label={t("Self-fixes")} value={`${m.fixes_succeeded}/${m.fixes}`} sub={t("worked / tried")} />
-        </div>
+    <div className="space-y-4">
+      <div className="space-y-3">
+        <div className="text-[14px]">{m ? t("Here's how the last run went.") : t("No runs yet this session.")}</div>
+        {m && (
+          <div className="grid grid-cols-3 divide-x divide-y divide-line-soft overflow-hidden rounded-xl border border-line [&>*:nth-child(-n+3)]:border-t-0">
+            <Stat label={t("Time")} value={`${m.elapsed.toFixed(1)}s`} sub={t("{s}s in models", { s: m.model_time.toFixed(1) })} />
+            <Stat label={t("Cost")} value={`$${m.cost.toFixed(3)}`} />
+            <Stat label={t("Steps")} value={String(m.steps)} />
+            <Stat
+              label={t("Model calls")}
+              value={String(m.model_calls)}
+              sub={Object.entries(m.calls_by_role || {}).map(([k, v]) => `${k} ${v}`).join(", ")}
+            />
+            <Stat label={t("From cache")} value={`${Math.round(m.cache_hit_rate * 100)}%`} sub={t("{n} calls skipped", { n: m.calls_saved })} />
+            <Stat label={t("Self-fixes")} value={`${m.fixes_succeeded}/${m.fixes}`} sub={t("worked / tried")} />
+          </div>
+        )}
+        {totals && totals.runs > 0 && (
+          <div className="text-[13px] text-fg-2">
+            {t("Across all {n} runs: {a}% succeeded, and {b}% of self-fixes worked.", {
+              n: totals.runs, a: Math.round(totals.success_rate * 100), b: Math.round(totals.fix_success_rate * 100),
+            })}
+          </div>
+        )}
+      </div>
+      {any && (
+        <>
+          <ChartBlock title={t("Cost per day")}>
+            <DayChart days={days} series={[{ key: "cost", label: t("Cost"), color: "#c2410c" }]} format={(v) => `$${v.toFixed(3)}`} />
+          </ChartBlock>
+          <ChartBlock title={t("Runs and model calls per day")}>
+            <DayChart
+              days={days}
+              series={[
+                { key: "runs", label: t("Runs"), color: "#0d0d0d" },
+                { key: "model_calls", label: t("Model calls"), color: "#9ca3af" },
+              ]}
+            />
+          </ChartBlock>
+          <ChartBlock
+            title={t("Average run time: first run vs. repeats")}
+            note={t("A repeat is a saved task or the same request run again: the position cache makes it faster.")}
+          >
+            <DayChart
+              days={days}
+              unit="s"
+              series={[
+                { key: "first_time", label: t("First run"), color: "#0d0d0d" },
+                { key: "repeat_time", label: t("Repeat"), color: "#c2410c" },
+              ]}
+              format={(v) => `${v}s`}
+            />
+          </ChartBlock>
+        </>
       )}
-      {totals && totals.runs > 0 && (
-        <div className="text-[13px] text-fg-2">
-          {t("Across all {n} runs: {a}% succeeded, and {b}% of self-fixes worked.", {
-            n: totals.runs, a: Math.round(totals.success_rate * 100), b: Math.round(totals.fix_success_rate * 100),
-          })}
-        </div>
-      )}
-      {withRuns.map((t) => (
-        <div key={t.id} className="rounded-xl border border-line p-3">
-          <div className="mb-1 text-[13px] font-medium">{t.name}</div>
-          <RunChart runs={t.runs} height={120} />
-        </div>
-      ))}
-      <button onClick={onClearCache} className="text-[12.5px] text-fg-3 underline-offset-2 hover:text-fg hover:underline">
-        {t("Clear the position cache")}
-      </button>
+    </div>
+  );
+}
+
+function ChartBlock({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-line p-3">
+      <div className="text-[13px] font-medium">{title}</div>
+      {note && <div className="text-[11.5px] text-fg-3">{note}</div>}
+      <div className="mt-1.5">{children}</div>
     </div>
   );
 }
@@ -361,14 +389,20 @@ export function LanguageList({ current, onChoose }: { current: string; onChoose:
           <button
             key={l.code}
             onClick={() => onChoose(l.code)}
-            className="flex w-full items-center gap-2.5 py-2.5 text-left text-[13.5px] hover:bg-surface"
+            className="-mx-2 flex w-[calc(100%+16px)] items-center gap-3 rounded-xl px-2 py-3.5 text-left hover:bg-surface"
           >
-            <span className="flex-1">{l.name}</span>
-            {current === l.code && <Check className="h-4 w-4 text-ok" strokeWidth={2.5} />}
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[12px] font-semibold uppercase text-fg-2">
+              {l.code}
+            </span>
+            <span className="min-w-0 flex-1 leading-tight">
+              <span className="block text-[15.5px] font-medium">{l.name}</span>
+              <span className="block text-[12.5px] text-fg-3">{l.english}</span>
+            </span>
+            {current === l.code && <Check className="h-5 w-5 text-ok" strokeWidth={2.5} />}
           </button>
         ))}
       </div>
-      <div className="mt-1 border-t border-line-soft pt-2 text-[11.5px] text-fg-3">
+      <div className="mt-3 rounded-xl bg-surface px-3 py-2.5 text-[12.5px] leading-relaxed text-fg-2">
         {t("The voice speaks this language. Voice commands work in it and in English.")}
       </div>
     </div>

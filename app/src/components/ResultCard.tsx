@@ -4,7 +4,17 @@ import { Markdown } from "../lib/markdown";
 import { Menu } from "./Menu";
 import { plural, t } from "../lib/i18n";
 
-export function ResultCard({ result, onExport }: { result: ResultItem; onExport: (fmt: string) => void }) {
+/** A result the run shows. `exportable`: the request asked for information or a table (an extraction), not just for
+ * something to be done; only then is there an Export menu. */
+export function ResultCard({
+  result,
+  exportable = true,
+  onExport,
+}: {
+  result: ResultItem;
+  exportable?: boolean;
+  onExport: (fmt: string) => void;
+}) {
   const exportMenu = (
     <Menu
       align="right"
@@ -30,13 +40,16 @@ export function ResultCard({ result, onExport }: { result: ResultItem; onExport:
   );
 
   if (result.kind !== "table") {
+    // The text and the Export menu share a line when the text fits on one; a longer answer pushes it below.
     return (
       <div className="group">
-        <div className="text-[14px] leading-relaxed">
-          {result.title && <div className="mb-1 font-medium">{result.title}</div>}
-          <Markdown text={result.text || ""} />
+        {result.title && <div className="mb-1 text-[14px] font-medium leading-relaxed">{result.title}</div>}
+        <div className="flex flex-wrap items-start gap-x-3 gap-y-1">
+          <div className="min-w-0 max-w-full text-[14px] leading-relaxed">
+            <Markdown text={result.text || ""} />
+          </div>
+          {exportable && <div className="ml-auto shrink-0 opacity-60 transition group-hover:opacity-100">{exportMenu}</div>}
         </div>
-        <div className="mt-1 opacity-60 transition group-hover:opacity-100">{exportMenu}</div>
       </div>
     );
   }

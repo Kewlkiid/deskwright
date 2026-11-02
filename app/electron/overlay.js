@@ -63,6 +63,8 @@
     "Scrolling": ["Desplazando", "Défilement", "Scrolle", "Rolando"],
     "down": ["abajo", "vers le bas", "nach unten", "para baixo"],
     "up": ["arriba", "vers le haut", "nach oben", "para cima"],
+    "Recording starts": ["La grabación empieza", "L'enregistrement commence", "Aufnahme beginnt", "A gravação começa"],
+    "Recording": ["Grabando", "Enregistrement", "Aufnahme", "Gravando"],
     "{n}% cached": ["{n}% en caché", "{n} % en cache", "{n} % aus dem Cache", "{n}% em cache"],
   };
   let lang = "en";
@@ -160,6 +162,34 @@
     }
   }
 
+  const cd = document.getElementById("countdown");
+  let cdTimer = null;
+  function countdown(seconds) {
+    clearInterval(cdTimer);
+    if (!seconds) return cd.classList.remove("on");
+    const n = cd.querySelector(".n");
+    const label = cd.querySelector(".label");
+    let left = seconds;
+    const show = () => {
+      n.textContent = String(left);
+      n.classList.remove("tick");
+      void n.offsetWidth; // restart the animation
+      n.classList.add("tick");
+    };
+    label.textContent = L("Recording starts");
+    show();
+    cd.classList.add("on");
+    cdTimer = setInterval(() => {
+      left -= 1;
+      if (left > 0) return show();
+      clearInterval(cdTimer);
+      n.textContent = "●";
+      n.classList.remove("tick");
+      label.textContent = L("Recording");
+      setTimeout(() => cd.classList.remove("on"), 600);
+    }, 1000);
+  }
+
   window.overlay = (e) => {
     alignStage();
     if (e.lang) lang = e.lang;
@@ -170,6 +200,9 @@
         break;
       case "keys":
         showKeys(e);
+        break;
+      case "countdown":
+        countdown(e.seconds);
         break;
       case "script_generated":
         if (!e.draft) setHud("#0d0d0d", `<b>${L("Running")}</b><span class="sub">${L("{n} lines", e.script.split("\n").length)}</span>`, true);
