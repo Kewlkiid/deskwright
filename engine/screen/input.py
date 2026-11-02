@@ -103,12 +103,38 @@ def type_text(text: str, interval: float = 0.012):
         _paste(text)
 
 
+# macOS counts arrows, home/end and page keys as fn keys. A synthetic combo with one of them (cmd+left, cmd+down)
+# leaves the system thinking fn is still held, and then fn+E opens the emoji picker and fn+D the Dictation prompt:
+# typing "New York" came out as "Nw Y". Release fn after any of them.
+FN_KEYS = {"left", "right", "up", "down", "home", "end", "pageup", "pagedown", "delete", "fn"}
+
+
+def release_fn():
+    if not IS_MAC:
+        return
+    try:
+        import Quartz
+
+        if Quartz.CGEventSourceKeyState(Quartz.kCGEventSourceStateCombinedSessionState, 63):
+            src = Quartz.CGEventSourceCreate(Quartz.kCGEventSourceStateHIDSystemState)
+            up = Quartz.CGEventCreateKeyboardEvent(src, 63, False)  # 63: the fn key
+            Quartz.CGEventSetFlags(up, 0)
+            Quartz.CGEventPost(Quartz.kCGHIDEventTap, up)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def press(key: str, presses: int = 1):
     pg().press(norm_key(key), presses=presses, interval=0.05)
+    if norm_key(key) in FN_KEYS:
+        release_fn()
 
 
 def hotkey(*keys: str):
-    pg().hotkey(*[norm_key(k) for k in keys], interval=0.04)
+    keys = [norm_key(k) for k in keys]
+    pg().hotkey(*keys, interval=0.04)
+    if FN_KEYS & set(keys):
+        release_fn()
 
 
 def select_all():

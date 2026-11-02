@@ -70,3 +70,16 @@ def test_other_app_in_front_is_sent_back(monkeypatch):
     front[0] = "Visual Studio Code"
     with pytest.raises(WindowLostError):
         raw.app_in_front(C())
+
+
+def test_fn_released_after_arrow_combos(monkeypatch):
+    from engine.screen import input as inp
+
+    sent, released = [], []
+    monkeypatch.setattr(inp, "pg", lambda: type("P", (), {"hotkey": staticmethod(lambda *k, **kw: sent.append(k)),
+                                                       "press": staticmethod(lambda *k, **kw: sent.append(k))}))
+    monkeypatch.setattr(inp, "release_fn", lambda: released.append(1))
+    inp.hotkey("cmd", "left")
+    inp.hotkey("cmd", "a")
+    inp.press("down")
+    assert len(released) == 2  # cmd+left and down; cmd+a needs nothing
