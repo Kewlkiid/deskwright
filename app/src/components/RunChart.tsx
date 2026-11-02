@@ -66,10 +66,10 @@ export function DayChart({
   return (
     <div style={{ height }} className="w-full">
       <ResponsiveContainer>
-        <ComposedChart data={data} margin={{ top: 8, right: 0, bottom: 0, left: -18 }}>
+        <ComposedChart data={data} margin={{ top: 8, right: 0, bottom: 0, left: 0 }}>
           <CartesianGrid stroke="#efefef" vertical={false} />
           <XAxis dataKey="label" tick={{ fill: "#8f8f8f", fontSize: 10.5 }} axisLine={false} tickLine={false} interval={1} />
-          <YAxis tick={{ fill: "#8f8f8f", fontSize: 10.5 }} axisLine={false} tickLine={false} unit={unit} width={44} />
+          <YAxis tick={{ fill: "#8f8f8f", fontSize: 10.5 }} axisLine={false} tickLine={false} unit={unit} width={38} />
           <Tooltip
             cursor={{ fill: "rgba(0,0,0,.03)" }}
             contentStyle={TOOLTIP}
