@@ -2,6 +2,7 @@
 
     import deskwright
 
+    out = deskwright.do("what's the temperature in new york? use the weather app")   # any request, in words
     deskwright.tasks()                                        # saved tasks with their inputs and outputs
     out = deskwright.run("message someone on discord", {"recipient": "sam", "message": "hi"})
     out = deskwright.run_script("exports/send_invoice.py", {"customer": "Acme", "amount": 120})
@@ -46,6 +47,11 @@ def _run(target: list[str], inputs: dict | None, approve: bool, timeout: float |
     if result.get("status") != "ok":
         raise TaskFailed(str(result.get("error") or result.get("status")), result)
     return result.get("outputs") or {}
+
+
+def do(request: str, inputs: dict | None = None, *, approve: bool = False, timeout: float | None = None) -> dict:
+    """Do anything described in words: the planner writes the program and runs it; returns what it found."""
+    return _run([request], inputs, approve, timeout)
 
 
 def run(task: str, inputs: dict | None = None, *, approve: bool = False, timeout: float | None = None) -> dict:
