@@ -129,8 +129,9 @@ class Vision:
         except (TypeError, ValueError):
             return None
 
-    def pick_box(self, img: Image.Image, boxes: list, target: str) -> int | None:
-        """Choose the target among candidate boxes, drawn numbered on the screenshot (one call)."""
+    def pick_box(self, img: Image.Image, boxes: list, target: str, labels: dict | None = None) -> int | None:
+        """Choose the target among candidate boxes, drawn numbered on the screenshot (one call). labels: what the app
+        itself calls some of them (Accessibility), {index: "row 'Unread messages, Control'"}, listed in the prompt."""
         view = img.convert("RGB").copy()
         d = ImageDraw.Draw(view)
         for i, b in enumerate(boxes):
@@ -139,7 +140,11 @@ class Vision:
             tx, ty = b[0], max(0, b[1] - 18)
             d.rectangle([tx, ty, tx + 9 * len(label) + 8, ty + 17], fill=(230, 0, 0))
             d.text((tx + 4, ty + 2), label, fill=(255, 255, 255))
-        data = self._ask_json([view], prompts.PICK_BOX_PROMPT.format(w=view.width, h=view.height, target=target))
+        prompt = prompts.PICK_BOX_PROMPT.format(w=view.width, h=view.height, target=target)
+        if labels:
+            prompt += ("\nWhat the app itself calls these boxes (its accessibility labels; trust them over guesses "
+                       "from the picture):\n" + "\n".join(f"Box {i}: {t}" for i, t in sorted(labels.items())))
+        data = self._ask_json([view], prompt)
         try:
             return None if data.get("index") is None else int(data["index"])
         except (TypeError, ValueError):

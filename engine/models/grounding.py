@@ -235,8 +235,13 @@ class SamGrounder:
         texts = text_candidates(small, phrase, pool=self.pool) if config.ocr_candidates else []
         axs = ax_candidates(extra, phrase, small.size)
         boxes: list[Box] = []
+        self.labels = {}
+        named = {tuple(round(v) for v in b): f"{r[2:].lower()} “{l}”" for b, r, l in extra if l}
         for b in axs + texts + sam:
             if all(_iou(b, o) < 0.5 for o in boxes):
+                key = tuple(round(v) for v in b)
+                if key in named:
+                    self.labels[len(boxes)] = named[key]
                 boxes.append(b)
         return boxes[:MAX_CANDIDATES]
 
@@ -260,7 +265,11 @@ class SamGrounder:
             return Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False, reason=f"No element matching {phrase!r} is visible.")
         index = 0
         if self.picker is not None:
-            index = self.picker(small, boxes, phrase)
+            labels = {i: t for i, t in getattr(self, "labels", {}).items() if i < len(boxes)}
+            try:
+                index = self.picker(small, boxes, phrase, labels=labels) if labels else self.picker(small, boxes, phrase)
+            except TypeError:  # a picker without labels support (tests)
+                index = self.picker(small, boxes, phrase)
             if index is None or not 0 <= index < len(boxes):
                 _debug_pick(small, boxes, None, phrase)
                 return Grounded(box=[0, 0, 0, 0], point=(0, 0), found=False,
@@ -394,7 +403,17 @@ def ax_candidates(extra: list, phrase: str, size: tuple[int, int], limit: int = 
             scored.append((score, -(box[2] - box[0]) * (box[3] - box[1]), clamp_box(list(box), size)))
     scored.sort(key=lambda s: (-s[0], -s[1]))  # best score, then the smaller element (a button over its row)
     hits = [b for _, _, b in scored]
-    return (in_zone(hits, phrase, size) or hits)[:limit]
+    hits = (in_zone(hits, phrase, size) or hits)[:limit]
+    if len(hits) < 2 and roles:
+        # The words don't match any label ("C server icon" vs "Control"): offer the elements of the right kind in the
+        # described area, with their labels, and let the picker match by meaning.
+        zoned = [clamp_box(list(b), size) for b, role, label in extra if role in roles and label
+                 and b[2] > 0 and b[3] > 0 and b[0] < w and b[1] < h]
+        zoned = in_zone(zoned, phrase, size) if zone_box(phrase, size) is not None else []
+        for b in zoned[:8]:
+            if all(_iou(b, o) < 0.5 for o in hits):
+                hits.append(b)
+    return hits
 
 
 def sam_queries(phrase: str) -> list[str]:

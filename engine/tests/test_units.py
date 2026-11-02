@@ -453,7 +453,11 @@ def test_accessibility_candidates_and_sam_queries():
              ([10, 180, 60, 230], "AXRow", "Splash Zone"),
              ([300, 650, 900, 700], "AXTextField", "Message #support"),
              ([2000, 10, 2050, 40], "AXButton", "Control")]  # off screen
-    assert ax_candidates(extra, "Control server icon in the far-left server list", (1200, 800)) == [[10, 120, 60, 170]]
+    found = ax_candidates(extra, "Control server icon in the far-left server list", (1200, 800))
+    assert found[0] == [10, 120, 60, 170] and [2000, 10, 2050, 40] not in found  # the label match first
+    # No label matches "C" at all: the rows in the described area are offered, labelled, for the picker to match.
+    assert ax_candidates(extra, "C server icon in the far-left server list", (1200, 800))[:2] == [[10, 120, 60, 170],
+                                                                                                  [10, 180, 60, 230]]
     assert ax_candidates(extra, "message input field at the bottom", (1200, 800))[0] == [300, 650, 900, 700]
     assert sam_queries("C server icon in the leftmost Discord server sidebar") == ["C server icon", "icon"]
 

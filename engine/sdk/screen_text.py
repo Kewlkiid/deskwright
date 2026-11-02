@@ -16,11 +16,11 @@ PRESENCE = re.compile(r"\b(visible|shown|showing|shows|displayed|appears?|open|o
 NEEDS_MODEL = re.compile(
     r"\b(not|no|without|empty|blank|disabled|enabled|selected|highlighted|checked|unchecked|active|focused|"
     r"contains?|typed|entered|sent|posted|saved|deleted|changed|updated|closed|gone|disappear\w*|only|exactly|"
-    r"error|failed|success\w*|count|number|more|less|than|before|after|first|last|newest|latest|top|bottom|"
-    r"left|right|above|below|color|colou?r|red|green|blue)\b", re.I)
+    r"error|failed|success\w*|count|number|more|less|than|before|after|first|last|newest|latest|"
+    r"color|colou?r|red|green|blue|says|reads|named)\b", re.I)
 FILLER = set("""the a an is are was be been being of in on at to for with and or its it this that these those
 visible shown showing shows displayed appear appears open opened opens loaded screen present window page app panel
-view area list section now currently which where has have
+view area list section now currently which where has have left right top bottom side main center centre upper lower
 field fields input inputs box boxes button buttons icon icons tab tabs row rows menu menus dialog sidebar bar toolbar
 link links item items label text title header pane form card""".split())  # kinds of element, not words on screen
 
