@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 
 SENSITIVE = re.compile(
-    r"\b(send\w*|sent|submit\w*|purchas\w*|buy\w*|pay|paid|payment\w*|checkout|check out|place order|order now|"
+    r"\b(send\w*|sent|submit\w*|purchas\w*|(?<!best )buy\w*|pay|paid|payment\w*|checkout|check out|place order|order now|"
     r"delet\w*|remov\w*|eras\w*|trash\w*|discard\w*|transfer\w*|wire|publish\w*|post|posted|tweet\w*|"
     r"reply all|unsubscrib\w*|uninstall\w*|empty trash|book now|reserv\w*|leave site|leave page|don'?t save|"
     r"close without saving)\b",

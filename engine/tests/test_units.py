@@ -495,3 +495,10 @@ def test_the_fixer_hears_what_was_already_tried(screen, agent_factory):
 
     agent.run_task("invoices", DEMO_SCRIPT)
     assert seen and seen[0] == []  # the first fix of a step has nothing behind it
+
+
+def test_best_buy_the_store_is_not_a_purchase():
+    from engine.sdk.safety import is_sensitive
+
+    assert not is_sensitive("location permission popup is closed and the Best Buy page is visible")
+    assert is_sensitive("Buy now button") and is_sensitive("Place order")
