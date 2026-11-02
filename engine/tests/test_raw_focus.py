@@ -86,4 +86,4 @@ def test_fn_released_after_arrow_combos(monkeypatch):
     inp.hotkey("cmd", "left")
     inp.hotkey("cmd", "a")
     inp.press("down")
-    assert len(released) == 2  # cmd+left and down; cmd+a needs nothing
+    assert len(released) == 5  # before every key action, and after cmd+left and down

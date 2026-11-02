@@ -96,6 +96,7 @@ def _paste(text: str):
 
 
 def type_text(text: str, interval: float = 0.012):
+    release_fn()  # a held fn (left by anything) turns e into the emoji picker and d into Dictation
     # pyautogui.write only handles plain ASCII reliably; paste anything else.
     if text.isascii():
         pg().write(text, interval=interval)
@@ -125,6 +126,7 @@ def release_fn():
 
 
 def press(key: str, presses: int = 1):
+    release_fn()
     pg().press(norm_key(key), presses=presses, interval=0.05)
     if norm_key(key) in FN_KEYS:
         release_fn()
@@ -132,6 +134,7 @@ def press(key: str, presses: int = 1):
 
 def hotkey(*keys: str):
     keys = [norm_key(k) for k in keys]
+    release_fn()
     pg().hotkey(*keys, interval=0.04)
     if FN_KEYS & set(keys):
         release_fn()
