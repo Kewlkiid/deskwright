@@ -98,13 +98,14 @@ def hotkey(*keys: str) -> None:
         _after_raw(f"hotkey{keys}")
 
 
-def scroll(amount: int) -> None:
-    """Scroll at the current mouse position. Negative scrolls down, positive scrolls up (about 3 lines per unit)."""
+def scroll(amount: int, pane: str = "") -> None:
+    """Scroll by `amount` (negative = down, positive = up, about 3 lines per unit). `pane` names what to scroll when
+    the app has several ("channel list", "messages"); otherwise the pane under the pointer, or the main content."""
     with ACTION_LOCK:
         _before_raw(commits=False)
         from .actions import point_at_content
 
-        point_at_content(current(), only_if_outside=True)
+        point_at_content(current(), only_if_outside=not pane, target=pane)
         current().status(f"Scrolling {'down' if amount < 0 else 'up'}")
         run_input(inp.scroll, int(amount))
         _after_raw(f"scroll({amount})")

@@ -436,6 +436,45 @@ def drag(from_target: str, to_target: str, expect: str | None = None, confirm: b
         ctx.push_metrics()
 
 
+def _point_at_pane(ctx: RunContext, target: str) -> bool:
+    """Put the pointer in the scrollable pane the app reports (Accessibility) that fits: one whose label shares the
+    target's words ("channel" -> "Channels"), else one in the described area, else the one under or in line with the
+    pointer (hovering a pane's header doesn't scroll it). False when the app reports no panes."""
+    from ..models.grounding import _words, zone_box
+    from ..screen import ax
+
+    try:
+        panes = ax.scroll_areas(ctx.scope_app)
+    except Exception:  # noqa: BLE001
+        return False
+    if not panes:
+        return False
+    want = {w.rstrip("s") for w in _words(target)}
+    named = [p for p in panes if want & {w.rstrip("s") for w in _words(p.label)}]
+    pick = named[0] if named else None
+    if pick is None and target:
+        bounds = app_window_bounds(ctx.scope_app)
+        if bounds:
+            x, y, w, h = bounds
+            zone = zone_box(target, (w, h))
+            if zone is not None:
+                inz = [p for p in panes if zone[0] <= (p.box[0] + p.box[2]) / 2 - x <= zone[2]
+                       and zone[1] <= (p.box[1] + p.box[3]) / 2 - y <= zone[3]]
+                pick = inz[0] if inz else None
+    if pick is None:
+        mx, my = inp.mouse_position()
+        under = [p for p in panes if p.box[0] <= mx <= p.box[2] and p.box[1] <= my <= p.box[3]]
+        column = [p for p in panes if p.box[0] <= mx <= p.box[2]]
+        pick = (under or column or [None])[0]
+        if under:
+            return True  # already over a pane that scrolls
+    if pick is None:
+        return False
+    run_input(inp.move, (pick.box[0] + pick.box[2]) / 2, (pick.box[1] + pick.box[3]) / 2)
+    ctx.log(f"scrolling the {pick.label or pick.role[2:]} pane")
+    return True
+
+
 def point_at_content(ctx: RunContext, only_if_outside: bool = False, target: str = ""):
     """Scrolling happens under the pointer. After clicking a sidebar search field the pointer still sits on the
     sidebar, so the main content never moves: put it where the target is described to be (a "left sidebar" item:
@@ -444,6 +483,8 @@ def point_at_content(ctx: RunContext, only_if_outside: bool = False, target: str
 
     bounds = app_window_bounds(ctx.scope_app) if ctx.scope_app and not config.fake_screen else None
     if not bounds:
+        return
+    if _point_at_pane(ctx, target):
         return
     x, y, w, h = bounds
     if only_if_outside:

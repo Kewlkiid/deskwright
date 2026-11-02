@@ -103,6 +103,33 @@ def elements(app: str) -> list[AXElement]:
     return out
 
 
+SCROLLABLE = {"AXScrollArea", "AXList", "AXOutline", "AXTable", "AXBrowser"}
+
+
+def scroll_areas(app: str) -> list[AXElement]:
+    """The front window's scrollable panes (Discord: "Channels", "Messages in support", "Members"), largest last."""
+    if AS is None or not app:
+        return []
+    pid = _pid(app)
+    if pid is None:
+        return []
+    root = AS.AXUIElementCreateApplication(pid)
+    window = _attr(root, "AXFocusedWindow") or (_attr(root, "AXWindows") or [None])[0]
+    if window is None:
+        return []
+    out, stack, seen, end = [], [window], 0, time.time() + MAX_SECONDS
+    while stack and seen < 3000 and time.time() < end:
+        el = stack.pop()
+        seen += 1
+        role = _attr(el, "AXRole") or ""
+        if role in SCROLLABLE:
+            box = _frame(el)
+            if box and box[2] - box[0] > 40 and box[3] - box[1] > 60:
+                out.append(AXElement(role=role, label=_label(el), box=box))
+        stack.extend(reversed(list(_attr(el, "AXChildren") or [])))
+    return sorted(out, key=lambda e: (e.box[2] - e.box[0]) * (e.box[3] - e.box[1]))
+
+
 def press_menu(app: str, path: list[str]) -> bool:
     """Press a menu-bar item by its titles, e.g. ["File", "Open…"]. Exact, no vision."""
     if AS is None:
