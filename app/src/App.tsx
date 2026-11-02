@@ -2,16 +2,17 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3, GraduationCap, KeyRound, LayoutList, ListChecks, Mic, MoreHorizontal, PanelRightClose, Power, ShieldOff,
-  SquarePen, Volume2,
+  Languages, SquarePen, Volume2,
 } from "lucide-react";
 import { engine } from "./lib/engine";
+import { getLang, LANGUAGES, setLang, t, tStatus } from "./lib/i18n";
 import { Markdown } from "./lib/markdown";
 import { useWakeWord } from "./lib/wake";
 import { initialState, reducer, uid } from "./lib/state";
 import type { ChatItem, RunView } from "./lib/types";
 import { AgentNote, AgentTurn, ConfirmCard, ErrorNote, QuestionCard, SummaryCard, TeachCard, UserMessage } from "./components/Cards";
 import { Composer } from "./components/Composer";
-import { MetricsCard, PermissionsCard, PermissionsList, TasksCard } from "./components/InlineCards";
+import { LanguageList, MetricsCard, PermissionsCard, PermissionsList, TasksCard } from "./components/InlineCards";
 import { Logo } from "./components/Logo";
 import { Menu } from "./components/Menu";
 import { Pill } from "./components/Pill";
@@ -49,6 +50,7 @@ function matchOption(said: string, options?: string[]): string {
 
 export default function App() {
   const [s, dispatch] = useReducer(reducer, initialState);
+  setLang(s.language); // every t() below and in the components renders in it
   // "panel": full-height column. "pill": compact bar in the top-right corner (during tasks, or collapsed by hand).
   // panel <-> corner bar. The window itself resizes instantly (the bar sits at the same screen spot in both sizes,
   // so nothing visibly moves); all the motion is in the page: the panel slides while the bar fades in or out.
@@ -104,7 +106,7 @@ export default function App() {
       dispatch({ type: "event", msg });
       if (OVERLAY_EVENTS.has(msg.type)) {
         const { thumbnail, results, history, final_script, ...light } = msg;
-        window.agent?.overlay(light);
+        window.agent?.overlay({ ...light, lang: getLang() });
       }
       if (msg.type === "wake_heard") wakeRef.current.heard();
       if (msg.type === "voice_action") voiceRef.current(msg.action, msg.text || "");
@@ -155,7 +157,7 @@ export default function App() {
 
   const add = (item: ChatItem) => dispatch({ type: "add", item });
   // Saved tasks, metrics and permissions open in a sheet over the chat (closed with ×), not as chat messages.
-  const [sheet, setSheet] = useState<null | "tasks" | "metrics" | "permissions">(null);
+  const [sheet, setSheet] = useState<null | "tasks" | "metrics" | "permissions" | "language">(null);
   const showTasks = () => {
     engine.send({ type: "list_tasks" });
     setSheet("tasks");
@@ -218,6 +220,10 @@ export default function App() {
     engine.send({ type: "settings", speak: !s.speak });
     dispatch({ type: "setSpeak", value: !s.speak });
   };
+  const chooseLanguage = (code: string) => {
+    engine.send({ type: "settings", language: code });
+    dispatch({ type: "setLanguage", value: code });
+  };
   const toggleBypass = () => {
     engine.send({ type: "settings", bypass_approvals: !s.bypass });
     dispatch({ type: "setBypass", value: !s.bypass });
@@ -250,16 +256,16 @@ export default function App() {
               <div className="text-[14px] leading-relaxed">
                 {run.taskId
                   ? live
-                    ? "Running your saved task."
-                    : "Ran your saved task."
+                    ? t("Running your saved task.")
+                    : t("Ran your saved task.")
                   : live
-                    ? "I wrote a program for this and I'm running it on your screen."
-                    : "Here's the program I wrote and ran."}
+                    ? t("I wrote a program for this and I'm running it on your screen.")
+                    : t("Here's the program I wrote and ran.")}
               </div>
             )}
-            {run.draft && <div className="text-[14px] leading-relaxed">Here's the program. Review it, then run it.</div>}
+            {run.draft && <div className="text-[14px] leading-relaxed">{t("Here's the program. Review it, then run it.")}</div>}
             <ScriptView run={run} onRun={runScript} onSave={(script, name) => saveTask(name, script, run.task)} />
-            {!run.draft && <RunActivity run={run} status={s.status} live={live} />}
+            {!run.draft && <RunActivity run={run} status={tStatus(s.status)} live={live} />}
           </div>
         );
       }
@@ -340,13 +346,13 @@ export default function App() {
     const st = active?.stages;
     if (!s.running || !st || st.length < 2) return "";
     const i = Math.min(active!.checkpoints.length, st.length - 1);
-    return `Stage ${i + 1} of ${st.length}`;
+    return t("Stage {i} of {n}", { i: i + 1, n: st.length });
   })();
   const bar =
     mode === "panel" ? null : (
       <Pill
         running={s.running}
-        status={s.status}
+        status={tStatus(s.status)}
         metrics={s.metrics}
         connected={s.connected}
         stage={stageText}
@@ -371,27 +377,27 @@ export default function App() {
         <span className="text-[15px] font-semibold tracking-tight">Deskwright</span>
         {!s.connected && (
           <span className="rounded-full bg-surface-2 px-2 py-0.5 text-[11.5px] text-fg-2">
-            {s.engineDown ? "Engine offline" : "Connecting…"}
+            {s.engineDown ? t("Engine offline") : t("Connecting…")}
           </span>
         )}
         {s.bypass && (
           <button
             onClick={toggleBypass}
-            title="Sensitive actions run without asking. Click to turn approvals back on."
+            title={t("Sensitive actions run without asking. Click to turn approvals back on.")}
             className="rounded-full bg-[#fef3c7] px-2 py-0.5 text-[11.5px] font-medium text-[#92400e]"
           >
-            Approvals off
+            {t("Approvals off")}
           </button>
         )}
         {s.running && (
           <span className="flex items-center gap-1.5 text-[12px] text-fg-3">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-focus" /> Working
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-focus" /> {t("Working")}
           </span>
         )}
         <span className="flex-1" />
         <button
           onClick={() => clearChat()}
-          title="New conversation"
+          title={t("New conversation")}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-2 hover:bg-surface-2"
         >
           <SquarePen className="h-[18px] w-[18px]" strokeWidth={1.75} />
@@ -401,7 +407,7 @@ export default function App() {
           trigger={(open, toggle) => (
             <button
               onClick={toggle}
-              title="More"
+              title={t("More")}
               className={`flex h-8 w-8 items-center justify-center rounded-lg text-fg-2 hover:bg-surface-2 ${open ? "bg-surface-2" : ""}`}
             >
               <MoreHorizontal className="h-[18px] w-[18px]" strokeWidth={1.75} />
@@ -409,28 +415,34 @@ export default function App() {
           )}
           width={260}
           items={[
-            { label: s.recording ? "Finish demonstration" : "Teach by demonstration", icon: GraduationCap, onSelect: toggleTeach },
-            { label: "Saved tasks", icon: LayoutList, hint: "/tasks", onSelect: showTasks },
-            { label: "Run metrics", icon: BarChart3, hint: "/metrics", onSelect: showMetrics },
-            { label: "Permissions", icon: KeyRound, onSelect: showPermissions },
+            { label: s.recording ? t("Finish demonstration") : t("Teach by demonstration"), icon: GraduationCap, onSelect: toggleTeach },
+            { label: t("Saved tasks"), icon: LayoutList, hint: "/tasks", onSelect: showTasks },
+            { label: t("Run metrics"), icon: BarChart3, hint: "/metrics", onSelect: showMetrics },
+            { label: t("Permissions"), icon: KeyRound, onSelect: showPermissions },
+            {
+              label: t("Language"),
+              icon: Languages,
+              hint: LANGUAGES.find((l) => l.code === s.language)?.name,
+              onSelect: () => setSheet("language"),
+            },
             { kind: "separator" },
-            { kind: "toggle", label: "Listen for “Hey Agent”", icon: Mic, checked: wake.on, onSelect: wake.toggle },
+            { kind: "toggle", label: t("Listen for “Hey Agent”"), icon: Mic, checked: wake.on, onSelect: wake.toggle },
             {
               kind: "toggle",
-              label: s.speak && s.voiceState === "loading" ? "Speak out loud (loading voice…)" : "Speak out loud",
+              label: s.speak && s.voiceState === "loading" ? t("Speak out loud (loading voice…)") : t("Speak out loud"),
               icon: Volume2,
               checked: s.speak,
               onSelect: toggleSpeak,
             },
-            { kind: "toggle", label: "Review before running", icon: ListChecks, checked: !s.autoRun, onSelect: toggleReview },
-            { kind: "toggle", label: "Skip approvals", icon: ShieldOff, checked: s.bypass, onSelect: toggleBypass },
+            { kind: "toggle", label: t("Review before running"), icon: ListChecks, checked: !s.autoRun, onSelect: toggleReview },
+            { kind: "toggle", label: t("Skip approvals"), icon: ShieldOff, checked: s.bypass, onSelect: toggleBypass },
             { kind: "separator" },
-            { label: "Quit Deskwright", icon: Power, onSelect: () => window.agent?.quit() },
+            { label: t("Quit Deskwright"), icon: Power, onSelect: () => window.agent?.quit() },
           ]}
         />
         <button
           onClick={goPill}
-          title="Collapse"
+          title={t("Collapse")}
           className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-2 hover:bg-surface-2"
         >
           <PanelRightClose className="h-[18px] w-[18px]" strokeWidth={1.75} />
@@ -442,9 +454,9 @@ export default function App() {
         {empty ? (
           <div className="flex min-h-full flex-col px-5 pb-6">
             <div className="flex flex-1 flex-col items-center justify-center pb-4 pt-6 text-center">
-              <h1 className="font-serif text-[28px] font-normal leading-tight tracking-tight">What should I do?</h1>
+              <h1 className="font-serif text-[28px] font-normal leading-tight tracking-tight">{t("What should I do?")}</h1>
               <p className="mt-2 max-w-[300px] text-[13.5px] leading-relaxed text-fg-2">
-                Describe a task and I'll take control.
+                {t("Describe a task and I'll take control.")}
               </p>
             </div>
             <div className="space-y-4">
@@ -467,12 +479,12 @@ export default function App() {
             ))}
             {s.thinking && (
               <AgentTurn>
-                <span className="shimmer text-[13.5px]">Thinking…</span>
+                <span className="shimmer text-[13.5px]">{t("Thinking…")}</span>
               </AgentTurn>
             )}
             {s.teachStatus && (
               <AgentTurn>
-                <span className="shimmer text-[13.5px]">{s.teachStatus}…</span>
+                <span className="shimmer text-[13.5px]">{t(s.teachStatus)}…</span>
               </AgentTurn>
             )}
             <div ref={bottom} />
@@ -501,7 +513,9 @@ export default function App() {
       <AnimatePresence>
         {sheet && (
           <Sheet
-            title={sheet === "tasks" ? "Saved tasks" : sheet === "metrics" ? "Run metrics" : "Permissions"}
+            title={t(
+              sheet === "tasks" ? "Saved tasks" : sheet === "metrics" ? "Run metrics" : sheet === "language" ? "Language" : "Permissions",
+            )}
             onClose={() => setSheet(null)}
           >
             {sheet === "tasks" && (
@@ -525,6 +539,7 @@ export default function App() {
               />
             )}
             {sheet === "permissions" && <PermissionsList />}
+            {sheet === "language" && <LanguageList current={s.language} onChoose={chooseLanguage} />}
           </Sheet>
         )}
       </AnimatePresence>

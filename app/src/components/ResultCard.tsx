@@ -2,6 +2,7 @@ import { ChevronDown, Clipboard, Download, FileJson, FileSpreadsheet, FileText }
 import type { ResultItem } from "../lib/types";
 import { Markdown } from "../lib/markdown";
 import { Menu } from "./Menu";
+import { plural, t } from "../lib/i18n";
 
 export function ResultCard({ result, onExport }: { result: ResultItem; onExport: (fmt: string) => void }) {
   const exportMenu = (
@@ -14,7 +15,7 @@ export function ResultCard({ result, onExport }: { result: ResultItem; onExport:
           onClick={toggle}
           className={`flex h-7 items-center gap-1 rounded-md px-2 text-[12px] text-fg-2 hover:bg-surface-3 ${open ? "bg-surface-3" : ""}`}
         >
-          <Download className="h-3.5 w-3.5" strokeWidth={1.75} /> Export <ChevronDown className="h-3 w-3" />
+          <Download className="h-3.5 w-3.5" strokeWidth={1.75} /> {t("Export")} <ChevronDown className="h-3 w-3" />
         </button>
       )}
       items={[
@@ -23,7 +24,7 @@ export function ResultCard({ result, onExport }: { result: ResultItem; onExport:
         { label: "JSON", icon: FileJson, onSelect: () => onExport("json") },
         { label: "Markdown", icon: FileText, onSelect: () => onExport("md") },
         { kind: "separator" },
-        { label: "Copy to clipboard", icon: Clipboard, onSelect: () => onExport("clipboard") },
+        { label: t("Copy to clipboard"), icon: Clipboard, onSelect: () => onExport("clipboard") },
       ]}
     />
   );
@@ -43,8 +44,8 @@ export function ResultCard({ result, onExport }: { result: ResultItem; onExport:
   return (
     <div className="rounded-xl border border-line">
       <div className="flex h-9 items-center gap-2 rounded-t-xl border-b border-line-soft bg-surface pl-3 pr-1.5 text-[12px]">
-        <span className="font-medium text-fg">{result.title || "Table"}</span>
-        <span className="text-fg-3">{result.rows?.length ?? 0} rows</span>
+        <span className="font-medium text-fg">{result.title || t("Table")}</span>
+        <span className="text-fg-3">{plural("1 row", "{n} rows", result.rows?.length ?? 0)}</span>
         <span className="flex-1" />
         {exportMenu}
       </div>

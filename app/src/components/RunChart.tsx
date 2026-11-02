@@ -1,5 +1,6 @@
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { SavedTask } from "../lib/types";
+import { t } from "../lib/i18n";
 
 export function RunChart({ runs, height = 140 }: { runs: SavedTask["runs"]; height?: number }) {
   const data = runs
@@ -9,7 +10,7 @@ export function RunChart({ runs, height = 140 }: { runs: SavedTask["runs"]; heig
       time: Number((r.metrics.elapsed ?? 0).toFixed(1)),
       cost: Number(((r.metrics.cost ?? 0) * 1000).toFixed(2)),
     }));
-  if (data.length === 0) return <div className="py-6 text-center text-[12.5px] text-fg-3">No runs yet</div>;
+  if (data.length === 0) return <div className="py-6 text-center text-[12.5px] text-fg-3">{t("No runs yet")}</div>;
   return (
     <div style={{ height }} className="w-full">
       <ResponsiveContainer>
@@ -28,7 +29,7 @@ export function RunChart({ runs, height = 140 }: { runs: SavedTask["runs"]; heig
               boxShadow: "0 0 0 1px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.12)",
             }}
             formatter={(v: number, name: string) =>
-              name === "time" ? [`${v}s`, "Time"] : [`$${(v / 1000).toFixed(4)}`, "Cost"]
+              name === "time" ? [`${v}s`, t("Time")] : [`$${(v / 1000).toFixed(4)}`, t("Cost")]
             }
           />
           <Bar yAxisId="t" dataKey="time" fill="#0d0d0d" radius={[4, 4, 0, 0]} maxBarSize={20} />

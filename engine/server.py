@@ -14,6 +14,7 @@ from typing import Any
 import websockets
 
 from .agent import Agent
+from .config import config
 from .sdk.errors import StoppedError
 from .sdk.results import export_data
 
@@ -104,6 +105,25 @@ class ServerHost:
         self._hidden.set()
 
 
+def _system_language() -> str:
+    """The Mac's first preferred language when Deskwright speaks it, else English."""
+    from .i18n import LANGUAGES
+
+    try:
+        from Foundation import NSLocale
+
+        code = str(NSLocale.preferredLanguages()[0]).split("-")[0].lower()
+    except Exception:  # noqa: BLE001
+        code = "en"
+    return code if code in LANGUAGES else "en"
+
+
+def _apply_language(code: str):
+    from .i18n import LANGUAGES
+
+    config.language = code if code in LANGUAGES else "en"
+
+
 class Server:
     def __init__(self, token: str | None = None):
         self.token = token or secrets.token_urlsafe(24)
@@ -113,6 +133,8 @@ class Server:
         self.settings = {"auto_run": True, "bypass_approvals": False, "speak": False}
         self.settings.update(self._load_settings())
         self.host.bypass = bool(self.settings.get("bypass_approvals"))
+        self.settings.setdefault("language", _system_language())
+        _apply_language(self.settings["language"])
         from .speaker import Narrator, Speaker
 
         self.speaker = Speaker(self.host.emit)
@@ -260,6 +282,9 @@ class Server:
         elif t == "settings":
             self.settings.update({k: v for k, v in m.items() if k != "type"})
             self.host.bypass = bool(self.settings.get("bypass_approvals"))
+            if "language" in m:
+                _apply_language(m["language"])
+                self.speaker.set_language(config.language)
             if "speak" in m:
                 self.speaker.set_enabled(bool(m["speak"]))
             self._save_settings()

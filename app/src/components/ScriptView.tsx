@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Check, Copy, CornerDownRight, Pencil, Play, X, Zap } from "lucide-react";
 import type { RunView, Segment } from "../lib/types";
+import { plural, t } from "../lib/i18n";
 
 const ROW: Record<string, string> = {
   pending: "text-fg-2",
@@ -79,19 +80,19 @@ function Line({ seg, i, animate }: { seg: Segment; i: number; animate: boolean }
       </div>
       {exp && st !== "failed" && st !== "superseded" && (
         <div className={`pb-0.5 pl-8 text-[11.5px] ${exp.ok ? "text-ok" : "text-bad"}`}>
-          {exp.ok ? "Verified" : "Not verified"}: {exp.text}
+          {exp.ok ? t("Verified") : t("Not verified")}: {exp.text}
         </div>
       )}
       {st === "failed" && seg.failure && (
         <div className="bg-[#fef2f2] pb-2 pl-8 pr-3 text-[12px] leading-snug text-bad">
           {seg.failure.expect && (
             <div>
-              <span className="text-bad/70">Expected</span> {seg.failure.expect}
+              <span className="text-bad/70">{t("Expected")}</span> {seg.failure.expect}
             </div>
           )}
           {seg.failure.observation && (
             <div>
-              <span className="text-bad/70">Saw</span> {seg.failure.observation}
+              <span className="text-bad/70">{t("Saw")}</span> {seg.failure.observation}
             </div>
           )}
           {!seg.failure.expect && !seg.failure.observation && <div>{seg.failure.message}</div>}
@@ -123,7 +124,7 @@ export function ScriptView({
   if (!run.segments.length) {
     return (
       <div className="rounded-xl border border-line px-4 py-3">
-        <div className="shimmer text-[13.5px]">Writing the program…</div>
+        <div className="shimmer text-[13.5px]">{t("Writing the program…")}</div>
       </div>
     );
   }
@@ -141,23 +142,23 @@ export function ScriptView({
         <span className="font-mono text-[11.5px] text-fg-2">python</span>
         {run.progress && run.progress.total > 0 && (
           <span className="text-fg-3">
-            · {run.progress.done} of {run.progress.total} records
+            · {t("{a} of {b} records", { a: run.progress.done, b: run.progress.total })}
           </span>
         )}
         {fixes > 0 && (
           <span className="text-warn">
-            · {fixes} {fixes === 1 ? "fix" : "fixes"}
+            · {plural("1 fix", "{n} fixes", fixes)}
           </span>
         )}
         <span className="flex-1" />
         {isDraft && !editing && (
           <button onClick={() => setEditing(true)} className="flex items-center gap-1 rounded-md px-1.5 py-1 hover:bg-surface-3">
-            <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} /> Edit
+            <Pencil className="h-3.5 w-3.5" strokeWidth={1.75} /> {t("Edit")}
           </button>
         )}
         <button onClick={copy} className="flex items-center gap-1 rounded-md px-1.5 py-1 hover:bg-surface-3">
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" strokeWidth={1.75} />}
-          {copied ? "Copied" : "Copy"}
+          {copied ? t("Copied") : t("Copy")}
         </button>
       </div>
       {editing ? (
@@ -178,8 +179,8 @@ export function ScriptView({
                     <span>
                       <span className="font-medium">
                         {seg.detour
-                          ? `Took a learned way back to line ${seg.fromLine}.`
-                          : `Rewrote from line ${seg.fromLine} and resumed.`}
+                          ? t("Took a learned way back to line {n}.", { n: seg.fromLine ?? "" })
+                          : t("Rewrote from line {n} and resumed.", { n: seg.fromLine ?? "" })}
                       </span>{" "}
                       <span className="text-fg-2">{seg.explanation}</span>
                     </span>
@@ -192,7 +193,7 @@ export function ScriptView({
                   while (seg.states[i + n] === "superseded") n++;
                   return (
                     <div key={i} className="py-0.5 pl-10 text-[11.5px] text-fg-3">
-                      {n} {n === 1 ? "line" : "lines"} replaced by the rewrite below
+                      {plural("1 line replaced by the rewrite below", "{n} lines replaced by the rewrite below", n)}
                     </div>
                   );
                 })}
@@ -216,12 +217,12 @@ export function ScriptView({
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Name this task"
+              placeholder={t("Name this task")}
               className="h-8 flex-1 rounded-lg border border-line px-2.5 text-[13px] outline-none focus:border-fg-3"
             />
-            <button className="h-8 rounded-lg bg-fg px-3 text-[13px] font-medium text-white">Save</button>
+            <button className="h-8 rounded-lg bg-fg px-3 text-[13px] font-medium text-white">{t("Save")}</button>
             <button type="button" onClick={() => setNaming(false)} className="h-8 px-2 text-[13px] text-fg-2">
-              Cancel
+              {t("Cancel")}
             </button>
           </form>
         ) : (
@@ -230,15 +231,15 @@ export function ScriptView({
               onClick={() => onRun?.(script)}
               className="flex h-8 items-center gap-1.5 rounded-lg bg-fg px-3 text-[13px] font-medium text-white hover:bg-[#2b2b2b]"
             >
-              <Play className="h-3.5 w-3.5 fill-white" /> Run
+              <Play className="h-3.5 w-3.5 fill-white" /> {t("Run")}
             </button>
             <button
               onClick={() => setNaming(true)}
               className="h-8 rounded-lg border border-line px-3 text-[13px] text-fg hover:bg-surface"
             >
-              Save as task
+              {t("Save as task")}
             </button>
-            <span className="ml-auto text-[12px] text-fg-3">or say “start”</span>
+            <span className="ml-auto text-[12px] text-fg-3">{t("or say “start”")}</span>
           </div>
         ))}
     </div>

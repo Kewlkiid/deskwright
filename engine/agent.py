@@ -34,6 +34,7 @@ class Agent:
         self.stop_event = threading.Event()
         self.resumable: dict[int, dict] = {}  # run id -> what's needed to continue it from its last stage
         self._busy = threading.Lock()
+        self._dictation_hinted: set[str] = set()  # languages already told how to listen on this Mac
         # One run on the screen at a time across processes (the app's engine and CLI runs from other programs).
         from .runner.screen_lock import ScreenLock
 
@@ -476,11 +477,29 @@ class Agent:
         """One utterance from wake-word listening. `command`: the user already said "Hey Agent" and this is the task.
         Recognised on this Mac only; anything that isn't for the agent is dropped. UI commands (approve, send, input,
         teach...) go back to the app as `voice_action`; while a run is on the screen only answers to it count."""
+        from . import i18n
         from .models.voice import to_wav
-        from .models.wake import parse_voice, transcribe_on_device
+        from .models.wake import match_wake, parse_voice, transcribe_on_device
 
         wav = audio if mime.startswith("audio/wav") else to_wav(audio)
-        text = transcribe_on_device(wav) if wav else None
+        lang = i18n.lang()
+        text = transcribe_on_device(wav, locale=None if lang == "en" else i18n.info()["locale"]) if wav else None
+        exact_already = False
+        if text is None and wav and lang != "en":
+            # This Mac has no on-device model for the app's language. The start words are names and sound the same
+            # in any language, so English listens for them; only clips that start with one (or answer a question,
+            # or follow "Hey Deskwright") go to Muse Voice Transcribe, which understands the language.
+            heard = transcribe_on_device(wav)
+            if lang not in self._dictation_hinted:
+                self._dictation_hinted.add(lang)
+                self.host.emit("voice_note", message=i18n.line("dictation_hint"))
+            if heard is not None:
+                if not (command or answer or match_wake(heard)[0]):
+                    return
+                try:
+                    text, exact_already = self.models.voice.transcribe(wav, "audio/wav"), True
+                except Exception:  # noqa: BLE001
+                    return
         if text is None:
             if not command:
                 self.host.emit("wake_unavailable", message="On-device speech recognition isn't available, so the "
@@ -512,7 +531,7 @@ class Agent:
             if self._busy.locked():
                 self.stop(source=f"voice: heard “{text.strip()[:60]}”")
             return
-        if action in ("task", "input") and wav:
+        if action in ("task", "input") and wav and not exact_already:
             # Addressed to the agent, and the words matter: Muse Voice Transcribe for the exact wording. (Listening
             # for the wake phrase stays on this Mac; only clips that start with it get here.)
             try:

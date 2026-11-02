@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Check, ChevronRight, Code2, GraduationCap, Play, Trash2 } from "lucide-react";
 import type { Metrics, PermissionKind, Permissions, SavedTask } from "../lib/types";
+import { LANGUAGES, plural, t, t as tr } from "../lib/i18n";
 import { RunChart } from "./RunChart";
 
 export function TasksCard({
@@ -21,8 +22,8 @@ export function TasksCard({
   if (!tasks.length) {
     return (
       <div className="text-[14px] leading-relaxed text-fg-2">
-        No saved tasks yet. Save a finished run, or teach me one: open the + menu and choose{" "}
-        <span className="text-fg">Teach by demonstration</span>.
+        {t("No saved tasks yet. Save a finished run, or teach me one: open the … menu and choose")}{" "}
+        <span className="text-fg">{t("Teach by demonstration")}</span>.
       </div>
     );
   }
@@ -48,10 +49,10 @@ export function TasksCard({
                       {t.source === "teach" && <GraduationCap className="h-3.5 w-3.5 text-fg-3" strokeWidth={1.75} />}
                     </span>
                     <span className="block truncate text-[12px] text-fg-3">
-                      {runs.length} {runs.length === 1 ? "run" : "runs"}
+                      {plural("1 run", "{n} runs", runs.length)}
                       {t.versions.length > 1 ? ` · v${t.versions.length}` : ""}
-                      {t.detours ? ` · ${t.detours} ${t.detours === 1 ? "way" : "ways"} back learned` : ""}
-                      {speedup && speedup > 1.05 ? ` · now ${speedup.toFixed(1)}× faster` : ""}
+                      {t.detours ? ` · ${plural("1 way back learned", "{n} ways back learned", t.detours)}` : ""}
+                      {speedup && speedup > 1.05 ? ` · ${tr("now {x}× faster", { x: speedup.toFixed(1) })}` : ""}
                     </span>
                   </span>
                 </button>
@@ -60,17 +61,17 @@ export function TasksCard({
                   onClick={() => onRun(t.id)}
                   className="flex h-7 items-center gap-1 rounded-full bg-fg px-3 text-[12px] font-medium text-white hover:bg-[#2b2b2b] disabled:opacity-30"
                 >
-                  <Play className="h-3 w-3 fill-white" /> Run
+                  <Play className="h-3 w-3 fill-white" /> {tr("Run")}
                 </button>
               </div>
               {isOpen && (
                 <div className="space-y-2 bg-surface px-3 pb-3 pt-1">
                   <div className="flex items-center gap-3 text-[11.5px] text-fg-3">
                     <span className="flex items-center gap-1">
-                      <i className="h-2 w-2 rounded-sm bg-fg" /> time
+                      <i className="h-2 w-2 rounded-sm bg-fg" /> {tr("time")}
                     </span>
                     <span className="flex items-center gap-1">
-                      <i className="h-0.5 w-3 bg-cache" /> cost
+                      <i className="h-0.5 w-3 bg-cache" /> {tr("cost")}
                     </span>
                   </div>
                   <RunChart runs={t.runs} height={120} />
@@ -78,14 +79,14 @@ export function TasksCard({
                     {t.script}
                   </pre>
                   <div className="flex items-center justify-between text-[12px] text-fg-3">
-                    <span>{t.versions.length > 1 ? `Latest: ${t.versions[t.versions.length - 1].note}` : "Original version"}</span>
+                    <span>{t.versions.length > 1 ? tr("Latest: {note}", { note: t.versions[t.versions.length - 1].note }) : tr("Original version")}</span>
                     {onExport && (
                       <button onClick={() => onExport(t.id)} className="flex items-center gap-1 hover:text-fg">
-                        <Code2 className="h-3.5 w-3.5" strokeWidth={1.75} /> Export code
+                        <Code2 className="h-3.5 w-3.5" strokeWidth={1.75} /> {tr("Export code")}
                       </button>
                     )}
                     <button onClick={() => onDelete(t.id)} className="flex items-center gap-1 hover:text-bad">
-                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} /> Delete
+                      <Trash2 className="h-3.5 w-3.5" strokeWidth={1.75} /> {tr("Delete")}
                     </button>
                   </div>
                 </div>
@@ -123,25 +124,26 @@ export function MetricsCard({
   const withRuns = tasks.filter((t) => t.runs.length > 1);
   return (
     <div className="space-y-3">
-      <div className="text-[14px]">{m ? "Here's how the last run went." : "No runs yet this session."}</div>
+      <div className="text-[14px]">{m ? t("Here's how the last run went.") : t("No runs yet this session.")}</div>
       {m && (
         <div className="grid grid-cols-3 divide-x divide-y divide-line-soft overflow-hidden rounded-xl border border-line [&>*:nth-child(-n+3)]:border-t-0">
-          <Stat label="Time" value={`${m.elapsed.toFixed(1)}s`} sub={`${m.model_time.toFixed(1)}s in models`} />
-          <Stat label="Cost" value={`$${m.cost.toFixed(3)}`} />
-          <Stat label="Steps" value={String(m.steps)} />
+          <Stat label={t("Time")} value={`${m.elapsed.toFixed(1)}s`} sub={t("{s}s in models", { s: m.model_time.toFixed(1) })} />
+          <Stat label={t("Cost")} value={`$${m.cost.toFixed(3)}`} />
+          <Stat label={t("Steps")} value={String(m.steps)} />
           <Stat
-            label="Model calls"
+            label={t("Model calls")}
             value={String(m.model_calls)}
             sub={Object.entries(m.calls_by_role || {}).map(([k, v]) => `${k} ${v}`).join(", ")}
           />
-          <Stat label="From cache" value={`${Math.round(m.cache_hit_rate * 100)}%`} sub={`${m.calls_saved} calls skipped`} />
-          <Stat label="Self-fixes" value={`${m.fixes_succeeded}/${m.fixes}`} sub="worked / tried" />
+          <Stat label={t("From cache")} value={`${Math.round(m.cache_hit_rate * 100)}%`} sub={t("{n} calls skipped", { n: m.calls_saved })} />
+          <Stat label={t("Self-fixes")} value={`${m.fixes_succeeded}/${m.fixes}`} sub={t("worked / tried")} />
         </div>
       )}
       {totals && totals.runs > 0 && (
         <div className="text-[13px] text-fg-2">
-          Across all {totals.runs} runs: {Math.round(totals.success_rate * 100)}% succeeded, and{" "}
-          {Math.round(totals.fix_success_rate * 100)}% of self-fixes worked.
+          {t("Across all {n} runs: {a}% succeeded, and {b}% of self-fixes worked.", {
+            n: totals.runs, a: Math.round(totals.success_rate * 100), b: Math.round(totals.fix_success_rate * 100),
+          })}
         </div>
       )}
       {withRuns.map((t) => (
@@ -151,7 +153,7 @@ export function MetricsCard({
         </div>
       ))}
       <button onClick={onClearCache} className="text-[12.5px] text-fg-3 underline-offset-2 hover:text-fg hover:underline">
-        Clear the position cache
+        {t("Clear the position cache")}
       </button>
     </div>
   );
@@ -182,28 +184,28 @@ export function PermissionsCard() {
   const ready = perm.screen === "granted" && perm.accessibility;
   if (ready && !perm.restart) return null; // everything the agent needs is on: nothing to show
   const rows = [
-    { ok: perm.screen === "granted", label: "Screen Recording", why: "to see your screen", act: () => {
+    { ok: perm.screen === "granted", label: t("Screen Recording"), why: t("to see your screen"), act: () => {
         window.agent?.askScreen();
         window.agent?.openPermission("screen");
       } },
     {
       ok: perm.accessibility,
-      label: "Accessibility",
-      why: "to move the mouse and type",
+      label: t("Accessibility"),
+      why: t("to move the mouse and type"),
       act: () => {
         window.agent?.askAccessibility();
         window.agent?.openPermission("accessibility");
       },
     },
-    { ok: perm.microphone === "granted", label: "Microphone", why: "for voice, optional", act: () => window.agent?.askMicrophone() },
-    { ok: null, label: "Input Monitoring", why: "for teach mode", act: () => window.agent?.openPermission("input") },
+    { ok: perm.microphone === "granted", label: t("Microphone"), why: t("for voice, optional"), act: () => window.agent?.askMicrophone() },
+    { ok: null, label: t("Input Monitoring"), why: t("for teach mode"), act: () => window.agent?.openPermission("input") },
   ];
   const required = rows[0].ok && rows[1].ok;
   return (
     <div className="rounded-2xl border border-line p-3.5 text-left">
-      <div className="text-[14px] font-medium">Before the first run</div>
+      <div className="text-[14px] font-medium">{t("Before the first run")}</div>
       <div className="mt-0.5 text-[13px] text-fg-2">
-        macOS needs to allow this app to see and control the screen. Restart the app after granting.
+        {t("macOS needs to allow this app to see and control the screen. Restart the app after granting.")}
       </div>
       <div className="mt-2.5 space-y-0.5">
         {rows.map((r) => (
@@ -221,25 +223,25 @@ export function PermissionsCard() {
             </span>
             <span className="text-[13px]">{r.label}</span>
             <span className="truncate text-[12px] text-fg-3">{r.why}</span>
-            {!r.ok && <span className="ml-auto text-[12px] text-fg-2">Open</span>}
+            {!r.ok && <span className="ml-auto text-[12px] text-fg-2">{t("Open")}</span>}
           </button>
         ))}
       </div>
       {perm.restart && (
         <div className="mt-2.5 flex items-center gap-3 rounded-xl bg-[#f0fdf4] px-3 py-2.5">
           <span className="flex-1 text-[12.5px] text-fg-2">
-            Screen Recording is on. macOS applies it after Deskwright restarts.
+            {t("Screen Recording is on. macOS applies it after Deskwright restarts.")}
           </span>
           <button
             onClick={() => window.agent?.relaunch()}
             className="h-8 shrink-0 rounded-full bg-fg px-3.5 text-[12.5px] font-medium text-white hover:bg-[#2b2b2b]"
           >
-            Restart Deskwright
+            {t("Restart Deskwright")}
           </button>
         </div>
       )}
       <div className="mt-2 flex items-center justify-between border-t border-line-soft pt-2.5 text-[12px] text-fg-3">
-        <span>Tip: turn on Do Not Disturb so notifications stay out of screenshots.</span>
+        <span>{t("Tip: turn on Do Not Disturb so notifications stay out of screenshots.")}</span>
         {required && (
           <button
             onClick={() => {
@@ -250,7 +252,7 @@ export function PermissionsCard() {
             }}
             className="shrink-0 pl-2 text-fg underline-offset-2 hover:underline"
           >
-            Done
+            {t("Done")}
           </button>
         )}
       </div>
@@ -269,22 +271,22 @@ export function PermissionsList() {
     const t = setInterval(poll, 3000);
     return () => clearInterval(t);
   }, []);
-  if (!perm) return <div className="text-[13px] text-fg-3">Checking permissions…</div>;
-  if (perm.platform !== "darwin") return <div className="text-[13px] text-fg-2">Permissions are only needed on macOS.</div>;
+  if (!perm) return <div className="text-[13px] text-fg-3">{t("Checking permissions…")}</div>;
+  if (perm.platform !== "darwin") return <div className="text-[13px] text-fg-2">{t("Permissions are only needed on macOS.")}</div>;
 
   const rows: { kind: PermissionKind; label: string; why: string; ok: boolean | null; ask: () => void }[] = [
-    { kind: "screen", label: "Screen Recording", why: "see your screen (required)", ok: perm.screen === "granted",
+    { kind: "screen", label: t("Screen Recording"), why: t("see your screen (required)"), ok: perm.screen === "granted",
       ask: () => { window.agent?.askScreen(); window.agent?.openPermission("screen"); } },
-    { kind: "accessibility", label: "Accessibility", why: "move the mouse and type (required)", ok: perm.accessibility,
+    { kind: "accessibility", label: t("Accessibility"), why: t("move the mouse and type (required)"), ok: perm.accessibility,
       ask: () => { window.agent?.askAccessibility(); window.agent?.openPermission("accessibility"); } },
-    { kind: "microphone", label: "Microphone", why: "hear “Hey Agent”", ok: perm.microphone === "granted",
+    { kind: "microphone", label: t("Microphone"), why: t("hear “Hey Agent”"), ok: perm.microphone === "granted",
       ask: () => window.agent?.askMicrophone().then(poll) },
-    { kind: "speech", label: "Speech Recognition", why: "understand speech on this Mac",
+    { kind: "speech", label: t("Speech Recognition"), why: t("understand speech on this Mac"),
       ok: perm.speech === "granted" ? true : perm.speech === "denied" ? false : null,
       ask: () => window.agent?.openPermission("speech") },
-    { kind: "input", label: "Input Monitoring", why: "record your demonstrations in teach mode", ok: perm.input ?? null,
+    { kind: "input", label: t("Input Monitoring"), why: t("record your demonstrations in teach mode"), ok: perm.input ?? null,
       ask: () => window.agent?.openPermission("input") },
-    { kind: "automation", label: "Automation", why: "open and switch apps", ok: null,
+    { kind: "automation", label: t("Automation"), why: t("open and switch apps"), ok: null,
       ask: () => window.agent?.openPermission("automation") },
   ];
 
@@ -292,13 +294,13 @@ export function PermissionsList() {
     setBusy(kind);
     const ok = await window.agent?.revokePermission(kind);
     setBusy(null);
-    setNote(ok ? `${label} was taken back. macOS asks again the next time Deskwright needs it.` : `Couldn't change ${label}; use System Settings.`);
+    setNote(ok ? t("{label} was taken back. macOS asks again the next time Deskwright needs it.", { label }) : t("Couldn't change {label}; use System Settings.", { label }));
     poll();
   };
 
   return (
     <div className="text-left">
-      <div className="text-[12.5px] text-fg-2">What macOS lets Deskwright do. Changes to Screen Recording and Accessibility apply after a restart.</div>
+      <div className="text-[12.5px] text-fg-2">{t("What macOS lets Deskwright do. Changes to Screen Recording and Accessibility apply after a restart.")}</div>
       <div className="mt-2.5 divide-y divide-line-soft">
         {rows.map((r) => (
           <div key={r.kind} className="flex items-center gap-2.5 py-2">
@@ -312,7 +314,7 @@ export function PermissionsList() {
             <div className="min-w-0 flex-1 leading-tight">
               <div className="text-[13px]">{r.label}</div>
               <div className="truncate text-[11.5px] text-fg-3">
-                {r.ok ? "Allowed" : r.ok === false ? "Not allowed" : "Not asked yet"} · {r.why}
+                {r.ok ? t("Allowed") : r.ok === false ? t("Not allowed") : t("Not asked yet")} · {r.why}
               </div>
             </div>
             {r.ok ? (
@@ -321,21 +323,21 @@ export function PermissionsList() {
                 onClick={() => revoke(r.kind, r.label)}
                 className="h-7 shrink-0 rounded-full border border-line px-2.5 text-[12px] text-fg-2 hover:bg-surface disabled:opacity-50"
               >
-                {busy === r.kind ? "…" : "Revoke"}
+                {busy === r.kind ? "…" : t("Revoke")}
               </button>
             ) : (
               <button
                 onClick={r.ask}
                 className="h-7 shrink-0 rounded-full bg-fg px-2.5 text-[12px] font-medium text-white hover:bg-[#2b2b2b]"
               >
-                Allow
+                {t("Allow")}
               </button>
             )}
           </div>
         ))}
       </div>
       <div className="mt-1 border-t border-line-soft pt-2 text-[11.5px] text-fg-3">
-        Speaking out loud and playing sound need no permission on macOS.
+        {t("Speaking out loud and playing sound need no permission on macOS.")}
       </div>
       {note && <div className="mt-2 text-[12px] text-fg-2">{note}</div>}
       {perm.restart && (
@@ -343,9 +345,32 @@ export function PermissionsList() {
           onClick={() => window.agent?.relaunch()}
           className="mt-2 h-8 rounded-full bg-fg px-3.5 text-[12.5px] font-medium text-white hover:bg-[#2b2b2b]"
         >
-          Restart Deskwright
+          {t("Restart Deskwright")}
         </button>
       )}
+    </div>
+  );
+}
+
+/** The language Deskwright's text, voice and answers use. */
+export function LanguageList({ current, onChoose }: { current: string; onChoose: (code: string) => void }) {
+  return (
+    <div className="text-left">
+      <div className="divide-y divide-line-soft">
+        {LANGUAGES.map((l) => (
+          <button
+            key={l.code}
+            onClick={() => onChoose(l.code)}
+            className="flex w-full items-center gap-2.5 py-2.5 text-left text-[13.5px] hover:bg-surface"
+          >
+            <span className="flex-1">{l.name}</span>
+            {current === l.code && <Check className="h-4 w-4 text-ok" strokeWidth={2.5} />}
+          </button>
+        ))}
+      </div>
+      <div className="mt-1 border-t border-line-soft pt-2 text-[11.5px] text-fg-3">
+        {t("The voice speaks this language. Voice commands work in it and in English.")}
+      </div>
     </div>
   );
 }

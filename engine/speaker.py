@@ -1,7 +1,7 @@
-"""Talking back: Deskwright says what it's doing and reads chat replies aloud.
+"""Talking back: Deskwright says what it's doing and reads chat replies aloud, in the app's language.
 
-Voice: Meta MMS-TTS (Massively Multilingual Speech, facebook/mms-tts-eng: a 36M VITS model on this Mac's CPU, about
-0.2 s per short sentence). Sentences are made and played one at a time, so speech starts quickly and can be cut between
+Voice: Meta MMS-TTS (Massively Multilingual Speech, facebook/mms-tts-eng/-spa/-fra/-deu/-por: a 36M VITS model on
+this Mac's CPU, about 0.2 s per short sentence). Chinese has no MMS voice, so the Mac's own Chinese voice speaks. Sentences are made and played one at a time, so speech starts quickly and can be cut between
 them. If MMS-TTS can't load, the Mac's own `say` is used instead.
 
 Narration never lags behind the run: a new step replaces a step that hasn't been spoken yet, and important lines
@@ -17,6 +17,7 @@ import time
 from collections import deque
 from urllib.parse import urlparse
 
+from . import i18n
 from .config import config
 
 
@@ -49,7 +50,17 @@ def number_words(n: int) -> str:
 
 
 def speakable(text: str) -> str:
-    """Digits and symbols as words: MMS-TTS was trained on letters only."""
+    """Digits and symbols as words: MMS-TTS was trained on letters only. Other languages via num2words."""
+    num_lang = i18n.info()["num_lang"]
+    if num_lang and num_lang != "en":
+        try:
+            from num2words import num2words
+
+            text = re.sub(r"(?<=\d),(?=\d{3})", "", text)
+            return re.sub(r"\d+(?:\.\d+)?", lambda m: num2words(float(m.group()) if "." in m.group() else int(m.group()),
+                                                                lang=num_lang) if len(m.group()) <= 12 else m.group(), text)
+        except Exception:  # noqa: BLE001 - not installed: the digits are dropped, the rest is still said
+            return text
     text = re.sub(r"(?<=\d),(?=\d{3})", "", text).replace("%", " percent").replace("&", " and ")
     text = re.sub(r"(\d+)\.(\d+)", lambda m: f"{m.group(1)} point {' '.join(m.group(2))}", text)
     return re.sub(r"\d+", lambda m: number_words(int(m.group())) if len(m.group()) <= 12 else " ".join(m.group()), text)
@@ -76,6 +87,7 @@ class Speaker:
         self._model = None
         self._tok = None
         self._loading = False
+        self._lang = i18n.lang()  # the language the loaded voice speaks
         self.speaking = False
         self._recent: deque = deque(maxlen=3)  # what it said lately: the mic hears that too
         threading.Thread(target=self._worker, name="speaker", daemon=True).start()
@@ -94,17 +106,32 @@ class Speaker:
         else:
             self._status("ready")
 
+    def set_language(self, code: str):
+        """Switch the voice to the language the app is set to (a different MMS-TTS checkpoint)."""
+        if code == self._lang:
+            return
+        self.stop()
+        self._lang = code
+        self._model = self._tok = None
+        self.backend = ""
+        if self.enabled:
+            self.enabled = False
+            self.set_enabled(True)
+
     def _status(self, state: str):
         self.state = state
         self.emit("voice_status", state=state, backend=self.backend)
 
     def _load(self):
+        name = config.tts_model if self._lang == "en" else i18n.info(self._lang)["tts_model"]
         try:
+            if not name:
+                raise ImportError("no MMS-TTS voice for this language")
             import torch
             from transformers import AutoTokenizer, VitsModel
 
-            tok = AutoTokenizer.from_pretrained(config.tts_model)
-            model = VitsModel.from_pretrained(config.tts_model).eval()
+            tok = AutoTokenizer.from_pretrained(name)
+            model = VitsModel.from_pretrained(name).eval()
             model.noise_scale = 0.9  # livelier pitch and energy than the default 0.667
             with torch.inference_mode():
                 model(**tok("ready", return_tensors="pt"))  # warm up, so the first line is quick too
@@ -192,7 +219,8 @@ class Speaker:
         return stream
 
     def _play_say(self, text: str):
-        p = subprocess.Popen(["say", text])
+        voice = i18n.info(self._lang)["say_voice"]
+        p = subprocess.Popen(["say", *(["-v", voice] if voice else []), text])
         while p.poll() is None:
             if self._cut.wait(0.05):
                 p.terminate()
@@ -200,10 +228,10 @@ class Speaker:
 
 
 class Narrator:
-    """Turns the run's events into short spoken lines."""
+    """Turns the run's events into short spoken lines, in the app's language."""
 
-    VERBS = {"click": "Clicking", "double-click": "Double-clicking", "right-click": "Right-clicking",
-             "type into": "Typing into", "hover over": "Pointing at", "drag": "Dragging"}
+    VERBS = {"click": "clicking", "double-click": "double_clicking", "right-click": "right_clicking",
+             "type into": "typing_into", "hover over": "pointing_at", "drag": "dragging"}
 
     def __init__(self, speaker: Speaker):
         self.speaker = speaker
@@ -212,43 +240,46 @@ class Narrator:
         s = self.speaker
         if not s.enabled:
             return
+        L = i18n.line
         if type == "chat_reply":
             s.say(data.get("text", ""), important=True)
         elif type == "wake_heard":
-            s.say("Yes?", important=True)
+            s.say(L("yes"), important=True)
         elif type == "element_found" and data.get("verb") in self.VERBS:
-            s.say(f"{self.VERBS[data['verb']]} {short_target(data.get('target', ''))}")
+            verb = L(self.VERBS[data["verb"]])
+            # Targets are described in English for the models: other languages hear just what's happening.
+            s.say(f"{verb} {short_target(data.get('target', ''))}" if i18n.lang() == "en" else verb)
         elif type == "status":
             text = data.get("text") or ""
             m = re.match(r"Opening app: (.+)", text)
             if m:
-                s.say(f"Opening {m.group(1)}")
+                s.say(L("opening", m.group(1)))
             elif text.startswith("Opening http"):
-                s.say(f"Opening {urlparse(text.split(' ', 1)[1]).netloc.removeprefix('www.')}")
+                s.say(L("opening", urlparse(text.split(" ", 1)[1]).netloc.removeprefix("www.")))
             elif text.startswith("Fixing line"):
-                s.say("Something changed. Fixing it.")
+                s.say(L("fixing"))
             elif text.startswith("Known way back"):
-                s.say("I've seen this before. Going back.")
+                s.say(L("known_way"))
         elif type == "confirm_request":
-            first = (data.get("summary") or "").splitlines()[0] if data.get("summary") else "this step"
-            s.say(f"I need your approval. {first}", important=True)
+            first = (data.get("summary") or "").splitlines()[0] if data.get("summary") else L("this_step")
+            s.say(L("approval", first), important=True)
         elif type == "ask_user":
             opts = data.get("options") or []
-            s.say(data.get("question", "") + (" " + ", or ".join(opts) + "?" if opts else ""), important=True)
+            s.say(data.get("question", "") + (" " + f", {L('or')} ".join(opts) + "?" if opts else ""), important=True)
         elif type == "teach_recording":
             if data.get("recording"):
-                s.say("Recording. Show me the task.", important=True)
+                s.say(L("recording"), important=True)
             elif not data.get("cancelled"):
-                s.say("Got it. Working out the steps.", important=True)
+                s.say(L("got_it"), important=True)
         elif type == "run_finished":
             status = data.get("status")
             if status == "succeeded":
                 said = " ".join(str(r.get("text") or "") for r in data.get("results") or [])
-                s.say(("Done. " + clean(said)[:260]).strip(), important=True)
+                s.say(L("done", clean(said)[:260]).strip(), important=True)
             elif status == "stopped":
-                s.say("Stopped.", important=True)
+                s.say(L("stopped"), important=True)
             elif status == "declined":
-                s.say("Okay, I won't do that.", important=True)
+                s.say(L("declined"), important=True)
             else:
                 msg = clean(((data.get("error") or {}).get("message") or ""))[:140]
-                s.say(f"I couldn't finish that. {msg}", important=True)
+                s.say(L("failed", msg), important=True)

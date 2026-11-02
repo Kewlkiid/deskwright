@@ -28,6 +28,44 @@
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
   const short = (s, n = 48) => (s && s.length > n ? s.slice(0, n - 1) + "…" : s || "");
 
+  // The status bar's words in the app's language (each event carries it: e.lang). English text is the key.
+  // [Spanish, French, German, Portuguese, Chinese]
+  const WORDS = {
+    "Writing the program": ["Escribiendo el programa", "Écriture du programme", "Schreibe das Programm", "Escrevendo o programa", "正在编写程序"],
+    "Running": ["Ejecutando", "Exécution", "Läuft", "Executando", "运行中"],
+    "{n} lines": ["{n} líneas", "{n} lignes", "{n} Zeilen", "{n} linhas", "{n} 行"],
+    "Finding": ["Buscando", "Recherche", "Suche", "Procurando", "查找中"],
+    "Cached": ["En caché", "En cache", "Im Cache", "Em cache", "已缓存"],
+    "0 model calls": ["0 llamadas al modelo", "0 appel au modèle", "0 Modellaufrufe", "0 chamadas ao modelo", "0 次模型调用"],
+    "Position cache": ["Caché de posiciones", "Cache de positions", "Positions-Cache", "Cache de posições", "位置缓存"],
+    "no model call": ["sin llamada al modelo", "aucun appel au modèle", "kein Modellaufruf", "sem chamada ao modelo", "无需模型调用"],
+    "Not found": ["No encontrado", "Introuvable", "Nicht gefunden", "Não encontrado", "未找到"],
+    "Clicking": ["Haciendo clic", "Clic", "Klicke", "Clicando", "点击中"],
+    "Typing into": ["Escribiendo en", "Saisie dans", "Tippe in", "Digitando em", "输入到"],
+    "Hovering": ["Señalando", "Survol", "Zeige auf", "Passando sobre", "悬停"],
+    "Dragging": ["Arrastrando", "Glisser", "Ziehe", "Arrastando", "拖动中"],
+    "Acting on": ["Actuando sobre", "Action sur", "Bediene", "Agindo em", "操作"],
+    "saw": ["visto", "vu", "gesehen", "visto", "看到"],
+    "Line {n} failed": ["Falló la línea {n}", "Échec ligne {n}", "Zeile {n} fehlgeschlagen", "Falha na linha {n}", "第 {n} 行失败"],
+    "Known way back": ["Camino de vuelta conocido", "Chemin de retour connu", "Bekannter Rückweg", "Caminho de volta conhecido", "已知返回路径"],
+    "Rewrote line {n}": ["Línea {n} reescrita", "Ligne {n} réécrite", "Zeile {n} neu geschrieben", "Linha {n} reescrita", "已重写第 {n} 行"],
+    "resuming": ["continuando", "reprise", "fahre fort", "continuando", "继续中"],
+    "Waiting for your approval": ["Esperando tu aprobación", "En attente de ta validation", "Warte auf deine Freigabe", "Aguardando sua aprovação", "等待你的批准"],
+    "in the Deskwright panel": ["en el panel de Deskwright", "dans le panneau Deskwright", "im Deskwright-Panel", "no painel do Deskwright", "在 Deskwright 面板中"],
+    "Done": ["Listo", "Terminé", "Fertig", "Pronto", "完成"],
+    "Stopped": ["Detenido", "Arrêté", "Gestoppt", "Parado", "已停止"],
+    "Failed": ["Falló", "Échec", "Fehlgeschlagen", "Falhou", "失败"],
+    "Declined": ["Rechazado", "Refusé", "Abgelehnt", "Recusado", "已拒绝"],
+    "{n} model calls": ["{n} llamadas al modelo", "{n} appels au modèle", "{n} Modellaufrufe", "{n} chamadas ao modelo", "{n} 次模型调用"],
+    "{n}% cached": ["{n}% en caché", "{n} % en cache", "{n} % aus dem Cache", "{n}% em cache", "{n}% 来自缓存"],
+  };
+  let lang = "en";
+  const L = (text, n) => {
+    const i = ["es", "fr", "de", "pt", "zh"].indexOf(lang);
+    const out = i >= 0 && WORDS[text] ? WORDS[text][i] : text;
+    return n === undefined ? out : out.replace("{n}", n);
+  };
+
   function setHud(color, html, busy = false, ttl = 0) {
     clearTimeout(hudTimer);
     hud.querySelector(".dot").style.background = color;
@@ -87,17 +125,18 @@
 
   window.overlay = (e) => {
     alignStage();
+    if (e.lang) lang = e.lang;
     switch (e.type) {
       case "run_started":
         glow.classList.add("on");
-        setHud("#0d0d0d", `<b>Writing the program</b><span class="sub">${esc(short(e.task, 56))}</span>`, true);
+        setHud("#0d0d0d", `<b>${L("Writing the program")}</b><span class="sub">${esc(short(e.task, 56))}</span>`, true);
         break;
       case "script_generated":
-        if (!e.draft) setHud("#0d0d0d", `<b>Running</b><span class="sub">${e.script.split("\n").length} lines</span>`, true);
+        if (!e.draft) setHud("#0d0d0d", `<b>${L("Running")}</b><span class="sub">${L("{n} lines", e.script.split("\n").length)}</span>`, true);
         break;
       case "vision_scan":
         scan.classList.add("on");
-        setHud("var(--spark)", `<b>Finding</b><span class="sub">“${esc(short(e.target))}”</span>`, true);
+        setHud("var(--spark)", `<b>${L("Finding")}</b><span class="sub">“${esc(short(e.target))}”</span>`, true);
         break;
       case "sam_mask": {
         scan.classList.remove("on");
@@ -124,21 +163,21 @@
         if (e.source === "dom" && !e.from_cache) {
           newTarget("exact", e.box, `<i></i>${esc(short(e.target, 40))}`);
         } else if (e.from_cache) {
-          newTarget("cached", e.box, `<i></i>Cached <span class="muted">0 model calls · ${esc(short(e.target, 32))}</span>`);
-          setHud("var(--cache)", `<b>Position cache</b><span class="sub">“${esc(short(e.target))}” · no model call</span>`, true);
+          newTarget("cached", e.box, `<i></i>${L("Cached")} <span class="muted">${L("0 model calls")} · ${esc(short(e.target, 32))}</span>`);
+          setHud("var(--cache)", `<b>${L("Position cache")}</b><span class="sub">“${esc(short(e.target))}” · ${L("no model call")}</span>`, true);
         } else if (!target) {
           newTarget("exact", e.box, `<i></i>${esc(short(e.target, 40))}`);
         }
         break;
       case "vision_miss":
         scan.classList.remove("on");
-        setHud("var(--bad)", `<b>Not found</b><span class="sub">“${esc(short(e.target))}”</span>`, false);
+        setHud("var(--bad)", `<b>${L("Not found")}</b><span class="sub">“${esc(short(e.target))}”</span>`, false);
         break;
       case "pointer": {
         const [x, y] = e.point;
-        const verb = { click: "Clicking", type: "Typing into", hover: "Hovering", drag: "Dragging" }[e.kind] || "Acting on";
+        const verb = L({ click: "Clicking", type: "Typing into", hover: "Hovering", drag: "Dragging" }[e.kind] || "Acting on");
         const label = target?.tag?.querySelector(".muted")?.textContent || "";
-        setHud("#0d0d0d", `<b>${verb}</b><span class="sub">${esc(short(label.replace(/^0 model calls · /, "")))}</span>`, true);
+        setHud("#0d0d0d", `<b>${verb}</b><span class="sub">${esc(short(label.replace(/^[^·]*· /, "")))}</span>`, true);
         const r = document.createElement("div");
         r.className = "reticle";
         r.style.left = x + "px";
@@ -163,20 +202,20 @@
         verdict(e.box, true, e.expect);
         break;
       case "expect_failed":
-        verdict(e.box, false, e.observation ? `${e.expect} · saw: ${e.observation}` : e.expect);
+        verdict(e.box, false, e.observation ? `${e.expect} · ${L("saw")}: ${e.observation}` : e.expect);
         break;
       case "line_failed":
         scan.classList.remove("on");
-        setHud("var(--bad)", `<b>Line ${e.line} failed</b><span class="sub">${esc(short(e.error?.message, 56))}</span>`);
+        setHud("var(--bad)", `<b>${L("Line {n} failed", e.line)}</b><span class="sub">${esc(short(e.error?.message, 56))}</span>`);
         break;
       case "detour":
-        setHud("#b45309", `<b>Known way back</b><span class="sub">${esc(short(e.when, 50))}</span>`, true);
+        setHud("#b45309", `<b>${L("Known way back")}</b><span class="sub">${esc(short(e.when, 50))}</span>`, true);
         break;
       case "line_rewritten":
-        setHud("#b45309", `<b>Rewrote line ${e.failed_line}</b><span class="sub">resuming</span>`, true);
+        setHud("#b45309", `<b>${L("Rewrote line {n}", e.failed_line)}</b><span class="sub">${L("resuming")}</span>`, true);
         break;
       case "confirm_request":
-        setHud("#b45309", `<b>Waiting for your approval</b><span class="sub">in the Deskwright panel</span>`, true);
+        setHud("#b45309", `<b>${L("Waiting for your approval")}</b><span class="sub">${L("in the Deskwright panel")}</span>`, true);
         break;
       case "run_finished": {
         glow.classList.remove("on");
@@ -184,9 +223,10 @@
         clearTarget();
         const m = e.metrics || {};
         const ok = e.status === "succeeded";
-        const bits = [`${(m.elapsed || 0).toFixed(1)}s`, `${m.model_calls || 0} model calls`];
-        if (m.cache_hits) bits.push(`${Math.round((m.cache_hit_rate || 0) * 100)}% cached`);
-        setHud(ok ? "var(--ok)" : "var(--bad)", `<b>${ok ? "Done" : e.status[0].toUpperCase() + e.status.slice(1)}</b><span class="sub">${bits.join(" · ")}</span>`, false, 5000);
+        const bits = [`${(m.elapsed || 0).toFixed(1)}s`, L("{n} model calls", m.model_calls || 0)];
+        if (m.cache_hits) bits.push(L("{n}% cached", Math.round((m.cache_hit_rate || 0) * 100)));
+        const word = ok ? "Done" : e.status[0].toUpperCase() + e.status.slice(1);
+        setHud(ok ? "var(--ok)" : "var(--bad)", `<b>${L(word)}</b><span class="sub">${bits.join(" · ")}</span>`, false, 5000);
         break;
       }
     }

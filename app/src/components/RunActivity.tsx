@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Zap } from "lucide-react";
 import type { RunView } from "../lib/types";
+import { t as tr } from "../lib/i18n";
 
 /** Live line under the script while a run is active, plus a filmstrip of every element the agent grounded. */
 export function RunActivity({
@@ -23,7 +24,7 @@ export function RunActivity({
                 key={i}
                 initial={{ opacity: 0, scale: 0.92 }}
                 animate={{ opacity: 1, scale: 1 }}
-                title={`${t.fromCache ? "From the position cache" : "Found by the vision models"}: ${t.target}`}
+                title={`${t.fromCache ? tr("From the position cache") : tr("Found by the vision models")}: ${t.target}`}
                 className={`relative h-[46px] w-[66px] shrink-0 overflow-hidden rounded-lg border bg-surface ${
                   t.fromCache ? "border-[#f3c9b3]" : "border-line"
                 }`}
@@ -43,10 +44,11 @@ export function RunActivity({
       )}
       {live && (
         <div className="flex items-center gap-2">
-          <span className="shimmer min-w-0 flex-1 truncate text-[13.5px]">{status || "Working…"}</span>
+          <span className="shimmer min-w-0 flex-1 truncate text-[13.5px]">{status || tr("Working…")}</span>
           {m && (
             <span className="shrink-0 text-[12px] tabular-nums text-fg-3">
-              {m.model_calls} calls{m.cache_hits ? ` · ${m.cache_hits} cached` : ""}
+              {tr("{n} calls", { n: m.model_calls })}
+              {m.cache_hits ? ` · ${tr("{n} cached", { n: m.cache_hits })}` : ""}
             </span>
           )}
         </div>

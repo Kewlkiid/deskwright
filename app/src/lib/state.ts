@@ -1,4 +1,5 @@
 import type { ChatItem, ElementInfo, Metrics, RunView, SavedTask, Segment } from "./types";
+import { t } from "./i18n";
 
 export interface State {
   connected: boolean;
@@ -17,6 +18,7 @@ export interface State {
   teachStatus: string;
   thinking: boolean; // a message was sent and the chat hasn't answered yet
   speak: boolean; // talking back on
+  language: string; // en, es, fr, de, pt, zh (lib/i18n.ts, engine/i18n.py)
   voiceState: string; // "off" | "loading" | "ready"
   speaking: boolean; // Deskwright is talking right now (the wake word stops listening meanwhile)
   autoRun: boolean;
@@ -41,6 +43,7 @@ export const initialState: State = {
   teachStatus: "",
   thinking: false,
   speak: false,
+  language: "en",
   voiceState: "off",
   speaking: false,
   autoRun: true,
@@ -85,6 +88,7 @@ export type Action =
   | { type: "clearChat" }
   | { type: "thinking" }
   | { type: "setSpeak"; value: boolean }
+  | { type: "setLanguage"; value: string }
   | { type: "patchRun"; key: string; patch: Partial<RunView> };
 
 export function reducer(s: State, a: Action): State {
@@ -101,6 +105,8 @@ export function reducer(s: State, a: Action): State {
       return { ...s, items: [], runs: {}, draftKey: null, thinking: false };
     case "thinking":
       return { ...s, thinking: true };
+    case "setLanguage":
+      return { ...s, language: a.value };
     case "setSpeak":
       return { ...s, speak: a.value };
     case "patchRun":
@@ -129,6 +135,7 @@ function onEvent(s: State, m: any): State {
         autoRun: m.settings?.auto_run ?? s.autoRun,
         bypass: !!m.settings?.bypass_approvals,
         speak: !!m.settings?.speak,
+        language: m.settings?.language ?? s.language,
       };
     case "tasks":
       return { ...s, tasks: m.tasks || [] };
@@ -332,15 +339,17 @@ function onEvent(s: State, m: any): State {
             kind: "agent",
             text:
               m.path === "clipboard"
-                ? "Copied to the clipboard"
+                ? t("Copied to the clipboard")
                 : m.fmt === "py"
-                  ? "Exported the task's code (run it from other apps with deskwright.py)"
-                  : `Exported ${String(m.fmt).toUpperCase()}`,
+                  ? t("Exported the task's code (run it from other apps with deskwright.py)")
+                  : t("Exported {f}", { f: String(m.fmt).toUpperCase() }),
             path: m.path === "clipboard" ? undefined : m.path,
             icon: m.path === "clipboard" ? "copy" : "save",
           },
         ],
       };
+    case "voice_note":
+      return { ...s, items: [...s.items, { id: uid(), kind: "agent", text: m.message, icon: "sparkle" }] };
     case "wake_unavailable":
       return { ...s, items: [...s.items, { id: uid(), kind: "agent", text: m.message, icon: "sparkle" }] };
     case "error":

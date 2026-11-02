@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Mic, PanelRightOpen } from "lucide-react";
 import type { Metrics } from "../lib/types";
 import { Logo } from "./Logo";
+import { t } from "../lib/i18n";
 
 /** Compact bar in the top-right corner: shown while a task runs, or when the panel is collapsed by hand.
  * While running there are no buttons: Esc stops the run and the panel reopens by itself at the end. */
@@ -37,7 +38,7 @@ export function Pill({
           <Logo size={26} />
           <button
             onClick={onOpen}
-            title={connected ? "Open panel" : "Open panel (connecting…)"}
+            title={connected ? t("Open panel") : t("Open panel (connecting…)")}
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-fg-2 hover:bg-surface-2"
           >
             <PanelRightOpen className="h-[18px] w-[18px]" strokeWidth={1.75} />
@@ -60,15 +61,20 @@ export function Pill({
           <span className="h-2.5 w-2.5 rounded-full bg-focus" />
         </span>
         <div className="min-w-0 flex-1 leading-tight">
-          <div className="shimmer truncate text-[13.5px]">{status || "Working…"}</div>
+          <div className="shimmer truncate text-[13.5px]">{status || t("Working…")}</div>
           <div className="mt-0.5 truncate text-[11.5px] text-fg-3">
-            {stage ? `${stage} · ` : ""}Press <kbd className="rounded border border-line bg-surface px-1 font-sans text-[10.5px] text-fg-2">esc</kbd>
-            {listening ? " or say “stop”" : ""} to stop
-            {metrics ? ` · ${metrics.model_calls} model calls${metrics.cache_hits ? `, ${metrics.cache_hits} cached` : ""}` : ""}
+            {stage ? `${stage} · ` : ""}
+            {t("Press")} <kbd className="rounded border border-line bg-surface px-1 font-sans text-[10.5px] text-fg-2">esc</kbd>{" "}
+            {listening ? t("or say “stop” to stop") : t("to stop")}
+            {metrics
+              ? ` · ${t("{n} model calls", { n: metrics.model_calls })}${
+                  metrics.cache_hits ? `, ${t("{n} cached", { n: metrics.cache_hits })}` : ""
+                }`
+              : ""}
           </div>
                 </div>
         {listening && (
-          <span title="Listening: say “stop” to stop" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-focus/10 text-focus">
+          <span title={t("Listening: say “stop” to stop")} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-focus/10 text-focus">
             <Mic className="h-4 w-4" strokeWidth={2.25} />
           </span>
         )}

@@ -13,3 +13,4 @@ transformers>=4.40
 sounddevice>=0.5
 pyobjc-framework-Vision>=10; sys_platform == "darwin"
 pyobjc-framework-Speech>=10; sys_platform == "darwin"
+num2words>=0.5

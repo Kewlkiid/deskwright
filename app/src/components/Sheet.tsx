@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { motion } from "framer-motion";
 import { X } from "lucide-react";
+import { t } from "../lib/i18n";
 
 /** A panel that slides up over the conversation (saved tasks, metrics, permissions). × or Esc closes it. */
 export function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
@@ -30,7 +31,7 @@ export function Sheet({ title, onClose, children }: { title: string; onClose: ()
           <span className="flex-1 text-[15px] font-semibold tracking-tight">{title}</span>
           <button
             onClick={onClose}
-            title="Close"
+            title={t("Close")}
             className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-2 hover:bg-surface-2"
           >
             <X className="h-[18px] w-[18px]" strokeWidth={1.75} />

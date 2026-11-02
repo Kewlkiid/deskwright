@@ -38,9 +38,12 @@ class Config:
     wake_word: str = field(default_factory=lambda: os.environ.get("WAKE_WORD", "agent,deskwright"))
     # Conversation turns (models/chat.py): quick replies, and the decision to take control. Defaults to the vision model.
     chat_model: str = field(default_factory=lambda: os.environ.get("CHAT_MODEL", "") or os.environ.get("VISION_MODEL", "muse-spark-1.3"))
-    # Talking back (speaker.py): a Meta MMS-TTS checkpoint, one per language: facebook/mms-tts-<ISO 639-3 code>
-    # (mms-tts-eng, mms-tts-spa, mms-tts-fra, mms-tts-deu...).
+    # Talking back in English (speaker.py): a Meta MMS-TTS checkpoint. Other languages use the one in engine/i18n.py
+    # (mms-tts-spa, mms-tts-fra, mms-tts-deu, mms-tts-por).
     tts_model: str = field(default_factory=lambda: os.environ.get("TTS_MODEL", "facebook/mms-tts-eng"))
+    # The language Deskwright talks, listens and answers in (engine/i18n.py): en, es, fr, de, pt or zh. The app's
+    # language setting overrides it.
+    language: str = field(default_factory=lambda: os.environ.get("DESKWRIGHT_LANGUAGE", "en"))
     voice_model: str = field(default_factory=lambda: os.environ.get("VOICE_MODEL", "muse-voice-transcribe-1.0"))
     fake_models: bool = field(default_factory=lambda: _flag("AGENT_FAKE_MODELS"))
     # Synthetic screen and no real input at all: UI development and tests without screen permissions.

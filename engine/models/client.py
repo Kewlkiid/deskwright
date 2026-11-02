@@ -187,3 +187,13 @@ def now_line() -> str:
     import time
 
     return time.strftime("NOW: %A, %B %-d, %Y, %-I:%M %p (local time)")
+
+
+def language_line() -> str:
+    from .. import i18n
+
+    if not i18n.answer_in():
+        return ""
+    return (f"USER LANGUAGE: {i18n.answer_in()}. Write everything the user reads (show() text, table titles and column "
+            "names, clarify questions and options, explanations) in that language; keep code, element targets and "
+            "expect= conditions in English.\n")

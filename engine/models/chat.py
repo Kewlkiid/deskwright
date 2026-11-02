@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 
+from .. import i18n
 from ..config import config
 from .client import ModelClient, interruptible, now_line
 
@@ -98,6 +99,9 @@ class Chat:
                              (f" [inputs: {ins}]" if ins else "") + (f" [gives back: {outs}]" if outs else ""))
             saved = "SAVED TASKS:\n" + "\n".join(lines)
         system = CHAT_SYSTEM.format(saved=saved) + "\n" + now_line()
+        if i18n.answer_in():
+            system += (f"\nThe user's language is {i18n.answer_in()}: always reply in {i18n.answer_in()}, whatever "
+                       "language the request is in. Write run_task instructions in English.")
         messages = [{"role": "system", "content": system}] + self.history
         t0 = time.time()
         kwargs = {"tools": [RUN_TASK_TOOL, RUN_SAVED_TOOL], "max_tokens": 600 + config.reasoning_headroom, "temperature": 0.4}

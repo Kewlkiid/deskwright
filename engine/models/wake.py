@@ -12,13 +12,14 @@ import sys
 import tempfile
 import time
 
+from .. import i18n
 from ..config import config
 
 try:
     if sys.platform != "darwin":
         raise ImportError
     import Speech  # pyobjc-framework-Speech
-    from Foundation import NSURL, NSOperationQueue
+    from Foundation import NSURL, NSLocale, NSOperationQueue
 except ImportError:
     Speech = None
 
@@ -26,7 +27,8 @@ except ImportError:
 def name_pattern() -> str:
     """The start words: config.wake_word ("agent,deskwright"). "Deskwright" also as recognition tends to write it."""
     alts = []
-    for w in config.wake_word.split(","):
+    extra = i18n.info()["commands"]["names"]  # "agente"...: the start word as said in the app's language
+    for w in config.wake_word.split(",") + (extra.split(",") if extra else []):
         w = w.strip().lower()
         if not w:
             continue
@@ -39,7 +41,8 @@ def name_pattern() -> str:
 
 def wake_pattern() -> re.Pattern:
     """A start word, optionally after a greeting: "agent", "deskwright", "hey agent", "ok deskwright"..."""
-    return re.compile(rf"^\W*(?:(?:hey|hi|ok|okay|yo)\W+)?{name_pattern()}\b\W*", re.I)
+    # The name ends where Latin letters do: Chinese runs straight on ("代理打开日历").
+    return re.compile(rf"^\W*(?:(?:hey|hi|ok|okay|yo)\W+)?{name_pattern()}(?![a-zà-ÿ])\W*", re.I)
 
 
 def match_wake(text: str) -> tuple[bool, str]:
@@ -93,13 +96,40 @@ def _commands(name: str) -> list[tuple[str, re.Pattern]]:
     ]
 
 
+def _lang_commands(name: str, code: str) -> list[tuple[str, re.Pattern]]:
+    """The same commands in another language (words from engine/i18n.py). Chinese has no spaces between words."""
+    w = i18n.info(code)["commands"]
+    sep = r"\W*" if code == "zh" else r"\W+"
+    a = rf"{name}"
+    opt = rf"(?:{a}{sep})?"
+    tail = rf"(?:{sep}{name})?\W*$"
+
+    def cmd(words: str) -> re.Pattern:
+        return re.compile(rf"^\W*{opt}(?:{words}){tail}", re.I)
+
+    return [
+        ("input", re.compile(rf"^\W*{opt}(?:{w['input']}){sep}(?P<text>.+?)(?:\W+(?:{w['close']}))?\W*$", re.I)),
+        ("teach_stop", cmd(w["teach_stop"])),
+        ("teach_cancel", cmd(w["teach_cancel"])),
+        ("teach", cmd(w["teach"])),
+        ("save", re.compile(rf"^\W*{opt}(?:{w['save']})(?:{sep}(?P<text>.+?))?{tail}", re.I)),
+        ("hush", cmd(w["hush"])),
+        ("stop", cmd(w["stop"])),
+        ("approve", cmd(w["approve"])),
+        ("decline", cmd(w["decline"])),
+        ("send", cmd(w["send"])),
+        ("listen_off", re.compile(rf"^\W*{a}{sep}(?:{w['listen_off']})\W*$", re.I)),
+    ]
+
+
 def parse_voice(text: str) -> tuple[str, str] | None:
     """What an utterance asks for: ("input", text), ("approve"|"decline"|"send"|"stop"|"hush"|"teach"|"teach_stop"|
     "teach_cancel"|"save"|"listen_off", ""), ("task", text) after a start word, ("wake", "") for a bare start word,
-    or None (not for the agent)."""
+    or None (not for the agent). Commands work in the app's language and in English."""
     text = (text or "").strip()
     name = name_pattern()
-    for action, pat in _commands(name):
+    code = i18n.lang()
+    for action, pat in (_lang_commands(name, code) if code != "en" else []) + _commands(name):
         m = pat.match(text)
         if m:
             return action, (m.groupdict().get("text") or "").strip()
@@ -125,22 +155,29 @@ def without_spoken(heard: str, spoken: str) -> str:
     return " ".join(out)
 
 
-def on_device_available() -> bool:
+def _recognizer(locale: str | None):
+    if locale:
+        return Speech.SFSpeechRecognizer.alloc().initWithLocale_(NSLocale.localeWithLocaleIdentifier_(locale))
+    return Speech.SFSpeechRecognizer.alloc().init()  # the Mac's own language
+
+
+def on_device_available(locale: str | None = None) -> bool:
     if Speech is None:
         return False
     try:
-        r = Speech.SFSpeechRecognizer.alloc().init()
+        r = _recognizer(locale)
         return bool(r and r.isAvailable() and r.supportsOnDeviceRecognition())
     except Exception:  # noqa: BLE001
         return False
 
 
-def transcribe_on_device(wav: bytes, timeout: float = 12.0) -> str | None:
-    """Transcribe a WAV clip with on-device recognition. None only when that isn't available on this Mac; a clip
-    with no recognisable speech (Apple reports it as an error) gives ""."""
+def transcribe_on_device(wav: bytes, timeout: float = 12.0, locale: str | None = None) -> str | None:
+    """Transcribe a WAV clip with on-device recognition (in `locale`, e.g. "es-ES"; default the Mac's language).
+    None only when that isn't available on this Mac (macOS downloads a language's model when it's added to
+    Dictation); a clip with no recognisable speech (Apple reports it as an error) gives ""."""
     if Speech is None:
         return None
-    recognizer = Speech.SFSpeechRecognizer.alloc().init()
+    recognizer = _recognizer(locale)
     if not recognizer or not recognizer.isAvailable() or not recognizer.supportsOnDeviceRecognition():
         return None
     # Results go to the main queue by default, which the engine's worker threads never service: use a private queue.

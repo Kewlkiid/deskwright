@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowUp, Check, CircleSlash, Copy, FolderOpen, Mic, Play, Save, Sparkles, TriangleAlert, X } from "lucide-react";
 import type { ChatItem, Metrics, RunView } from "../lib/types";
+import { t } from "../lib/i18n";
 import { ScriptView } from "./ScriptView";
 
 const fade = { initial: { opacity: 0, y: 4 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.18 } };
@@ -38,7 +39,7 @@ export function AgentNote({ item }: { item: Extract<ChatItem, { kind: "agent" }>
           onClick={() => window.agent?.revealFile(item.path!)}
           className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-fg underline-offset-2 hover:underline"
         >
-          <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} /> Show in Finder
+          <FolderOpen className="h-3.5 w-3.5" strokeWidth={1.75} /> {t("Show in Finder")}
         </button>
       )}
     </div>
@@ -80,7 +81,7 @@ export function QuestionCard({
         </div>
       )}
       {done ? (
-        <div className="text-[13px] text-fg-3">{item.answer ? `You answered: ${item.answer}` : "No longer needed"}</div>
+        <div className="text-[13px] text-fg-3">{item.answer ? t("You answered: {a}", { a: item.answer }) : t("No longer needed")}</div>
       ) : (
         <form
           className="flex items-center gap-1.5 rounded-2xl border border-line py-1 pl-3 pr-1 focus-within:border-fg-4"
@@ -94,7 +95,7 @@ export function QuestionCard({
             value={text}
             onChange={(e) => setText(e.target.value)}
             className="h-8 flex-1 bg-transparent text-[14px] outline-none placeholder:text-fg-3"
-            placeholder="Reply…"
+            placeholder={t("Reply…")}
           />
           <button className="flex h-8 w-8 items-center justify-center rounded-full bg-fg text-white">
             <ArrowUp className="h-4 w-4" strokeWidth={2.25} />
@@ -117,14 +118,14 @@ export function ConfirmCard({
     return (
       <div className="flex items-center gap-2 text-[13px] text-fg-3">
         {item.answer === true ? <Check className="h-3.5 w-3.5 text-ok" /> : <X className="h-3.5 w-3.5" />}
-        {item.answer === true ? "Approved" : item.answer === false ? "Declined" : "Closed"}:{" "}
+        {item.answer === true ? t("Approved") : item.answer === false ? t("Declined") : t("Closed")}:{" "}
         <span className="truncate">{item.summary.split("\n")[0]}</span>
       </div>
     );
   }
   return (
     <div className="rounded-2xl border border-line p-3.5 shadow-[0_1px_2px_rgba(0,0,0,.04)]">
-      <div className="text-[14px] font-medium">Approve this action?</div>
+      <div className="text-[14px] font-medium">{t("Approve this action?")}</div>
       <div className="selectable mt-1 whitespace-pre-wrap text-[13px] leading-relaxed text-fg-2">{item.summary}</div>
       <div className="mt-3 flex gap-2">
         <button
@@ -132,16 +133,16 @@ export function ConfirmCard({
           onClick={() => onReply(true)}
           className="h-8 rounded-full bg-fg px-4 text-[13px] font-medium text-white hover:bg-[#2b2b2b]"
         >
-          Approve
+          {t("Approve")}
         </button>
         <button onClick={() => onReply(false)} className="h-8 rounded-full border border-line px-4 text-[13px] hover:bg-surface">
-          Decline
+          {t("Decline")}
         </button>
         <button
           onClick={() => onReply("all")}
           className="ml-auto h-8 px-1 text-[12.5px] text-fg-2 underline-offset-2 hover:text-fg hover:underline"
         >
-          Approve all this run
+          {t("Approve all this run")}
         </button>
       </div>
     </div>
@@ -171,12 +172,12 @@ export function SummaryCard({
   const ok = run.status === "succeeded";
   const canSave = !run.taskId && !!run.finalScript && ok && !run.savedAs;
   const title = ok
-    ? `Done in ${m ? m.elapsed.toFixed(1) : "?"}s`
+    ? t("Done in {s}s", { s: m ? m.elapsed.toFixed(1) : "?" })
     : run.status === "stopped"
-      ? "Stopped"
+      ? t("Stopped")
       : run.status === "declined"
-        ? "Stopped: you declined an action"
-        : "Couldn't finish";
+        ? t("Stopped: you declined an action")
+        : t("Couldn't finish");
   const speedup =
     ok && firstRun?.elapsed && m && runNumber && runNumber > 1 && m.elapsed > 0 ? firstRun.elapsed / m.elapsed : null;
   const cheaper = ok && firstRun?.cost && m && runNumber && runNumber > 1 ? 1 - m.cost / firstRun.cost : null;
@@ -195,7 +196,7 @@ export function SummaryCard({
             onClick={() => setOpen(true)}
             className="ml-auto flex h-7 items-center gap-1.5 rounded-full border border-line px-2.5 text-[12.5px] text-fg-2 hover:bg-surface"
           >
-            <Save className="h-3.5 w-3.5" strokeWidth={1.75} /> Save as a reusable task
+            <Save className="h-3.5 w-3.5" strokeWidth={1.75} /> {t("Save as a reusable task")}
           </button>
         )}
       </div>
@@ -205,31 +206,35 @@ export function SummaryCard({
           onClick={onResume}
           className="flex h-8 items-center gap-1.5 rounded-full border border-line px-3 text-[13px] hover:bg-surface"
         >
-          <Play className="h-3.5 w-3.5" strokeWidth={1.75} /> Continue after “{run.checkpoints[run.checkpoints.length - 1]}”
+          <Play className="h-3.5 w-3.5" strokeWidth={1.75} />{" "}
+          {t("Continue after “{name}”", { name: run.checkpoints[run.checkpoints.length - 1] })}
         </button>
       )}
       {m && (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-fg-2">
-          <span>{m.steps} steps</span>
-          <span>{m.model_calls} model calls</span>
-          {m.cache_hits + m.cache_misses > 0 && <span>{Math.round(m.cache_hit_rate * 100)}% from cache</span>}
+          <span>{t("{n} steps", { n: m.steps })}</span>
+          <span>{t("{n} model calls", { n: m.model_calls })}</span>
+          {m.cache_hits + m.cache_misses > 0 && <span>{t("{n}% from cache", { n: Math.round(m.cache_hit_rate * 100) })}</span>}
           <span>{fmtCost(m.cost)}</span>
           {m.fixes > 0 && (
-            <span className="text-warn">
-              {m.fixes_succeeded}/{m.fixes} self-fixes worked
-            </span>
+            <span className="text-warn">{t("{a}/{b} self-fixes worked", { a: m.fixes_succeeded, b: m.fixes })}</span>
           )}
         </div>
       )}
       {speedup && speedup > 1.05 && (
         <div className="inline-flex items-center gap-1.5 rounded-full bg-[#fff4ed] px-2.5 py-1 text-[12.5px] text-cache">
-          Run {runNumber}: {speedup.toFixed(1)}× faster
-          {cheaper && cheaper > 0.05 ? `, ${Math.round(cheaper * 100)}% cheaper` : ""} than run 1
+          {cheaper && cheaper > 0.05
+            ? t("Run {n}: {x}× faster, {p}% cheaper than run 1", {
+                n: runNumber!, x: speedup.toFixed(1), p: Math.round(cheaper * 100),
+              })
+            : t("Run {n}: {x}× faster than run 1", { n: runNumber!, x: speedup.toFixed(1) })}
         </div>
       )}
       {m && m.calls_saved > 0 && !(speedup && speedup > 1.05) && (
         <div className="text-[12.5px] text-fg-3">
-          The position cache skipped {m.calls_saved} model calls (about {m.time_saved.toFixed(0)}s, {fmtCost(m.cost_saved)}).
+          {t("The position cache skipped {n} model calls (about {s}s, {c}).", {
+            n: m.calls_saved, s: m.time_saved.toFixed(0), c: fmtCost(m.cost_saved),
+          })}
         </div>
       )}
       {canSave && open && (
@@ -245,13 +250,13 @@ export function SummaryCard({
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Name this task"
+            placeholder={t("Name this task")}
             className="h-8 flex-1 rounded-lg border border-line px-2.5 text-[13px] outline-none focus:border-fg-3"
           />
-          <button className="h-8 rounded-lg bg-fg px-3 text-[13px] font-medium text-white">Save</button>
+          <button className="h-8 rounded-lg bg-fg px-3 text-[13px] font-medium text-white">{t("Save")}</button>
         </form>
       )}
-      {run.savedAs && <div className="text-[13px] text-fg-2">Saved as “{run.savedAs}”. Say “run {run.savedAs}” any time.</div>}
+      {run.savedAs && <div className="text-[13px] text-fg-2">{t("Saved as “{name}”. Say “run {name}” any time.", { name: run.savedAs })}</div>}
     </div>
   );
 }
@@ -278,8 +283,10 @@ export function TeachCard({
   return (
     <div className="space-y-2.5">
       <div className="text-[14px] leading-relaxed">
-        I watched your demonstration ({item.steps.length} steps) and turned it into a program. Recorded values became
-        variables, so it can run on new records.
+        {t(
+          "I watched your demonstration ({n} steps) and turned it into a program. Recorded values became variables, so it can run on new records.",
+          { n: item.steps.length },
+        )}
       </div>
       <ol className="space-y-1 text-[13px] text-fg-2">
         {item.steps.slice(0, 8).map((s) => (
@@ -291,9 +298,9 @@ export function TeachCard({
             </span>
           </li>
         ))}
-        {item.steps.length > 8 && <li className="pl-6 text-fg-3">and {item.steps.length - 8} more</li>}
+        {item.steps.length > 8 && <li className="pl-6 text-fg-3">{t("and {n} more", { n: item.steps.length - 8 })}</li>}
       </ol>
-      {item.problems.length > 0 && <ErrorNote text={`Needs a quick edit: ${item.problems.join("; ")}`} />}
+      {item.problems.length > 0 && <ErrorNote text={t("Needs a quick edit: {p}", { p: item.problems.join("; ") })} />}
       <ScriptView run={run} onRun={onRun} onSave={(script, name) => onSave(name, script, item.description)} />
     </div>
   );

@@ -2,6 +2,7 @@ import { type MutableRefObject, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp, BarChart3, GraduationCap, LayoutList, ListChecks, Mic, Square, Trash2 } from "lucide-react";
 import type { WakeState } from "../lib/wake";
+import { t } from "../lib/i18n";
 
 export interface SlashCommand {
   name: string;
@@ -62,11 +63,11 @@ export function Composer({
   const elapsed = useElapsed(recording);
 
   const commands: SlashCommand[] = [
-    { name: "tasks", label: "Show saved tasks", icon: LayoutList, run: onShowTasks },
-    { name: "metrics", label: "Show run metrics", icon: BarChart3, run: onShowMetrics },
-    { name: "teach", label: "Teach by demonstration", icon: GraduationCap, run: onTeach },
-    { name: "review", label: reviewMode ? "Run scripts right away" : "Review before running", icon: ListChecks, run: onToggleReview },
-    { name: "clear", label: "Clear the conversation", icon: Trash2, run: onClear },
+    { name: "tasks", label: t("Show saved tasks"), icon: LayoutList, run: onShowTasks },
+    { name: "metrics", label: t("Show run metrics"), icon: BarChart3, run: onShowMetrics },
+    { name: "teach", label: t("Teach by demonstration"), icon: GraduationCap, run: onTeach },
+    { name: "review", label: reviewMode ? t("Run scripts right away") : t("Review before running"), icon: ListChecks, run: onToggleReview },
+    { name: "clear", label: t("Clear the conversation"), icon: Trash2, run: onClear },
   ];
   const slash = text.startsWith("/") ? commands.filter((c) => c.name.startsWith(text.slice(1).trim().toLowerCase())) : [];
 
@@ -108,7 +109,7 @@ export function Composer({
   };
 
   // Steady text: what the mic hears doesn't change it (the mic button pulses while it waits for a spoken task).
-  const placeholder = running ? "Working on it…" : wakeOn ? "Say “Agent…” or type a task" : "Ask Agent to do something";
+  const placeholder = running ? t("Working on it…") : wakeOn ? t("Say “Agent…” or type a task") : t("Ask Agent to do something");
   const hot = wakeState === "command";
 
   return (
@@ -123,17 +124,17 @@ export function Composer({
           >
             <span className="h-2 w-2 shrink-0 animate-rec rounded-full bg-bad" />
             <div className="min-w-0 flex-1">
-              <div className="text-[13px] font-medium text-fg">Recording your demonstration · {elapsed}</div>
-              <div className="text-[12px] text-fg-2">Do the task once in any app.</div>
+              <div className="text-[13px] font-medium text-fg">{t("Recording your demonstration · {t}", { t: elapsed })}</div>
+              <div className="text-[12px] text-fg-2">{t("Do the task once in any app.")}</div>
             </div>
             <button
               onClick={onCancelTeach}
               className="h-8 shrink-0 rounded-full border border-line bg-white px-3 text-[12.5px] text-fg-2 hover:bg-surface"
             >
-              Cancel
+              {t("Cancel")}
             </button>
             <button onClick={onTeach} className="h-8 shrink-0 rounded-full bg-fg px-3.5 text-[12.5px] font-medium text-white">
-              Finish
+              {t("Finish")}
             </button>
           </motion.div>
         )}
@@ -190,7 +191,7 @@ export function Composer({
         {/* Mic, then Send filling the box's full height on the right */}
         <button
           onClick={onToggleWake}
-          title={wakeOn ? "Stop listening for “Hey Agent”" : "Listen for “Hey Agent”"}
+          title={wakeOn ? t("Stop listening for “Hey Agent”") : t("Listen for “Hey Agent”")}
           className={`relative flex h-9 w-9 shrink-0 items-center justify-center self-start rounded-full transition ${
             wakeOn ? "bg-focus/10 text-focus" : "text-fg-2 hover:bg-surface-2"
           }`}
@@ -201,7 +202,7 @@ export function Composer({
         {running ? (
           <button
             onClick={onStop}
-            title="Cancel (esc)"
+            title={t("Cancel (esc)")}
             className="flex w-10 shrink-0 items-center justify-center rounded-[18px] bg-bad text-white transition hover:brightness-110"
           >
             <Square className="h-3.5 w-3.5 fill-white" />
@@ -210,7 +211,7 @@ export function Composer({
           <button
             onClick={submit}
             disabled={!text.trim()}
-            title="Send"
+            title={t("Send")}
             className="flex w-10 shrink-0 items-center justify-center rounded-[18px] bg-fg text-white transition hover:bg-[#2b2b2b] disabled:bg-surface-3 disabled:text-fg-4"
           >
             <ArrowUp className="h-[18px] w-[18px]" strokeWidth={2.25} />
@@ -221,9 +222,9 @@ export function Composer({
         <div className="mt-1.5 text-center text-[11.5px] text-fg-3">
           {running
             ? wakeOn
-              ? "Press esc or say “stop” to stop"
-              : "Press esc to stop"
-            : "Approvals are off: sensitive actions run without asking."}
+              ? t("Press esc or say “stop” to stop")
+              : t("Press esc to stop")
+            : t("Approvals are off: sensitive actions run without asking.")}
         </div>
       )}
     </div>
