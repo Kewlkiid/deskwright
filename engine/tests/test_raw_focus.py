@@ -45,6 +45,9 @@ def test_other_app_in_front_is_sent_back(monkeypatch):
     monkeypatch.setitem(sys.modules, "AppKit", types.SimpleNamespace(NSWorkspace=WS))
     monkeypatch.setattr(raw.config, "fake_screen", False)
     import engine.screen.windows as windows
+    from engine.screen import ax as axmod
+
+    monkeypatch.setattr(axmod, "bring_to_front", lambda app: False)
 
     def open_app(name):
         calls.append(name)
@@ -68,8 +71,9 @@ def test_other_app_in_front_is_sent_back(monkeypatch):
 
     monkeypatch.setattr(windows, "open_app", stuck)
     front[0] = "Visual Studio Code"
+    raw.app_in_front(C())  # a click goes on: it brings its own window forward
     with pytest.raises(WindowLostError):
-        raw.app_in_front(C())
+        raw.app_in_front(C(), keys=True)  # keys would land in the wrong app
 
 
 def test_fn_released_after_arrow_combos(monkeypatch):

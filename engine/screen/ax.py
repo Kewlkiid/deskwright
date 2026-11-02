@@ -250,3 +250,20 @@ def focus_thief() -> str | None:
     texts = [_label(window)] + [_label(k) for k in (_attr(window, "AXChildren") or [])[:8]]
     text = " / ".join(t for t in texts if t)
     return f"{running.localizedName() or 'a system process'}: {text}" if text else (running.localizedName() or "")
+
+
+def bring_to_front(app: str) -> bool:
+    """Make `app` the frontmost app with its main window raised (allowed with the Accessibility permission, unlike
+    activating from a background process). True when it worked."""
+    if AS is None:
+        return False
+    pid = _pid(app)
+    if pid is None:
+        return False
+    root = AS.AXUIElementCreateApplication(pid)
+    window = _attr(root, "AXFocusedWindow") or (_attr(root, "AXWindows") or [None])[0]
+    if window is not None:
+        AS.AXUIElementPerformAction(window, "AXRaise")
+    ok = AS.AXUIElementSetAttributeValue(root, "AXFrontmost", True) == 0
+    time.sleep(0.15)
+    return ok and bool(_attr(root, "AXFrontmost"))

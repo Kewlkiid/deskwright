@@ -32,10 +32,17 @@ def open_app(name: str) -> None:
         except Exception as e:
             raise ElementNotFoundError(f"Could not open app {name!r}: {e}", fix="Check the app name.") from e
         deadline = time.time() + 10
+        nudged = False
         while time.time() < deadline:
             ctx.sleep(0.4)
             if _front_matches(name):
                 break
+            if not nudged and time.time() > deadline - 8.5 and not config.fake_screen:
+                # Running but not coming forward (macOS limits a background process activating apps): raise it
+                # through Accessibility instead.
+                from ..screen import ax
+
+                nudged = ax.bring_to_front(name)
         ctx.settle()
         ctx.invalidate_window()
         if not _front_matches(name) and not _check(ctx, f"the {name} app is open and in front")["result"]:

@@ -53,10 +53,10 @@ def _before_raw(action: str = "", sends: bool = False, commits: bool = True):
 OWN_APPS = {"Deskwright", "Agent", "Electron"}
 
 
-def app_in_front(ctx) -> None:
-    """Keys and clicks go to whatever app is in front. If another app has come up over the run's app (the user
-    clicked something, a window popped up), bring the run's app back first; if that fails, stop rather than type or
-    click into the wrong app."""
+def app_in_front(ctx, keys: bool = False) -> None:
+    """Keys go to whatever app is in front. If another app has come up over the run's app (the user clicked
+    something, a window popped up), bring the run's app back first. For keys, stop if that fails rather than type
+    into the wrong app; a click brings its own window forward anyway."""
     if ctx.dry_run or config.fake_screen or not ctx.scope_app:
         return
     try:
@@ -71,16 +71,19 @@ def app_in_front(ctx) -> None:
     now = front()
     if not now or now == ctx.scope_app or now in OWN_APPS:
         return
+    from ..screen import ax
     from ..screen.windows import open_app
 
     ctx.log(f"{now} came in front of {ctx.scope_app}: bringing {ctx.scope_app} back")
-    try:
-        open_app(ctx.scope_app)
-    except Exception:  # noqa: BLE001
-        pass
-    ctx.sleep(0.6)
+    # Through Accessibility first: newer macOS won't let a background process bring an app forward with `open -a`.
+    if not ax.bring_to_front(ctx.scope_app):
+        try:
+            open_app(ctx.scope_app)
+        except Exception:  # noqa: BLE001
+            pass
+    ctx.sleep(0.5)
     ctx.invalidate_window()
-    if front() not in (ctx.scope_app, *OWN_APPS):
+    if keys and front() not in (ctx.scope_app, *OWN_APPS):
         raise WindowLostError(f"{front()} is in front of {ctx.scope_app}, so keys and clicks would go to the wrong app.",
                               fix=f"Bring {ctx.scope_app} to the front (open_app) and retry.")
 
@@ -90,7 +93,7 @@ def keys_reach_app(ctx, *keys: str) -> None:
     the keyboard focus. Escape still goes through: it's how such a dialog is dismissed."""
     if ctx.dry_run or config.fake_screen or (keys and all(inp.norm_key(k) in ("escape", "esc") for k in keys)):
         return
-    app_in_front(ctx)
+    app_in_front(ctx, keys=True)
     from ..screen import ax
 
     thief = ax.focus_thief()
