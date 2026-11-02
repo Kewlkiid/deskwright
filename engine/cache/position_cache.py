@@ -1,6 +1,7 @@
 """Position cache: remembers where described elements were, so replays skip model calls.
 
-Entry key: window/app + coarse screen fingerprint + element description.
+Entry key: the app + element description (not the window title: Discord's changes with every channel); up to
+MAX_VIEWS entries per window size for the same target in different views, ordered by screen similarity.
 Entry value: bounding box + click point + fingerprint of the pixels inside it, in the coordinates of the app's window
 (screenshots are cropped to it), so moving the window keeps entries valid. A resized window reflows its layout, so
 entries remember the window's size and a different size is a miss.
@@ -20,7 +21,8 @@ from ..screen.fingerprint import hamming, patch_hash, screen_hash, sig_diff, sig
 from ..store.db import DB
 
 # Loose: the screen may differ a little (typed text, a new row) and still be the same view.
-SCREEN_HASH_MAX_DIST = 20
+SCREEN_HASH_MAX_DIST = 20  # "the same view" when replacing an entry
+MAX_VIEWS = 4  # entries kept per app, target and window size
 # The window may differ by a couple of pixels (rounding of its bounds) and still be the same size.
 FRAME_TOLERANCE = 4
 # Strict: the pixels at the cached spot must look like the element we saw before.
@@ -59,8 +61,8 @@ class PositionCache:
                 fw, fh = json.loads(r["frame"])
                 if abs(fw - img.width) > FRAME_TOLERANCE or abs(fh - img.height) > FRAME_TOLERANCE:
                     continue  # the window was resized: its layout may have moved
-            if hamming(current, r["screen_hash"]) > SCREEN_HASH_MAX_DIST:
-                break
+            # The whole-screen fingerprint only orders the entries: a different channel or page changes most of the
+            # screen while the element stays put. Whether the element is really there is the patch checks' job.
             box = json.loads(r["box"])
             fresh_sig = signature(img, box)
             if sig_diff(fresh_sig, r["patch_sig"]) > PATCH_SIG_MAX_DIFF:
@@ -79,13 +81,20 @@ class PositionCache:
         # Replace an entry for the same view (same window size, similar screen) instead of piling up duplicates.
         # A different window size is a different layout: its entry is kept alongside, so going back to that size
         # still hits.
-        for r in self.db.query("SELECT id, screen_hash, frame FROM cache WHERE window = ? AND target = ?", (window, key)):
+        same_size = []
+        for r in self.db.query("SELECT id, screen_hash, frame, updated FROM cache WHERE window = ? AND target = ?",
+                               (window, key)):
             if r["frame"]:
                 fw, fh = json.loads(r["frame"])
                 if abs(fw - img.width) > FRAME_TOLERANCE or abs(fh - img.height) > FRAME_TOLERANCE:
                     continue
             if hamming(sh, r["screen_hash"]) <= SCREEN_HASH_MAX_DIST:
                 self.db.execute("DELETE FROM cache WHERE id = ?", (r["id"],))
+            else:
+                same_size.append(r)
+        # The same target can sit in different places in different views (two dialogs): keep a few, newest first.
+        for r in sorted(same_size, key=lambda r: r["updated"], reverse=True)[MAX_VIEWS - 1:]:
+            self.db.execute("DELETE FROM cache WHERE id = ?", (r["id"],))
         self.db.execute(
             "INSERT INTO cache (window, target, screen_hash, box, patch_hash, patch_sig, expect, point, frame, hits, "
             "updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)",

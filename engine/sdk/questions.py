@@ -16,6 +16,7 @@ from .actions import browser_find, browser_for, find, settle_previous
 from .context import ACTION_LOCK, RunContext, current
 from .errors import ElementNotFoundError, ExpectationFailedError
 from .raw import run_input
+from .screen_text import confirms
 
 
 class Row(dict):
@@ -55,6 +56,14 @@ def _check(ctx: RunContext, condition: str, shot: cap.Shot | None = None) -> dic
             ctx.check_cache[key] = r
             return r
     ctx.status(f"Checking: {condition}")
+    if confirms(ctx, shot, condition):
+        # Its words are on screen (text recognition / Accessibility): no model call for a plain "X is shown".
+        ctx.resolve_pending(shot)
+        r = {"result": True, "reason": "seen in the screen's text"}
+        ctx.metrics.record_cache(True, saved_calls=1)
+        ctx.log(f'check "{condition}": its text is on screen (no model call)')
+        ctx.check_cache[key] = r
+        return r
     r = ctx.models.vision.check(shot.image, condition, _prev(ctx))
     ctx.resolve_pending(shot, r.get("prev_expect_met"), r.get("observation", ""))
     ctx.check_cache[key] = r

@@ -83,6 +83,8 @@ class Planner:
         action_log: list[str],
         user_hint: str = "",
         sdk_reference: str,
+        tried: list[str] | None = None,
+        on_screen: list[str] | None = None,
     ) -> dict:
         lines = script.splitlines()
         failing_src = lines[failing_line - 1] if 0 < failing_line <= len(lines) else ""
@@ -94,6 +96,10 @@ class Planner:
             f"VARIABLES (already defined): {json.dumps(variables)[:3000]}\n\n"
             "RECENT ACTIONS:\n" + "\n".join(action_log[-15:]) + "\n"
         )
+        if tried:
+            text += "\nALREADY TRIED for this step (failed, don't repeat):\n- " + "\n- ".join(tried) + "\n"
+        if on_screen:
+            text += "\nWHAT IS ON SCREEN (text and controls): " + " | ".join(on_screen) + "\n"
         if user_hint:
             text += f"\nTHE USER SAYS: {user_hint}\n"
         text += "\nThe image is the screen right now. Reply with the JSON."

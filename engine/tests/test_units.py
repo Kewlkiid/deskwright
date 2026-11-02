@@ -38,29 +38,37 @@ def test_grid_cells_parse_and_map_to_pixels():
     assert cells_box([(0, 0)], zone, 8, 6, margin=1) == [100, 0, 300, 200]  # margin is clipped at the edge
 
 
-def test_grid_grounder_zooms_in_on_the_named_element(monkeypatch):
-    # A 1600x1200 screen with a button at (500-620, 420-460). The scripted "model" answers each pass with the
-    # cells the button really covers, so the box should tighten pass by pass around it.
-    target = [500, 420, 620, 460]
-    views = []
+def test_grid_grounder_finds_then_zooms_then_snaps(monkeypatch):
+    # A 1600x1200 screen with a button at (500-620, 420-460). The scripted "model" names the cell holding the
+    # button's centre: first on the fine 24x16 grid, then on the 6x6 zoom around that cell.
+    import re as _re
 
-    def fake_ask(self, img, phrase, cols, rows, first):
-        zone = views[-1] if views else [0, 0, 1600, 1200]
-        cw, ch = (zone[2] - zone[0]) / cols, (zone[3] - zone[1]) / rows
-        cells = [f"{chr(65 + c)}{r + 1}" for c in range(cols) for r in range(rows)
-                 if zone[0] + c * cw < target[2] and zone[0] + (c + 1) * cw > target[0]
-                 and zone[1] + r * ch < target[3] and zone[1] + (r + 1) * ch > target[1]]
-        cx, cy = (target[0] + target[2]) / 2, (target[1] + target[3]) / 2
-        center = f"{chr(65 + int((cx - zone[0]) // cw))}{int((cy - zone[1]) // ch) + 1}"
-        views.append(cells_box([parse_cell(c, cols, rows) for c in cells], zone, cols, rows, margin=1))
-        return {"found": True, "cells": cells, "center": center}
+    from engine.models import grid as gridmod
+
+    target = [500, 420, 620, 460]
+    cx, cy = (target[0] + target[2]) / 2, (target[1] + target[3]) / 2
+    calls = []
+
+    def fake_ask(self, view, prompt):
+        calls.append(prompt)
+        if len(calls) == 1:  # the fine pass over the whole screen
+            c, r = int(cx // (1600 / 24)), int(cy // (1200 / 16))
+            return {"found": True, "center": f"{chr(65 + c)}{r + 1}"}
+        cw, ch = 1600 / 24, 1200 / 16  # the zoom: 2.5 cells around the first answer, 6x6
+        px, py = (int(cx // cw) + 0.5) * cw, (int(cy // ch) + 0.5) * ch
+        zone = [max(0, px - 2.5 * cw), max(0, py - 2.5 * ch), min(1600, px + 2.5 * cw), min(1200, py + 2.5 * ch)]
+        zw, zh = (zone[2] - zone[0]) / 6, (zone[3] - zone[1]) / 6
+        return {"found": True, "center": f"{chr(65 + int((cx - zone[0]) // zw))}{int((cy - zone[1]) // zh) + 1}"}
 
     monkeypatch.setattr(GridGrounder, "_ask", fake_ask)
     g = GridGrounder(client=None).locate(Image.new("RGB", (1600, 1200)), "Save button")
-    assert g.found
+    assert g.found and len(calls) == 2
     assert target[0] <= g.point[0] <= target[2] and target[1] <= g.point[1] <= target[3]
-    # Tighter than the first pass (two 200x200 cells); cell edges rarely line up with the element, so not exact.
-    assert (g.box[2] - g.box[0]) <= 300 and (g.box[3] - g.box[1]) <= 100
+    # With the button's exact box known (SAM, text or Accessibility), the answer snaps to it.
+    calls.clear()
+    g = GridGrounder(client=None).locate(Image.new("RGB", (1600, 1200)), "Save button",
+                                         snap_to=[[0, 0, 100, 100], target])
+    assert g.box == target and g.point == (cx, cy)
 
 
 def test_grid_grounder_reports_missing(monkeypatch):
@@ -413,3 +421,73 @@ def test_start_words_commands_and_talking_over_deskwright():
     # While it talks, the mic hears both: its own words are taken out, the user's stay.
     assert parse_voice(without_spoken("Done posted hi in support agent stop", "Done. Posted hi in support.")) == ("stop", "")
     assert without_spoken("I need your approval post hi", "I need your approval. Post hi in #support?") == ""
+
+
+def test_cache_hits_when_the_rest_of_the_screen_changed(tmp_path):
+    """Discord's channel changes most of the screen (and its title); the button is where it was: still a hit."""
+    cache = PositionCache(DB(tmp_path / "c.db"))
+    img = ui_image()
+    cache.put("Discord", img, "Save button", [400, 300, 560, 350])
+    other = img.copy()
+    d = ImageDraw.Draw(other)
+    for i in range(20):  # a different channel's messages fill the middle
+        d.rectangle([700, 100 + i * 40, 1500, 125 + i * 40], fill=(20 + i * 10, 40, 90))
+    assert cache.lookup("Discord", other, "Save button") is not None
+    assert cache.lookup("Discord", ui_image(offset=300), "Save button") is None  # the button moved: no wrong hit
+
+
+def test_cache_keeps_a_few_views_per_target(tmp_path):
+    cache = PositionCache(DB(tmp_path / "c.db"))
+    for i in range(6):  # six very different screens with an "OK button" in different places
+        img = Image.new("RGB", (1600, 1000), (i * 40, 255 - i * 40, (i * 90) % 255))
+        cache.put("App", img, "OK button", [100 + i * 200, 300, 180 + i * 200, 340])
+    from engine.cache.position_cache import MAX_VIEWS
+
+    assert len(cache.db.query("SELECT id FROM cache WHERE target = ?", ("ok button",))) <= MAX_VIEWS
+
+
+def test_accessibility_candidates_and_sam_queries():
+    from engine.models.grounding import ax_candidates, sam_queries
+
+    extra = [([10, 120, 60, 170], "AXRow", "Unread messages, Control"),
+             ([10, 180, 60, 230], "AXRow", "Splash Zone"),
+             ([300, 650, 900, 700], "AXTextField", "Message #support"),
+             ([2000, 10, 2050, 40], "AXButton", "Control")]  # off screen
+    assert ax_candidates(extra, "Control server icon in the far-left server list", (1200, 800)) == [[10, 120, 60, 170]]
+    assert ax_candidates(extra, "message input field at the bottom", (1200, 800))[0] == [300, 650, 900, 700]
+    assert sam_queries("C server icon in the leftmost Discord server sidebar") == ["C server icon", "icon"]
+
+
+def test_free_check_only_confirms_plain_presence(monkeypatch):
+    from engine.sdk import screen_text
+    from engine.screen.capture import Shot
+
+    monkeypatch.setattr(screen_text.config, "fake_models", False)
+    monkeypatch.setattr(screen_text.config, "fake_screen", False)
+    monkeypatch.setattr(screen_text, "_screen_text", lambda ctx, shot: "directions \n start \n end \n message #support")
+    shot = Shot(image=Image.new("RGB", (100, 100)))
+    assert screen_text.confirms(None, shot, "the Directions panel with Start and End fields is shown")
+    assert screen_text.confirms(None, shot, "'Message #support' input is visible")
+    assert not screen_text.confirms(None, shot, "the Settings page is shown")  # its words aren't there
+    assert not screen_text.confirms(None, shot, "the message was sent")  # not a presence check: the model decides
+    assert not screen_text.confirms(None, shot, "the Directions panel is not shown")
+
+
+def test_the_fixer_hears_what_was_already_tried(screen, agent_factory):
+    agent, host = agent_factory(fail_on="Save button")
+    base = agent.models.planner
+    seen = []
+
+    class Spy:
+        def __getattr__(self, n):
+            return getattr(base, n)
+
+        def fix_script(self, **kw):
+            seen.append(kw.get("tried"))
+            return base.fix_script(**kw)
+
+    agent.models.planner = Spy()
+    from engine.models.fake import DEMO_SCRIPT
+
+    agent.run_task("invoices", DEMO_SCRIPT)
+    assert seen and seen[0] == []  # the first fix of a step has nothing behind it

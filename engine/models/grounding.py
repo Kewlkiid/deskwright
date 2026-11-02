@@ -111,6 +111,9 @@ def _iou(a: Box, b: Box) -> float:
 
 class SamGrounder:
     label = "SAM 3.1"
+    accepts_extra = True
+    pool: list = []  # every box from the last lookup (in the downscaled image), for the grid to snap to
+    pool_scale = 1.0
 
     def __init__(self, client: ModelClient, picker=None):
         self.client = client
@@ -190,27 +193,49 @@ class SamGrounder:
         return {"text": getattr(resp, "output_text", "") or ""}
 
     # Public ----------------------------------------------------------------
-    def candidates(self, small: Image.Image, phrase: str) -> list[Box]:
-        """SAM's boxes for the phrase and for the element kind it names, plus on-screen text lines whose words match
-        the phrase (SAM finds icons and images but not plain text). Without near-duplicates, at most MAX_CANDIDATES."""
-        queries = [phrase] + [kind for pat, kind in KINDS if re.search(pat, phrase, re.I) and kind != phrase.lower()]
-        sam: list[Box] = []
-        for q in queries:
+    def candidates(self, small: Image.Image, phrase: str, extra: list | None = None) -> list[Box]:
+        """Candidate boxes for the phrase, best sources first: the app's own Accessibility elements whose labels
+        match (exact frames), on-screen text lines whose words match, then SAM's boxes for a short concept phrase and
+        the element kind it names. Without near-duplicates, at most MAX_CANDIDATES. Every box seen is kept in
+        `self.pool` for the grid fallback to snap to. `extra`: [(box, role, label)] in `small`'s pixels."""
+        extra = extra or []
+        queries = sam_queries(phrase)
+        zone = zone_box(phrase, small.size)
+        view, zf = small, 1.0
+        if zone is not None:
+            # A described area ("left sidebar", "bottom"): SAM looks only there, enlarged, so small items show up.
+            crop = small.crop(tuple(round(v) for v in zone))
+            view, _ = fit(crop.resize((crop.width * 2, crop.height * 2)), config.model_image_max)
+            zf = crop.width / view.width
+
+        def ask(q):
             t0 = time.time()
-            data = self._call(small, q)
+            data = self._call(view, q)
             self.client.record_external("grounding", time.time() - t0, config.price_per_grounding_call)
-            _debug_sam(small, q, data, time.time() - t0)
-            for b in self._parse_response_all(data, small.size):
-                if all(_iou(b, o) < 0.7 for o in sam):
-                    sam.append(b)
+            _debug_sam(view, q, data, time.time() - t0)
+            out = self._parse_response_all(data, view.size)
+            if zone is not None:
+                out = [[zone[0] + b[0] * zf, zone[1] + b[1] * zf, zone[0] + b[2] * zf, zone[1] + b[3] * zf] for b in out]
+            return out
+
+        sam: list[Box] = []
+        from concurrent.futures import ThreadPoolExecutor
+
+        with ThreadPoolExecutor(max_workers=len(queries)) as pool:  # each query ~1.5s: all at once
+            for found in pool.map(ask, queries):
+                for b in found:
+                    if all(_iou(b, o) < 0.7 for o in sam):
+                        sam.append(b)
+        self.pool = list(sam) + [e[0] for e in extra]
         if re.search(r"\bicons?\b", phrase, re.I):
             # Icons are roughly square; a thin strip (a window edge, a selection bar) is never the icon.
             sam = [b for b in sam if 0.45 <= (b[2] - b[0]) / max(1, b[3] - b[1]) <= 2.2] or sam
         if len(sam) > MAX_CANDIDATES:
             sam = in_zone(sam, phrase, small.size) or sam  # e.g. 67 icons, "far-left sidebar": keep the left ones
-        texts = text_candidates(small, phrase) if config.ocr_candidates else []
+        texts = text_candidates(small, phrase, pool=self.pool) if config.ocr_candidates else []
+        axs = ax_candidates(extra, phrase, small.size)
         boxes: list[Box] = []
-        for b in texts + sam:
+        for b in axs + texts + sam:
             if all(_iou(b, o) < 0.5 for o in boxes):
                 boxes.append(b)
         return boxes[:MAX_CANDIDATES]
@@ -221,10 +246,12 @@ class SamGrounder:
         box, _ = self._parse_response(data if isinstance(data, dict) else {}, size)
         return [box] if box else []
 
-    def locate(self, img: Image.Image, phrase: str) -> Grounded:
+    def locate(self, img: Image.Image, phrase: str, extra: list | None = None) -> Grounded:
+        """extra: Accessibility elements [(box, role, label)] in `img`'s pixels."""
         small, f = fit(img, config.model_image_max)
+        self.pool, self.pool_scale = [], f
         try:
-            boxes = self.candidates(small, phrase)
+            boxes = self.candidates(small, phrase, [([v / f for v in b], r, l) for b, r, l in (extra or [])])
         except StoppedError:
             raise
         except Exception as e:
@@ -292,7 +319,7 @@ def _words(text: str) -> list[str]:
     return [w for w in re.findall(r"#?[\w][\w'.-]*", text.lower()) if w not in GENERIC and len(w.strip("#")) >= 2]
 
 
-def text_candidates(small: Image.Image, phrase: str, limit: int = 6) -> list[Box]:
+def text_candidates(small: Image.Image, phrase: str, limit: int = 6, pool: list | None = None) -> list[Box]:
     """Boxes of on-screen text lines (on-device OCR) that match the phrase's words or quoted text, best first."""
     from ..screen import ocr
 
@@ -302,6 +329,8 @@ def text_candidates(small: Image.Image, phrase: str, limit: int = 6) -> list[Box
         lines = ocr.text_boxes(small, accurate=True)
     except Exception:  # noqa: BLE001 - OCR is a bonus; SAM still runs
         return []
+    if pool is not None:
+        pool.extend(b for b, _ in lines)  # every text line is something the grid can snap to
     quoted = [q.strip().lower() for q in re.findall(r"['\"“‘]([^'\"”’]{2,})['\"”’]", phrase)]
     want = _words(phrase)
     scored = []
@@ -326,3 +355,90 @@ def text_candidates(small: Image.Image, phrase: str, limit: int = 6) -> list[Box
     if d is not None:
         d.note(f"text matches for “{phrase}”: {debug_note}", kind="ocr")
     return [b for _, b in scored[:limit]]
+
+
+# Roles that fit what the target says it is.
+ROLE_WORDS = [
+    (r"\b(button|icon|toggle)\b", ("AXButton", "AXImage", "AXCheckBox", "AXMenuButton", "AXPopUpButton",
+                                     "AXToolbarButton", "AXRadioButton")),
+    (r"\b(field|input|search|box|bar)\b", ("AXTextField", "AXSearchField", "AXTextArea", "AXComboBox")),
+    (r"\b(link)\b", ("AXLink",)),
+    (r"\b(row|item|channel|server|result|entry|cell)\b", ("AXRow", "AXCell", "AXOutlineRow", "AXLink", "AXButton")),
+    (r"\b(tab)\b", ("AXTab", "AXRadioButton", "AXButton")),
+    (r"\b(check ?box)\b", ("AXCheckBox",)),
+]
+
+
+def ax_candidates(extra: list, phrase: str, size: tuple[int, int], limit: int = 6) -> list[Box]:
+    """The app's own elements whose label matches the phrase (word overlap, quoted text), a role that fits as a bonus."""
+    if not extra:
+        return []
+    quoted = [q.strip().lower() for q in re.findall(r"['\"“‘]([^'\"”’]{2,})['\"”’]", phrase)]
+    want = _words(phrase)
+    roles = set()
+    for pat, rs in ROLE_WORDS:
+        if re.search(pat, phrase, re.I):
+            roles.update(rs)
+    w, h = size
+    scored = []
+    for box, role, label in extra:
+        if box[2] <= 0 or box[3] <= 0 or box[0] >= w or box[1] >= h:
+            continue  # off screen
+        low = (label or "").lower()
+        have = _words(label or "")
+        score = sum(3 for q in quoted if q.strip("# ") and q.strip("# ") in low)
+        score += sum(1 for x in want if any(y.strip("#") == x.strip("#") for y in have))
+        if score >= 1 and role in roles:
+            score += 0.5
+        if score >= 1:
+            scored.append((score, -(box[2] - box[0]) * (box[3] - box[1]), clamp_box(list(box), size)))
+    scored.sort(key=lambda s: (-s[0], -s[1]))  # best score, then the smaller element (a button over its row)
+    hits = [b for _, _, b in scored]
+    return (in_zone(hits, phrase, size) or hits)[:limit]
+
+
+def sam_queries(phrase: str) -> list[str]:
+    """What to ask SAM: it finds visual concepts ("server icon", "button"), not sentences. The phrase's head noun
+    phrase (up to the first location clause, quotes dropped), the phrase itself when short, and the kind it names."""
+    head = re.split(r"\s+(?:in|at|on|under|below|above|near|next to|inside|from|within|to the|beside|that|which|"
+                    r"with)\s+", phrase.strip(), maxsplit=1)[0]
+    head = re.sub(r"['\"“”‘’#]", "", head).strip()
+    head = " ".join(head.split()[-4:])  # "blue Save button" -> keep the last few words, the noun end
+    queries = [head] if head else []
+    if len(phrase.split()) <= 4 and phrase.strip().lower() != head.lower():
+        queries.append(phrase.strip())
+    queries += [kind for pat, kind in KINDS if re.search(pat, phrase, re.I) and kind != head.lower()]
+    seen, out = set(), []
+    for q in queries:
+        if q.lower() not in seen:
+            seen.add(q.lower())
+            out.append(q)
+    return out[:4]
+
+
+def zone_box(phrase: str, size: tuple[int, int]) -> Box | None:
+    """The area a phrase's location words describe ("left sidebar" -> the left 40%), or None."""
+    w, h = size
+    x1, y1, x2, y2 = 0.0, 0.0, 1.0, 1.0
+    hit = False
+    for pat, (a, b, c, d) in ZONES:
+        if re.search(pat, phrase, re.I):
+            x1, y1, x2, y2 = max(x1, a), max(y1, b), min(x2, c), min(y2, d)
+            hit = True
+    if not hit or x2 - x1 < 0.1 or y2 - y1 < 0.1:
+        return None
+    return [x1 * w, y1 * h, x2 * w, y2 * h]
+
+
+def snap(point: tuple[float, float], boxes: list[Box], radius: float) -> Box | None:
+    """The exact box around a rough point: the tightest box containing it, else the nearest centre within radius."""
+    x, y = point
+    inside = [b for b in boxes if b[0] <= x <= b[2] and b[1] <= y <= b[3]]
+    if inside:
+        return min(inside, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
+    best, dist = None, radius
+    for b in boxes:
+        d = (((b[0] + b[2]) / 2 - x) ** 2 + ((b[1] + b[3]) / 2 - y) ** 2) ** 0.5
+        if d <= dist:
+            best, dist = b, d
+    return best

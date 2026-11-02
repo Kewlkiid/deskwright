@@ -59,10 +59,31 @@ def settle_previous(ctx: RunContext, shot: cap.Shot, browser: Browser | None = N
     ctx.resolve_pending(shot, v["result"], v["reason"])
 
 
+def ax_elements(ctx: RunContext, shot: cap.Shot) -> list:
+    """The app's own elements (macOS Accessibility) as grounding candidates: [(box in shot pixels, role, label)]."""
+    if config.fake_screen or not ctx.scope_app:
+        return []
+    from ..screen import ax
+
+    try:
+        els = ax.elements(ctx.scope_app)
+    except Exception:  # noqa: BLE001 - a bonus source; SAM and text still run
+        return []
+    w, h = shot.size
+    out = []
+    for e in els:
+        b = shot.logical_to_image(e.box)
+        if b[2] > 0 and b[3] > 0 and b[0] < w and b[1] < h:
+            out.append(([max(0, b[0]), max(0, b[1]), min(w, b[2]), min(h, b[3])], e.role, e.label))
+    if out:
+        ctx.log(f"{len(out)} accessibility elements in {ctx.scope_app}")
+    return out
+
+
 def find(ctx: RunContext, target: str, action: str = "click", raise_missing: bool = True) -> Found | None:
     """Ground `target` on a fresh screenshot. Also settles the previous action's expectation."""
     shot = ctx.capture()
-    window = ctx.window()
+    window = ctx.cache_key()
     entry = ctx.cache.lookup(window, shot.image, target)
     if entry is not None:
         # Cached: no model looks at this screen, so verify the previous action by pixel diff.
@@ -78,7 +99,11 @@ def find(ctx: RunContext, target: str, action: str = "click", raise_missing: boo
     grounder = getattr(ctx.models.grounder, "label", "SAM 3.1")
     ctx.status(f"Looking for {target}")
     ctx.emit("vision_scan", target=target, line=ctx.current_line, segment=ctx.segment, grounder=grounder)
-    g = ctx.models.grounder.locate(shot.image, target)
+    extra = ax_elements(ctx, shot)
+    if getattr(ctx.models.grounder, "accepts_extra", True) and extra:
+        g = ctx.models.grounder.locate(shot.image, target, extra=extra)
+    else:
+        g = ctx.models.grounder.locate(shot.image, target)
     if g.found and ctx.in_panel(shot, g.point):
         g.found = False
         g.reason = "It is behind the agent's own panel on the right side of the screen."

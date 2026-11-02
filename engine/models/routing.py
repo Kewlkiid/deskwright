@@ -1,10 +1,11 @@
 """Chooses the grounding method per element: SAM 3.1 first, the labelled grid (Muse Spark, or Gemma on OpenRouter)
 as the backup.
 
-  auto (default): try SAM (with on-screen text candidates); if it can't find the element or errors, retry the
-                  same step with the grid. SAM always goes first: it takes seconds, a grid lookup up to a minute.
-                  sam_failures counts elements the grid found but SAM missed (shown to the repair module).
-  sam / grid:     use only that method. Scripts and the repair module switch with use_grounding("grid").
+  auto (default): try SAM (with on-screen text and Accessibility candidates); if it can't find the element or
+                  errors, retry the same step with the grid, which snaps to the exact boxes SAM saw.
+  grid:           the grid first, then SAM; nothing is ever skipped.
+  sam:            SAM only. Scripts switch with use_grounding(...).
+sam_failures counts elements the grid found but SAM missed.
 
 Each run starts back in auto with a clean failure count (reset() is called when a run starts).
 """
@@ -20,6 +21,7 @@ MODES = ("auto", "sam", "grid")
 
 
 class GroundingRouter:
+    accepts_extra = True  # passes Accessibility elements on to the grounders that use them
     def __init__(self, sam=None, grid=None):
         if sam is None and grid is None:
             raise ValueError("GroundingRouter needs at least one grounder")
@@ -45,23 +47,38 @@ class GroundingRouter:
         if self.mode == "sam":
             chain = [self.sam]
         elif self.mode == "grid":
-            chain = [self.grid]
+            chain = [self.grid, self.sam]  # grid first, but SAM + text + Accessibility are never skipped
         else:
             chain = [self.sam, self.grid]
         return [g for g in chain if g is not None]
+
+    def _snap_boxes(self, extra: list | None) -> list:
+        """Exact boxes the grid can snap to: everything SAM and text found on this screenshot, plus Accessibility."""
+        boxes = [b for b, _, _ in (extra or [])]
+        sam = self.sam
+        if sam is not None and getattr(sam, "pool", None):
+            f = getattr(sam, "pool_scale", 1.0)
+            boxes += [[v * f for v in b] for b in sam.pool]
+        return boxes
 
     @property
     def label(self) -> str:
         """The method that will be tried first, for the overlay."""
         return getattr(self.order()[0], "label", "")
 
-    def locate(self, img: Image.Image, phrase: str) -> Grounded:
+    def locate(self, img: Image.Image, phrase: str, extra: list | None = None) -> Grounded:
+        """extra: the app's Accessibility elements [(box, role, label)] in `img` pixels."""
         tried = []
         result = None
         for g in self.order():
             label = getattr(g, "label", type(g).__name__)
             try:
-                result = g.locate(img, phrase)
+                if getattr(g, "accepts_snap", False):
+                    result = g.locate(img, phrase, snap_to=self._snap_boxes(extra))
+                elif getattr(g, "accepts_extra", False):
+                    result = g.locate(img, phrase, extra=extra)
+                else:
+                    result = g.locate(img, phrase)
             except StoppedError:
                 raise
             except Exception as e:  # a grounder bug or API error must not end the step if a backup exists

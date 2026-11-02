@@ -235,6 +235,12 @@ class RunContext:
             self._window = (title, time.time())
         return title
 
+    def cache_key(self) -> str:
+        """Position-cache key: the app, not its window title (Discord's title changes with every channel)."""
+        if config.fake_screen:
+            return self.window()
+        return self.scope_app or (self.window().split("|")[0].strip() or self.window())
+
     def invalidate_window(self):
         self._window = ("", 0.0)
 

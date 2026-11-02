@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 
+from ..config import config
 from ..screen import windows
 from .context import ACTION_LOCK, current
 from .errors import ElementNotFoundError, WindowLostError
@@ -69,3 +70,29 @@ def active_window() -> str:
     """Name of the frontmost app and window, e.g. "Safari | Orders - Acme"."""
     w = windows.active_window()
     return " | ".join(v for v in (w.get("app"), w.get("title")) if v)
+
+
+def menu(*path: str) -> None:
+    """Press a menu-bar item of the current app by its titles, e.g. menu("File", "Open…") or
+    menu("View", "Show Sidebar"). Exact and fast (no searching the screen); a trailing "…" can be left out."""
+    ctx = current()
+    with ACTION_LOCK:
+        ctx.check_stop()
+        app = ctx.scope_app or (windows.active_window().get("app") or "")
+        ctx.status("Menu: " + " > ".join(path))
+        if ctx.dry_run or config.fake_screen:
+            ctx.log(f"[dry run] menu{path}")
+            return
+        from ..screen import ax
+
+        if not ax.press_menu(app, list(path)):
+            raise ElementNotFoundError(
+                f"No menu item {' > '.join(path)!r} in {app or 'the app'}'s menu bar",
+                fix="Check the menu and item titles on screen (they're case-insensitive), or use another route.",
+                detail={"target": " > ".join(path)},
+            )
+        ctx.pending = None
+        ctx.settle(1.0)
+        ctx.invalidate_window()
+        ctx.metrics.steps += 1
+        ctx.log(f"menu{path}")

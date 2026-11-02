@@ -115,6 +115,7 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
     asked_user = False
     user_hint = ""
     last_fixed_key: str | None = None
+    tried: list[str] = []  # failed attempts at the current step (reset when a fix gets past it)
 
     while True:
         ctx.segment = segment
@@ -145,7 +146,7 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
             ctx.log(f"FAILED line {line} ({src}): {err.code}: {err.message}")
             # Whatever went wrong, don't trust this step's cached positions again: the retry, the rewrite and the
             # next run all find its elements fresh (a wrong cached spot would otherwise repeat the same mistake).
-            window = ctx.window()
+            window = ctx.cache_key()
             for t in detours.targets_in(src):
                 ctx.cache.invalidate(window, t)
             shot = ctx.capture()
@@ -167,6 +168,10 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
                 if last_fixed_key is not None:
                     ctx.metrics.fixes_succeeded += 1  # the previous fix got past its step
                 chain = 1
+                tried = []
+            # What has already failed for this step, so the next fix takes a different route.
+            seen = (err.to_dict().get("observation") or err.to_dict().get("detail", {}).get("seen") or "")
+            tried.append(f"`{src}` -> {err.code}: {err.message[:160]}" + (f" (saw: {str(seen)[:120]})" if seen else ""))
             if chain > config.max_fixes_per_line or ctx.metrics.fixes >= budget:
                 if asked_user:
                     return {"status": "failed", "final_script": full_script, "error": err.to_dict()}
@@ -185,6 +190,7 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
             ctx.metrics.fixes += 1
             ctx.push_metrics()
             ctx.status(f"Fixing line {line}…")
+            on_screen = screen_labels(ctx, shot)
             fix = None
             rejection = ""
             for _ in range(2):
@@ -199,6 +205,8 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
                     action_log=ctx.action_log,
                     user_hint=(user_hint + ("\n" + rejection if rejection else "")).strip(),
                     sdk_reference=sdk_ref,
+                    tried=tried[:-1] if len(tried) > 1 else [],
+                    on_screen=on_screen,
                 )
                 problems = validate(candidate["continuation"], SDK_NAMES, extra_names=user_vars(ns))
                 if not problems and candidate["continuation"].strip():
@@ -244,3 +252,31 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
             current = fix["continuation"]
             last_fixed_key = src
             steps_at_fix = ctx.metrics.steps
+
+
+def screen_labels(ctx: RunContext, shot, limit: int = 70) -> list[str]:
+    """The text and control labels on screen right now (on-device text recognition + Accessibility): what the fixer
+    can actually click, instead of what it assumes is there."""
+    if config.fake_screen or config.fake_models:
+        return []
+    labels: list[str] = []
+    try:
+        from ..screen import ocr
+        from ..screen.capture import fit
+
+        labels += [t for _, t in ocr.text_boxes(fit(shot.image, config.model_image_max)[0])]
+    except Exception:  # noqa: BLE001 - a hint, not required
+        pass
+    try:
+        from ..sdk.actions import ax_elements
+
+        labels += [f"[{role[2:]}] {label}" for _, role, label in ax_elements(ctx, shot) if label]
+    except Exception:  # noqa: BLE001
+        pass
+    out, seen = [], set()
+    for t in labels:
+        k = t.strip().lower()
+        if k and k not in seen:
+            seen.add(k)
+            out.append(t.strip()[:60])
+    return out[:limit]

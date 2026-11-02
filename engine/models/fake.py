@@ -135,7 +135,7 @@ class FakePlanner:
         return DEMO_SCRIPT.strip("\n")
 
     def fix_script(self, *, task, script, failing_line, error, screenshot, progress_log, variables, action_log,
-                   user_hint="", sdk_reference):
+                   user_hint="", sdk_reference, tried=None, on_screen=None):
         _meter("planner", 4.0, 0.012)
         lines = script.splitlines()
         bad = lines[failing_line - 1] if 0 < failing_line <= len(lines) else ""

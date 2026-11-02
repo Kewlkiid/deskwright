@@ -41,6 +41,9 @@ open_app(...), not on a website. Use a website only when they ask for one or nam
 - To scroll, call scroll(amount) (it scrolls the app's main content) or scroll_until("<element to reach>") with the \
 element's location words ("in the left channel list"). Don't move_mouse to vague areas just to scroll.
 - Use ask_user only when information is genuinely missing.
+- For find/report tasks: if the first place you look doesn't have the item, check the obvious alternatives (other \
+tabs or sections, filters, the search field) before reporting that it isn't there.
+- Menu bar items are reliable: menu("File", "Open…") presses them by name, no searching on screen.
 - When the task names a specific thing (an app, product, person, file, page), check that what you open or read from \
 is that exact thing before reporting about it (e.g. read the title and the developer or author with ask(...)). \
 Search results often show lookalikes first. If only similar things exist, say so in the result instead of reporting \
@@ -48,9 +51,9 @@ a lookalike as the real one.
 
 """ + UNTRUSTED + """
 
-Reply with ONE ```python code block containing only the script, preceded by at most two sentences of explanation, \
-then ONE ```json block with the value the user's request gives for each input, e.g. {{"recipient": "sam", \
-"message": "hi"}} (leave out inputs the request doesn't give; {{}} if none).
+Start your reply with the ```python code block (no text before it) containing only the script. After it, ONE \
+```json block with the value the user's request gives for each input, e.g. {{"recipient": "sam", "message": "hi"}} \
+(leave out inputs the request doesn't give; {{}} if none). Nothing else is needed.
 
 AGENT SDK REFERENCE
 {sdk_reference}
@@ -72,8 +75,14 @@ to skip stages already checkpointed.
 or a wait. Keep target descriptions visual and specific.
 - If the app the task needs is not in front (another window covers it), start with open_app(...)/focus_window(...) \
 (or open_url(...) for a web page) to bring it forward.
-- If the error shows SAM 3.1 failing to find an element that IS visible in the screenshot, start the continuation \
-with use_grounding("grid") so elements are found with the labelled-grid method instead.
+- If an element that IS visible wasn't found, describe it by what it visibly says or shows (its text, its label, \
+its icon) and where it is; don't switch grounding methods.
+- Never repeat an approach listed under ALREADY TRIED: change the route instead.
+- When the element isn't on screen, the obvious path is wrong: try another route, roughly in this order: the app's \
+search or quick switcher (cmd+k in Discord/Slack, cmd+f, a search field), the menu bar with menu("Menu", "Item"), \
+a keyboard shortcut, another tab/section/segmented control (e.g. the App Store's "iPhone & iPad Apps"), scrolling, \
+or for a website a direct URL. Use WHAT IS ON SCREEN to pick a route that exists.
+- After two failed fixes of the same step, take a completely different route to the goal.
 - Same rules as the planner: only SDK functions and basic Python, no imports, no try/except, no names starting with "_".
 - If the failing step needed the user's approval (confirm=True, or it sends/posts/submits/buys/deletes), whatever \
 replaces it must ask too: keep confirm=True on the new click, or call confirm_with_user(...) before a press("enter") \

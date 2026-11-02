@@ -35,6 +35,7 @@ SDK_FUNCTIONS = {
     "wait_for": waiting.wait_for,
     # Apps and windows
     "open_app": apps.open_app,
+    "menu": apps.menu,
     "focus_window": apps.focus_window,
     "active_window": apps.active_window,
     # Browser (Chrome with the agent extension)
