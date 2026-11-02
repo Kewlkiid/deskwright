@@ -189,3 +189,50 @@ def press_menu(app: str, path: list[str]) -> bool:
         menus = [k for k in (_attr(found, "AXChildren") or []) if _attr(k, "AXRole") == "AXMenu"]
         node = menus[0] if menus else found
     return False
+
+
+def restore_typed(app: str, typed: str) -> bool:
+    """Undo auto-capitalisation/auto-correct of what was just typed into `app`'s focused text field: when the field
+    holds `typed` with only its letter case changed ("Deskwright save test" for "deskwright save test"), that span
+    is replaced through Accessibility, which doesn't go through auto-correct. True when it fixed something."""
+    if AS is None or not typed.strip():
+        return False
+    pid = _pid(app)
+    if pid is None:
+        return False
+    el = _attr(AS.AXUIElementCreateApplication(pid), "AXFocusedUIElement")
+    value = _attr(el, "AXValue") if el is not None else None
+    if not isinstance(value, str):
+        return False
+    i = value.lower().rfind(typed.lower())
+    if i < 0 or value[i:i + len(typed)] == typed:
+        return False
+    rng = AS.AXValueCreate(AS.kAXValueCFRangeType, (i, len(typed)))
+    if AS.AXUIElementSetAttributeValue(el, "AXSelectedTextRange", rng) != 0:
+        return False
+    if AS.AXUIElementSetAttributeValue(el, "AXSelectedText", typed) != 0:
+        return False
+    after = _attr(el, "AXValue")
+    return isinstance(after, str) and typed in after
+
+
+def focus_thief() -> str | None:
+    """When a background system process (not a regular app: a Dictation prompt, a permission alert...) holds the
+    keyboard focus, the title or text of its window; keys sent now would go there. None otherwise."""
+    if AS is None:
+        return None
+    from AppKit import NSApplicationActivationPolicyRegular, NSRunningApplication
+
+    app = _attr(AS.AXUIElementCreateSystemWide(), "AXFocusedApplication")
+    if app is None:
+        return None
+    err, pid = AS.AXUIElementGetPid(app, None)
+    running = NSRunningApplication.runningApplicationWithProcessIdentifier_(pid) if err == 0 else None
+    if running is None or running.activationPolicy() == NSApplicationActivationPolicyRegular:
+        return None
+    window = _attr(app, "AXFocusedWindow") or (_attr(app, "AXWindows") or [None])[0]
+    if window is None:
+        return None  # a menu-bar helper without a window doesn't take typing
+    texts = [_label(window)] + [_label(k) for k in (_attr(window, "AXChildren") or [])[:8]]
+    text = " / ".join(t for t in texts if t)
+    return f"{running.localizedName() or 'a system process'}: {text}" if text else (running.localizedName() or "")

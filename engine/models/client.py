@@ -180,3 +180,10 @@ class ModelClient:
 
     def record_external(self, role: str, seconds: float, cost: float):
         current_metrics().record_call(role, seconds, cost=cost)
+
+
+def now_line() -> str:
+    """The local date and time, for prompts: models don't know what "today" is."""
+    import time
+
+    return time.strftime("NOW: %A, %B %-d, %Y, %-I:%M %p (local time)")

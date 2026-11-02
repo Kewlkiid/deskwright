@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 
 from ..config import config
-from .client import ModelClient, interruptible
+from .client import ModelClient, interruptible, now_line
 
 CHAT_SYSTEM = """You are Agent, an assistant on the user's Mac that can also take control of the computer: it sees \
 the screen, clicks, types, opens apps and websites, reads what's shown, and writes and runs small programs to do tasks.
@@ -97,7 +97,8 @@ class Chat:
                 lines.append(f"- {t['name']}" + (f": {t['description']}" if t.get("description") else "") +
                              (f" [inputs: {ins}]" if ins else "") + (f" [gives back: {outs}]" if outs else ""))
             saved = "SAVED TASKS:\n" + "\n".join(lines)
-        messages = [{"role": "system", "content": CHAT_SYSTEM.format(saved=saved)}] + self.history
+        system = CHAT_SYSTEM.format(saved=saved) + "\n" + now_line()
+        messages = [{"role": "system", "content": system}] + self.history
         t0 = time.time()
         kwargs = {"tools": [RUN_TASK_TOOL, RUN_SAVED_TOOL], "max_tokens": 600 + config.reasoning_headroom, "temperature": 0.4}
         if not self.client.openrouter:

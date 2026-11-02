@@ -9,7 +9,7 @@ from PIL import Image
 from ..config import config
 from ..screen.capture import fit, to_data_url
 from . import prompts
-from .client import ModelClient, extract_code, extract_json, image_part, text_part
+from .client import ModelClient, ModelError, extract_code, extract_json, image_part, now_line, text_part
 
 
 def _request_values(reply: str) -> dict:
@@ -77,7 +77,7 @@ class Planner:
         content = []
         if screenshot is not None:
             content.append(image_part(to_data_url(fit(screenshot, config.model_image_max)[0])))
-        text = f"TASK: {task}\n"
+        text = f"TASK: {task}\n{now_line()}\n"
         if context:
             text += f"\nCONTEXT:\n{context}\n"
         text += "\nThe image is the user's screen right now. Write the script."
@@ -120,7 +120,7 @@ class Planner:
         lines = script.splitlines()
         failing_src = lines[failing_line - 1] if 0 < failing_line <= len(lines) else ""
         text = (
-            f"TASK: {task}\n\nSCRIPT:\n{numbered(script)}\n\n"
+            f"TASK: {task}\n{now_line()}\n\nSCRIPT:\n{numbered(script)}\n\n"
             f"FAILING LINE {failing_line}: {failing_src.strip()}\n"
             f"ERROR: {json.dumps(error)}\n\n"
             f"PROGRESS LOG: {json.dumps(progress_log)[:3000]}\n\n"
@@ -138,7 +138,12 @@ class Planner:
         if screenshot is not None:
             content.append(image_part(to_data_url(fit(screenshot, config.model_image_max)[0])))
         content.append(text_part(text))
-        data = extract_json(self._chat(prompts.FIXER_SYSTEM.format(sdk_reference=sdk_reference), content, 4000))
+        system = prompts.FIXER_SYSTEM.format(sdk_reference=sdk_reference)
+        try:
+            data = extract_json(self._chat(system, content, 4000))
+        except ModelError:
+            # Cut off: long reasoning used up the budget before the JSON ended. Once more with room to finish.
+            data = extract_json(self._chat(system, content, 9000))
         clarify = data.get("clarify")
         if isinstance(clarify, dict) and str(clarify.get("question") or "").strip():
             return {"clarify": {"question": str(clarify["question"]).strip(),

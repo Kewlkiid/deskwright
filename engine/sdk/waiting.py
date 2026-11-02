@@ -9,6 +9,7 @@ from .errors import AgentTimeoutError
 from .questions import _check
 
 CHANGE_GATE = 0.5
+STILL_SECONDS = 8.0  # the screen sat unchanged this long after a "no": stop waiting
 
 
 def wait(seconds: float) -> None:
@@ -23,17 +24,26 @@ def wait_for(condition: str, timeout: float = 20) -> bool:
     Raises TimeoutError after `timeout` seconds."""
     ctx = current()
     deadline = time.time() + max(1.0, min(float(timeout), 300.0))
-    last_checked = None
+    last_checked, checked_at, reason = None, 0.0, ""
     with ACTION_LOCK:
         ctx.status(f"Waiting for: {condition}")
         while time.time() < deadline:
             shot = ctx.capture()
             if last_checked is None or frame_diff(last_checked, shot.image) > CHANGE_GATE:
-                if _check(ctx, condition, shot)["result"]:
+                verdict = _check(ctx, condition, shot)
+                if verdict["result"]:
                     ctx.emit("expect_met", line=ctx.current_line, segment=ctx.segment, expect=condition)
                     ctx.push_metrics()
                     return True
-                last_checked = shot.image
+                last_checked, checked_at = shot.image, time.time()
+                reason = str(verdict.get("reason") or verdict.get("observation") or "")
+            elif time.time() - checked_at > STILL_SECONDS:
+                # Nothing on screen has moved since the check said no (a welcome sheet, a dialog in the way):
+                # waiting out the full timeout won't change that.
+                raise AgentTimeoutError(
+                    f'The screen stopped changing and "{condition}" still isn\'t true' +
+                    (f": {reason}" if reason else ""),
+                    screenshot=shot.image, detail={"condition": condition})
             ctx.sleep(0.7)
     raise AgentTimeoutError(
         f'Timed out after {timeout}s waiting for "{condition}"',

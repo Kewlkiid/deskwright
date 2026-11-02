@@ -18,7 +18,7 @@ from ..screen import input as inp
 from ..screen.fingerprint import frame_diff
 from .context import ACTION_LOCK, RunContext, current
 from .errors import ElementNotFoundError, FieldChangedError, NoChangeError, UserDeclinedError
-from .raw import run_input
+from .raw import keys_reach_app, restore_typed, run_input
 from .safety import ask_approval, is_sensitive, owed_summary
 
 if TYPE_CHECKING:
@@ -459,6 +459,7 @@ def type_into(target: str, text, expect: str | None = None, confirm: bool = Fals
         x, y = f.shot.to_logical(*f.point)
         run_input(inp.click, x, y)
         ctx.sleep(0.15)
+        keys_reach_app(ctx)
         if clear:
             run_input(inp.select_all)
             run_input(inp.press, "backspace")
@@ -473,6 +474,7 @@ def type_into(target: str, text, expect: str | None = None, confirm: bool = Fals
             if chunk:
                 run_input(inp.type_text, chunk)
             typed += chunk
+        restore_typed(ctx, text)
         ctx.metrics.steps += 1
         ctx.log(f'type_into "{target}": {text[:40]!r} [{"cache" if f.from_cache else "spark+sam"}]')
         ctx.settle(1.0)

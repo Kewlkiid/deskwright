@@ -1,12 +1,26 @@
 """Muse Spark: the vision executor behind the SDK's prompt-driven methods."""
 from __future__ import annotations
 
+import json
+
 from PIL import Image, ImageDraw
 
 from ..config import config
 from ..screen.capture import fit, to_data_url
 from . import prompts
 from .client import ModelClient, extract_json, image_part, text_part
+
+
+def _unwrap_text(text: str) -> str:
+    """The system prompt asks for JSON, so a transcription sometimes comes back as {"text": "..."}: just the text."""
+    if text.startswith("{") and text.endswith("}"):
+        try:
+            data = json.loads(text)
+        except ValueError:
+            return text
+        if isinstance(data, dict) and len(data) == 1 and isinstance(next(iter(data.values())), str):
+            return next(iter(data.values()))
+    return text
 
 
 def _prev_block(prev: dict | None) -> str:
@@ -76,13 +90,14 @@ class Vision:
     def read_text(self, img: Image.Image) -> str:
         img, _ = fit(zoom_for_reading(img), 1600)
         content = [image_part(to_data_url(img, "PNG")), text_part(prompts.READ_TEXT_PROMPT)]
-        return self.client.chat(
+        text = self.client.chat(
             "vision",
             config.vision_model,
             [{"role": "system", "content": self.system}, {"role": "user", "content": content}],
             max_tokens=3000,
             temperature=0.0,
         ).strip()
+        return _unwrap_text(text)
 
     def read_table(self, img: Image.Image, target: str, columns: list[str] | None = None) -> dict:
         img, _ = fit(zoom_for_reading(img, 800), 1600)

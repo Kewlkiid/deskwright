@@ -7,7 +7,7 @@ from ..config import config
 from ..screen import capture as cap
 from ..screen import input as inp
 from .context import ACTION_LOCK, current
-from .errors import StoppedError
+from .errors import StoppedError, WindowLostError
 from .safety import MESSAGE_FIELD, ask_approval, is_sensitive, owed_summary
 
 
@@ -50,6 +50,21 @@ def _before_raw(action: str = "", sends: bool = False, commits: bool = True):
         ask_approval(ctx, f"{action}: sends the text typed into “{ctx.typed_target}”")
 
 
+def keys_reach_app(ctx, *keys: str) -> None:
+    """Raise instead of typing into the void when a system dialog (a Dictation prompt, a permission alert) holds
+    the keyboard focus. Escape still goes through: it's how such a dialog is dismissed."""
+    if ctx.dry_run or config.fake_screen or (keys and all(inp.norm_key(k) in ("escape", "esc") for k in keys)):
+        return
+    from ..screen import ax
+
+    thief = ax.focus_thief()
+    if thief:
+        raise WindowLostError(
+            f"A system dialog has the keyboard focus, so keys would go to it, not the app ({thief}).",
+            fix="Dismiss that dialog first (its Not Now / Cancel / OK button, or press('escape')), then retry.",
+            detail={"dialog": thief})
+
+
 def _announce_escape(*keys: str):
     """The UI stops the run on Esc; tell it this Esc comes from the script, not from the user."""
     if any(inp.norm_key(k) in ("escape", "esc") for k in keys):
@@ -65,14 +80,33 @@ def _after_raw(action: str):
     ctx.push_metrics()
 
 
+def restore_typed(ctx, text: str) -> None:
+    """Put back exactly what was typed when the app's auto-capitalisation/auto-correct changed it."""
+    if ctx.dry_run or config.fake_screen or not any(c.isalpha() for c in text):
+        return
+    import re
+
+    from ..screen import ax
+
+    # Auto-capitalisation lands a moment after the word ends, so a sentence starting lowercase is watched for ~1 s.
+    rounds = 4 if re.search(r"(?:^|[.!?]\s+)[a-z]", text) else 1
+    for _ in range(rounds):
+        ctx.sleep(0.25)
+        if ax.restore_typed(ctx.cache_key(), text):
+            ctx.log(f"auto-correct changed the typed text; restored {text[:40]!r} via accessibility")
+            return
+
+
 def type_text(text: str) -> None:
     """Type text at the current keyboard focus. No model call."""
     with ACTION_LOCK:
         text = str(text)
         _before_raw(commits=False)
+        keys_reach_app(current())
         current().status(f"Typing: {text[:40]}")
         for i in range(0, len(text), 40):
             run_input(inp.type_text, text[i : i + 40])
+        restore_typed(current(), text)
         _after_raw(f"type_text({text[:40]!r})")
 
 
@@ -81,6 +115,7 @@ def press(key: str, times: int = 1) -> None:
     up, down, left, right, home, end, pageup, pagedown, space, f1-f12."""
     with ACTION_LOCK:
         _before_raw(f"Press {key}", sends=inp.norm_key(key) in ("enter", "return"))
+        keys_reach_app(current(), key)
         current().status(f"Pressing: {key}")
         _announce_escape(key)
         run_input(inp.press, key, times)
@@ -91,6 +126,7 @@ def hotkey(*keys: str) -> None:
     """Press a key combination, e.g. hotkey("cmd", "s"). "cmd" is Command on macOS and Ctrl elsewhere."""
     with ACTION_LOCK:
         _before_raw("Shortcut " + "+".join(keys), sends=any(inp.norm_key(k) in ("enter", "return") for k in keys))
+        keys_reach_app(current(), *keys)
         current().status("Shortcut: " + "+".join(keys))
         _announce_escape(*keys)
         run_input(inp.hotkey, *keys)
