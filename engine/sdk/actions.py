@@ -94,6 +94,28 @@ GENERIC_WORDS = {"button", "field", "icon", "text", "link", "menu", "item", "tab
                  "and", "with", "blue", "grey", "gray", "white", "small", "large", "first", "top", "bottom"}
 
 
+TIGHT_ROLES = {"AXButton", "AXLink", "AXCheckBox", "AXRadioButton", "AXTab", "AXMenuItem", "AXPopUpButton",
+               "AXMenuButton", "AXDisclosureTriangle", "AXToolbarButton", "AXSwitch", "AXTextField", "AXSearchField",
+               "AXComboBox", "AXSlider"}
+
+
+def _element_under(els: list | None, box: list, point) -> list | None:
+    """The app's own control under the click point, when the found box is much looser than it (a box taking in the
+    rows around a button): its exact frame, so the overlay, the cache and the press all use just the element."""
+    if not els:
+        return None
+    px, py = point
+    area = max(1.0, (box[2] - box[0]) * (box[3] - box[1]))
+    under = [b for b, role, _ in els if role in TIGHT_ROLES and b[0] <= px <= b[2] and b[1] <= py <= b[3]
+             and b[2] - b[0] >= 12 and b[3] - b[1] >= 12]
+    if not under:
+        return None
+    best = min(under, key=lambda b: (b[2] - b[0]) * (b[3] - b[1]))
+    if (best[2] - best[0]) * (best[3] - best[1]) * 1.5 > area:
+        return None  # already about the element's size
+    return [round(v, 1) for v in best]
+
+
 def _cache_by_accessibility(ctx: RunContext, window: str, shot: cap.Shot, target: str, els: list):
     """A cached spot whose pixels changed, confirmed by the app's element there: the same frame, and either a text
     field (for a field-like target: its text is what changed) or a label sharing a word with the description."""
@@ -176,6 +198,10 @@ def find(ctx: RunContext, target: str, action: str = "click", raise_missing: boo
             screenshot=shot.image,
             detail={"target": target, "seen": g.reason},
         )
+    tight = _element_under(extra, g.box, g.point)
+    if tight is not None:
+        ctx.log(f"tightened the box for {target!r} to the app's element: {[round(v) for v in g.box]} -> {tight}")
+        g.box = tight
     ctx.emit(
         "sam_mask",
         target=target,

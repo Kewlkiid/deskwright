@@ -580,3 +580,12 @@ def test_single_character_quote_matches_the_whole_label():
     keys = [([295, 731, 342, 778], "AXButton", "1"), ([349, 731, 397, 778], "AXButton", "2"),
             ([457, 785, 504, 833], "AXButton", "Equals"), ([10, 10, 100, 30], "AXButton", "Add 12 items")]
     assert ax_candidates(keys, "'2' number button on the calculator keypad", (1600, 1000)) == [[349, 731, 397, 778]]
+
+
+def test_loose_box_tightened_to_the_element_under_the_point():
+    from engine.sdk.actions import _element_under
+
+    els = [([100, 300, 216, 332], "AXButton", "Cancel"), ([0, 0, 800, 600], "AXGroup", "")]
+    assert _element_under(els, [100, 260, 216, 364], (150, 316)) == [100, 300, 216, 332]
+    assert _element_under(els, [98, 298, 218, 334], (150, 316)) is None  # already the button's size
+    assert _element_under(els, [100, 260, 216, 364], (150, 350)) is None  # the point isn't on the button
