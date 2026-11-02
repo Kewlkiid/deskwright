@@ -76,14 +76,16 @@ def app_in_front(ctx, keys: bool = False) -> None:
 
     ctx.log(f"{now} came in front of {ctx.scope_app}: bringing {ctx.scope_app} back")
     # Through Accessibility first: newer macOS won't let a background process bring an app forward with `open -a`.
-    if not ax.bring_to_front(ctx.scope_app):
+    # An app with no window yet (TextEdit just launched) still takes keys like cmd+N once it's frontmost.
+    raised = ax.bring_to_front(ctx.scope_app)
+    if not raised:
         try:
             open_app(ctx.scope_app)
         except Exception:  # noqa: BLE001
             pass
     ctx.sleep(0.5)
     ctx.invalidate_window()
-    if keys and front() not in (ctx.scope_app, *OWN_APPS):
+    if keys and not raised and front() not in (ctx.scope_app, *OWN_APPS):
         raise WindowLostError(f"{front()} is in front of {ctx.scope_app}, so keys and clicks would go to the wrong app.",
                               fix=f"Bring {ctx.scope_app} to the front (open_app) and retry.")
 
