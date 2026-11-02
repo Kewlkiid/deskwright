@@ -396,7 +396,13 @@ class Agent:
                 return
             if action[0] == "saved":
                 t = self.find_task_by_name(action[1])
-                if t:
+                extra = _uncovered_words(text, t) if t else []
+                if t and len(extra) >= 2:
+                    # The request adds details the saved task doesn't handle ("the one under the Control category"):
+                    # write a fresh task; the planner still sees the saved script as a starting point.
+                    self.host.emit("status", text=f"Your request adds {', '.join(extra[:3])}: writing a fresh task")
+                    action = ("task", text)
+                elif t:
                     self.run_task(t["description"] or t["name"], t["script"], t["id"], inputs=action[2])
                     return
                 action = ("task", text)  # no such saved task after all: do it fresh
@@ -629,3 +635,25 @@ def _similarity(a: str, b: str) -> float:
     wa = {w for w in _re.findall(r"[a-z0-9]{3,}", (a or "").lower())}
     wb = {w for w in _re.findall(r"[a-z0-9]{3,}", (b or "").lower())}
     return len(wa & wb) / len(wa | wb) if wa and wb else 0.0
+
+
+_STOP = set("""a an the and or of in on at to for with my me i you your it its is are be please can could would
+should will just now what whats tell show get find give check open go look see read say latest new last first one
+that this these those from into onto about which who when where how why do does did run task make again redo
+repeat same once more time like before usual same""".split())
+
+
+def _uncovered_words(request: str, task: dict) -> list[str]:
+    """Meaningful words of the request that the saved task's name, description and inputs don't mention."""
+    import re as _re
+
+    from .runner.schema import parse_header
+
+    covered = " ".join([task.get("name") or "", task.get("description") or ""] +
+                       list(parse_header(task.get("script") or "")["inputs"])).lower()
+    have = set(_re.findall(r"[a-z0-9]{3,}", covered))
+    out = []
+    for w in _re.findall(r"[a-z0-9]{3,}", (request or "").lower()):
+        if w not in _STOP and w not in have and w.rstrip("s") not in have and w not in out:
+            out.append(w)
+    return out

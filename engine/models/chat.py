@@ -18,7 +18,8 @@ Don't call it for greetings, small talk, or questions you can answer without the
 If one of the user's saved tasks below does the WHOLE request, including giving back what they asked for (look at its \
 outputs), call run_saved_task with its exact name and the inputs it needs (from the conversation) instead of run_task: \
 it is faster and already proven. A saved task that only does part of it (e.g. it searches, but they asked for a \
-rating) is not a match: use run_task.
+rating) is not a match: use run_task. Neither is one when the request adds details the saved task can't take \
+(a specific category, account, date or condition that isn't one of its inputs): use run_task with those details.
 {saved}"""
 
 RUN_TASK_TOOL = {
