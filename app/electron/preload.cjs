@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld("agent", {
   askScreen: () => ipcRenderer.invoke("ask-screen"),
   openPermission: (kind) => ipcRenderer.send("open-permission", kind),
   setMode: (mode) => ipcRenderer.send("set-mode", mode),
+  pillHover: (over) => ipcRenderer.send("pill-hover", !!over),
   setRunning: (running) => ipcRenderer.send("set-running", !!running),
   suppressEsc: () => ipcRenderer.send("suppress-esc"),
   overlay: (evt) => ipcRenderer.send("overlay", evt),

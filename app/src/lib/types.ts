@@ -10,6 +10,7 @@ export interface AgentBridge {
   askMicrophone(): Promise<boolean>;
   openPermission(kind: PermissionKind): void;
   setMode(mode: "panel" | "pill" | "mini"): void;
+  pillHover(over: boolean): void; // collapsed: the corner bar takes the mouse only while the pointer is on it
   setRunning(running: boolean): void;
   suppressEsc(): void;
   overlay(evt: Record<string, unknown>): void;

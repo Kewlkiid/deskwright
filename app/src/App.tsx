@@ -57,8 +57,8 @@ export default function App() {
   const [s, dispatch] = useReducer(reducer, initialState);
   setLang(s.language); // every t() below and in the components renders in it
   // "panel": full-height column. "pill": compact bar in the top-right corner (during tasks, or collapsed by hand).
-  // panel <-> corner bar. The window itself resizes instantly (the bar sits at the same screen spot in both sizes,
-  // so nothing visibly moves); all the motion is in the page: the panel slides while the bar fades in or out.
+  // panel <-> corner bar. The window never changes size (main.cjs: collapsed, it lets clicks through except over the
+  // bar); all the motion is in the page: the panel slides while the bar fades in or out.
   const [mode, setModeState] = useState<"panel" | "closing" | "pill" | "opening">("panel");
   const modeRef = useRef<"panel" | "pill">("panel");
   const runningRef = useRef(false);
@@ -76,7 +76,7 @@ export default function App() {
     modeRef.current = "pill";
     pillSize.current = size;
     clearTimeout(timer.current);
-    setModeState("closing"); // slide the panel away and fade the bar in, then shrink the window around the bar
+    setModeState("closing"); // slide the panel away and fade the bar in, then let clicks through around the bar
     timer.current = setTimeout(() => {
       window.agent?.setMode(size);
       setModeState("pill");
@@ -86,7 +86,7 @@ export default function App() {
     if (modeRef.current === "panel") return;
     modeRef.current = "panel";
     clearTimeout(timer.current);
-    window.agent?.setMode("panel"); // grow the window first (transparent, the bar stays put), then slide the panel in
+    window.agent?.setMode("panel"); // take the mouse again, then slide the panel in
     requestAnimationFrame(() => setModeState("opening"));
     timer.current = setTimeout(() => setModeState("panel"), TRANSITION_MS + 40);
   }, []);
@@ -393,8 +393,13 @@ export default function App() {
       {mode !== "pill" && (
     <motion.div
       initial={{ opacity: 0, x: 32 }}
-      animate={mode === "closing" ? { opacity: 0, x: 32 } : { opacity: 1, x: 0 }}
-      transition={{ duration: TRANSITION_MS / 1000, ease: [0.2, 0.8, 0.2, 1] }}
+      animate={mode === "closing" ? { opacity: 0, x: 40 } : { opacity: 1, x: 0 }}
+      // Leaving eases in and out (visible while it starts to slide, no cut at the end); arriving eases out.
+      transition={
+        mode === "closing"
+          ? { duration: TRANSITION_MS / 1000, ease: [0.4, 0, 0.6, 1] }
+          : { duration: TRANSITION_MS / 1000, ease: [0.2, 0.8, 0.2, 1] }
+      }
       className="relative flex h-full flex-col border-l border-line bg-white text-fg"
     >
       {/* Header */}

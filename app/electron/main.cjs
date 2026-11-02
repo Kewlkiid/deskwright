@@ -114,7 +114,7 @@ function signalStop() {
 // The panel takes the full height of the right edge of the primary display's work area and stays above
 // normal windows. macOS has no API to reserve screen space, so apps can still sit underneath it; the engine
 // masks this area out of screenshots so the agent never targets anything hidden behind the panel.
-// While a task runs (or when collapsed by hand) the same window shrinks into a pill in the top-right corner.
+// While a task runs (or when collapsed by hand) only a bar in its top-right corner shows (the rest lets clicks through).
 function panelBounds() {
   const { workArea } = screen.getPrimaryDisplay();
   return { x: workArea.x + workArea.width - panelWidth, y: workArea.y, width: panelWidth, height: workArea.height };
@@ -131,31 +131,35 @@ function pillBounds(size = PILL) {
 }
 
 let docking = false;
-function dock(animate = false) {
+function dock() {
   if (!win) return;
+  // The window keeps the panel's size in every mode: resizing it (panel <-> corner bar) showed a blank or misplaced
+  // frame on macOS. Collapsed, it lets clicks through to the apps underneath, except over the corner bar itself
+  // (Pill.tsx reports when the pointer is on it: "pill-hover").
   docking = true;
-  // Order matters: raising the minimum size while the window is still small makes macOS widen it from its left edge
-  // for a frame (the corner bar jumps left, then snaps back). Lower the minimum before shrinking, raise it after growing.
-  win.setMinimumSize(MINI.width, 60);
-  win.setBounds(mode === "pill" ? pillBounds() : mode === "mini" ? pillBounds(MINI) : panelBounds(), animate && IS_MAC);
-  if (mode === "panel") win.setMinimumSize(PANEL_MIN, 60);
-  win.setResizable(mode === "panel");
-  // Animated resizes emit "resize" events afterwards; keep ignoring them until the animation is over.
+  win.setBounds(panelBounds());
+  win.setIgnoreMouseEvents(mode !== "panel", { forward: true });
   setTimeout(() => {
     docking = false;
     sendBounds();
-  }, animate ? 320 : 0);
+  }, 0);
 }
 
 function setMode(next) {
   if (!win || !["panel", "pill", "mini"].includes(next) || next === mode) return;
   mode = next;
-  dock(false); // instant: the page animates the change (App.tsx), a native resize animation would fight it
+  win.setIgnoreMouseEvents(mode !== "panel", { forward: true });
+  sendBounds();
+}
+
+/** What's on screen of the panel window right now: the whole column, or only the corner bar when collapsed. */
+function visibleBounds() {
+  return mode === "panel" ? win.getBounds() : pillBounds(mode === "mini" ? MINI : PILL);
 }
 
 function sendBounds() {
   if (!win) return;
-  const b = win.getBounds();
+  const b = visibleBounds();
   win.webContents.send("bounds", { ...b, mode });
   overlay?.webContents.executeJavaScript(`window.setPanel && setPanel(${JSON.stringify({ ...b, mode })})`).catch(() => {});
 }
@@ -375,6 +379,10 @@ function registerIpc() {
     if (PANES[kind]) shell.openExternal(PANES[kind]);
   });
   ipcMain.on("set-mode", (_e, next) => setMode(next));
+  // Collapsed: the corner bar takes the mouse while the pointer is over it; everywhere else clicks go through.
+  ipcMain.on("pill-hover", (_e, over) => {
+    if (win && mode !== "panel") win.setIgnoreMouseEvents(!over, { forward: true });
+  });
   ipcMain.on("set-running", (_e, running) => setRunning(!!running));
   ipcMain.on("suppress-esc", () => {
     ignoreEscUntil = Date.now() + 800;

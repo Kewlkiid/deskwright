@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Mic, PanelRightOpen } from "lucide-react";
 import type { Metrics } from "../lib/types";
@@ -6,6 +7,25 @@ import { t } from "../lib/i18n";
 
 /** Compact bar in the top-right corner: shown while a task runs, or when the panel is collapsed by hand.
  * While running there are no buttons: Esc stops the run and the panel reopens by itself at the end. */
+/** Collapsed, the window lets clicks through to the apps underneath (main.cjs) but still sees the pointer moving.
+ * Take the mouse back while the pointer is on the bar (with a small margin, so a quick click isn't let through).
+ * Positions, not enter/leave events: switching the window between the two fires spurious leaves. */
+function useMouseOver(bar: React.RefObject<HTMLDivElement>) {
+  useEffect(() => {
+    let over = false;
+    const onMove = (e: MouseEvent) => {
+      const r = bar.current?.getBoundingClientRect();
+      const inside = !!r && e.clientX >= r.left - 10 && e.clientX <= r.right + 10 && e.clientY >= r.top - 10 && e.clientY <= r.bottom + 10;
+      if (inside !== over) {
+        over = inside;
+        window.agent?.pillHover(inside);
+      }
+    };
+    window.addEventListener("mousemove", onMove);
+    return () => window.removeEventListener("mousemove", onMove);
+  }, [bar]);
+}
+
 export function Pill({
   running,
   status,
@@ -25,6 +45,8 @@ export function Pill({
   visible?: boolean;
   onOpen: () => void;
 }) {
+  const bar = useRef<HTMLDivElement>(null);
+  useMouseOver(bar);
   if (!running) {
     return (
       <div className="pointer-events-none fixed right-[12px] top-[12px]">
@@ -33,7 +55,8 @@ export function Pill({
           animate={visible ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.92 }}
           transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
           style={{ transformOrigin: "top right" }}
-          className="pointer-events-auto flex h-[58px] w-[86px] items-center justify-between rounded-[20px] border border-black/[.06] bg-white/95 pl-3 pr-2 shadow-[0_2px_6px_rgba(0,0,0,.06),0_10px_28px_rgba(0,0,0,.14)] backdrop-blur"
+          ref={bar}
+          className="pointer-events-auto relative flex h-[58px] w-[86px] items-center justify-between rounded-[20px] border border-black/[.06] bg-white/95 pl-3 pr-2 shadow-[0_2px_6px_rgba(0,0,0,.06),0_10px_28px_rgba(0,0,0,.14)] backdrop-blur"
         >
           <Logo size={26} />
           <button
@@ -54,7 +77,8 @@ export function Pill({
         animate={visible ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.92 }}
         transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
         style={{ transformOrigin: "top right" }}
-        className="pointer-events-auto flex h-[58px] w-[374px] items-center gap-3 rounded-[20px] border border-black/[.06] bg-white/95 pl-3 pr-4 shadow-[0_2px_6px_rgba(0,0,0,.06),0_10px_28px_rgba(0,0,0,.14)] backdrop-blur"
+        ref={bar}
+        className="pointer-events-auto relative flex h-[58px] w-[374px] items-center gap-3 rounded-[20px] border border-black/[.06] bg-white/95 pl-3 pr-4 shadow-[0_2px_6px_rgba(0,0,0,.06),0_10px_28px_rgba(0,0,0,.14)] backdrop-blur"
       >
         <span className="relative flex h-7 w-7 shrink-0 items-center justify-center">
           <span className="absolute inset-0 animate-ping rounded-full bg-focus/20" />
