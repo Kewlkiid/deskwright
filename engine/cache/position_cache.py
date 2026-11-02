@@ -53,28 +53,38 @@ def norm_target(target: str) -> str:
 # before where it is: "search field", "'support' text channel") must be the same; the pixel checks still decide.
 FILLER = {"the", "a", "an", "of", "in", "on", "at", "to", "with", "and", "or", "that", "this", "its", "it", "for",
           "app", "very", "just", "by", "from"}
-LOOKS = {"blue", "grey", "gray", "white", "black", "red", "green", "dark", "light", "small", "large", "big", "little",
-         "round", "rounded", "circular", "bold", "highlighted"}
+LOOKS = {"blue", "grey", "gray", "white", "black", "red", "green", "orange", "yellow", "purple", "pink", "dark",
+         "light", "small", "large", "big", "little", "round", "rounded", "circular", "square", "bold", "highlighted",
+         "labeled", "labelled", "titled", "named"}
 WHERE = re.compile(r"[,(]|\b(?:in|at|on|under|below|above|near|next to|inside|from|within|to the|beside|that|which|"
                    r"showing|with|labeled|labelled|containing|called|named)\b")
-SIMILAR_TARGET = 0.7
+SIMILAR_TARGET = 0.6
+SIMILAR_QUOTED = 0.3  # the same quoted name ("'=' equals button") already says which element: the rest is where
 
 
-def _target_terms(target: str) -> tuple[set, set]:
+def _target_terms(target: str, app: str = "") -> tuple[set, set]:
     t = norm_target(target)
     head = WHERE.split(t, maxsplit=1)[0]
     quoted = re.findall(r"['\"‘“]([^'\"’”]+)['\"’”]", t)
-    name = (set(re.findall(r"[a-z0-9]+", head)) - FILLER - LOOKS) | {"«" + q + "»" for q in quoted}
-    return set(re.findall(r"[a-z0-9]+", t)) - FILLER, name
+    in_quotes = {w for q in quoted for w in re.findall(r"[a-z0-9]+", q)}
+    app_words = set(re.findall(r"[a-z0-9]+", app.lower()))  # "calculator number button" is the app's button
+    name = set(re.findall(r"[a-z0-9]+", head)) - FILLER - LOOKS - in_quotes - app_words
+    name |= {"«" + q + "»" for q in quoted}
+    return set(re.findall(r"[a-z0-9]+", t)) - FILLER - app_words, name
 
 
-def similar_target(a: str, b: str) -> float:
+def similar_target(a: str, b: str, app: str = "") -> float:
     """How alike two descriptions are (0-1); 0 unless they name the same element (same name words, same quoted text)."""
-    wa, na = _target_terms(a)
-    wb, nb = _target_terms(b)
+    wa, na = _target_terms(a, app)
+    wb, nb = _target_terms(b, app)
     if na != nb or not na:
         return 0.0
     return len(wa & wb) / len(wa | wb)
+
+
+def same_target(a: str, b: str, app: str = "") -> bool:
+    quoted = any(n.startswith("«") for n in _target_terms(a, app)[1])
+    return similar_target(a, b, app) >= (SIMILAR_QUOTED if quoted else SIMILAR_TARGET)
 
 
 @dataclass
@@ -98,9 +108,11 @@ class PositionCache:
             (window, norm_target(target)),
         )
         if not rows:
-            near = [(similar_target(target, r["target"]), r) for r in
+            app = window.split("|")[0]
+            near = [(similar_target(target, r["target"], app), r) for r in
                     self.db.query("SELECT * FROM cache WHERE window = ? ORDER BY updated DESC LIMIT 300", (window,))]
-            rows = [r for s, r in sorted(near, key=lambda x: -x[0]) if s >= SIMILAR_TARGET][:5]
+            near.sort(key=lambda x: -x[0])
+            rows = [r for s, r in near if s > 0 and same_target(target, r["target"], app)][:5]
         current = screen_hash(img)
         rows.sort(key=lambda r: hamming(current, r["screen_hash"]))
         out = []

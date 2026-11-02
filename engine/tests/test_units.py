@@ -572,3 +572,11 @@ def test_cache_shares_entries_between_rewordings_of_the_same_target(tmp_path):
     assert cache.lookup("App", img, "Cancel button at the bottom of the dialog") is None
     assert similar_target("'support' text channel in the list", "'general' text channel in the list") == 0
     assert similar_target("search field at the top", "search button at the top") == 0
+
+
+def test_single_character_quote_matches_the_whole_label():
+    from engine.models.grounding import ax_candidates
+
+    keys = [([295, 731, 342, 778], "AXButton", "1"), ([349, 731, 397, 778], "AXButton", "2"),
+            ([457, 785, 504, 833], "AXButton", "Equals"), ([10, 10, 100, 30], "AXButton", "Add 12 items")]
+    assert ax_candidates(keys, "'2' number button on the calculator keypad", (1600, 1000)) == [[349, 731, 397, 778]]

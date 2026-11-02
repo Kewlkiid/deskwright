@@ -236,12 +236,13 @@ class SamGrounder:
         axs = ax_candidates(extra, phrase, small.size)
         boxes: list[Box] = []
         self.labels = {}
-        named = {tuple(round(v) for v in b): f"{r[2:].lower()} “{l}”" for b, r, l in extra if l}
+        named = [(b, f"{r[2:].lower()} “{l}”") for b, r, l in extra if l]
         for b in axs + texts + sam:
             if all(_iou(b, o) < 0.5 for o in boxes):
-                key = tuple(round(v) for v in b)
-                if key in named:
-                    self.labels[len(boxes)] = named[key]
+                # A SAM or text box over an app element (same frame, give or take) gets the element's label too.
+                best = max(named, key=lambda n: _iou(b, n[0]), default=None)
+                if best is not None and _iou(b, best[0]) >= 0.8:
+                    self.labels[len(boxes)] = best[1]
                 boxes.append(b)
         return boxes[:MAX_CANDIDATES]
 
@@ -340,13 +341,15 @@ def text_candidates(small: Image.Image, phrase: str, limit: int = 6, pool: list 
         return []
     if pool is not None:
         pool.extend(b for b, _ in lines)  # every text line is something the grid can snap to
-    quoted = [q.strip().lower() for q in re.findall(r"['\"“‘]([^'\"”’]{2,})['\"”’]", phrase)]
+    # Quoted text, a single character too ("the '2' button" in Calculator): that one must be the whole label.
+    quoted = [q.strip().lower() for q in re.findall(r"['\"“‘]([^'\"”’]+)['\"”’]", phrase)]
     want = _words(phrase)
     scored = []
     for box, text in lines:
         low = text.lower()
         have = _words(text)
-        score = sum(3 for q in quoted if q.strip("# ") and q.strip("# ") in low)
+        score = sum(3 for q in quoted if q.strip("# ") and (q.strip("# ") in low if len(q.strip("# ")) > 1
+                                                             else low.strip() == q.strip("# ")))
         for w in want:
             bare = w.strip("#")
             if any(h.strip("#") == bare for h in have):
@@ -382,7 +385,7 @@ def ax_candidates(extra: list, phrase: str, size: tuple[int, int], limit: int = 
     """The app's own elements whose label matches the phrase (word overlap, quoted text), a role that fits as a bonus."""
     if not extra:
         return []
-    quoted = [q.strip().lower() for q in re.findall(r"['\"“‘]([^'\"”’]{2,})['\"”’]", phrase)]
+    quoted = [q.strip().lower() for q in re.findall(r"['\"“‘]([^'\"”’]+)['\"”’]", phrase)]
     want = list(dict.fromkeys(_words(phrase)))  # each word once ("server ... server sidebar")
     roles = set()
     for pat, rs in ROLE_WORDS:
@@ -397,7 +400,8 @@ def ax_candidates(extra: list, phrase: str, size: tuple[int, int], limit: int = 
             continue  # off screen
         low = (label or "").lower()
         have = _words(label or "")
-        score = sum(3 for q in quoted if q.strip("# ") and q.strip("# ") in low)
+        score = sum(3 for q in quoted if q.strip("# ") and (q.strip("# ") in low if len(q.strip("# ")) > 1
+                                                             else low.strip() == q.strip("# ")))
         score += sum(1 for x in want if any(y.strip("#") == x.strip("#") for y in have))
         name = (label or "").split(",")[-1].strip().lower()  # "Unread messages, Control" -> "control"
         if initials and name[:1] in initials:

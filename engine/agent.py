@@ -141,9 +141,9 @@ class Agent:
             ctx.invalidate_window()
             ctx.sleep(0.9)
             ctx.log(f"{already} was already open: planning from its current state")
-            context += (f"\n\n{already.upper()} IS ALREADY OPEN. The screenshot shows it as it is right now. Start from "
-                        "this state: if a dialog, menu, other page or leftover text is in the way, close it or go back "
-                        "first; don't assume a fresh window.")
+            context += (f"\n\n{already.upper()} IS ALREADY OPEN. The screenshot shows it as it is right now. "
+                        "Start from this state: if a dialog, menu, other page or leftover text is in the way, close it "
+                        "or go back first; don't assume a fresh window.")
         shot = ctx.capture()
         from .runner.healer import screen_labels
 
