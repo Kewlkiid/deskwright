@@ -69,8 +69,11 @@ class ServerHost:
         if fut and not fut.done():
             fut.set_result(value)
 
-    def ask_user(self, question: str, stop: threading.Event) -> str:
-        return str(self._wait_for_reply("ask_user", {"question": question}, stop) or "")
+    def ask_user(self, question: str, stop: threading.Event, options: list[str] | None = None) -> str:
+        payload = {"question": question}
+        if options:
+            payload["options"] = [str(o) for o in options][:6]
+        return str(self._wait_for_reply("ask_user", payload, stop) or "")
 
     def confirm(self, summary: str, stop: threading.Event) -> bool:
         if self.bypass:

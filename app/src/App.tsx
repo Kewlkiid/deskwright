@@ -32,6 +32,21 @@ const METRICS_RE = /^(show )?(the )?(run )?(metrics|stats|statistics)\??$/i;
 
 const TRANSITION_MS = 240;
 
+/** A spoken answer to a question with options: the option sharing the most words ("the Control one" -> "Control's
+ * #support"), else the words as said. */
+function matchOption(said: string, options?: string[]): string {
+  if (!options || !options.length) return said;
+  const words = (t: string) => new Set(t.toLowerCase().replace(/[^a-z0-9#\s]/g, " ").split(/\s+/).filter((w) => w.length > 1));
+  const heard = words(said);
+  let best = "";
+  let score = 0;
+  for (const o of options) {
+    const n = [...words(o)].filter((w) => heard.has(w) || heard.has(w.replace(/s$/, ""))).length;
+    if (n > score) [best, score] = [o, n];
+  }
+  return score > 0 ? best : said;
+}
+
 export default function App() {
   const [s, dispatch] = useReducer(reducer, initialState);
   // "panel": full-height column. "pill": compact bar in the top-right corner (during tasks, or collapsed by hand).
@@ -186,7 +201,7 @@ export default function App() {
     if (action === "approve" && waiting?.kind === "confirm") replyConfirm(waiting, true);
     else if (action === "decline" && waiting?.kind === "confirm") replyConfirm(waiting, false);
     else if (action === "input") {
-      if (waiting?.kind === "question") answerQuestion(waiting, text);
+      if (waiting?.kind === "question") answerQuestion(waiting, matchOption(text, waiting.options));
       else if (!running && text) send(text);
     } else if (action === "send") composer.current?.submit();
     else if (action === "teach" && !s.recording) toggleTeach();

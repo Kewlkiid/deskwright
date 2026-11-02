@@ -41,6 +41,10 @@ open_app(...), not on a website. Use a website only when they ask for one or nam
 - To scroll, call scroll(amount) (it scrolls the app's main content) or scroll_until("<element to reach>") with the \
 element's location words ("in the left channel list"). Don't move_mouse to vague areas just to scroll.
 - Use ask_user only when information is genuinely missing.
+- To find an item in a long list or results page, use the app's search or filter field, cmd+f, or a direct URL \
+before scrolling; scroll_until("<item>") is the fallback (it jumps to items the app lists even when off screen).
+- Long requests: split the work into short stages, list them in the header as STAGES = ["...", "..."] (after \
+OUTPUTS) and call checkpoint("<same stage name>") as each one finishes. Each stage should be verifiable on its own.
 - For find/report tasks: if the first place you look doesn't have the item, check the obvious alternatives (other \
 tabs or sections, filters, the search field) before reporting that it isn't there.
 - When the task names a specific app, product, person or page, never target "the first result": target the result \
@@ -59,6 +63,16 @@ a lookalike as the real one.
 Start your reply with the ```python code block (no text before it) containing only the script. After it, ONE \
 ```json block with the value the user's request gives for each input, e.g. {{"recipient": "sam", "message": "hi"}} \
 (leave out inputs the request doesn't give; {{}} if none). Nothing else is needed.
+
+ASKING FIRST: if the request can really mean two or more different things given WHAT IS ON SCREEN (e.g. two \
+channels with the same name, two apps that fit), reply instead with ONLY a ```clarify block:
+```clarify
+{{"question": "Which #support channel: the one under Control or the one under HostWolf?", \
+"options": ["Control's #support", "HostWolf's #support"]}}
+```
+Ask only about real ambiguity: never about something the request says or the screen shows, never for permission, \
+never more than needed. Short question, 2-4 options when you can. Once the user answered (YOU ASKED / THE USER \
+ANSWERED in the context), write the script.
 
 AGENT SDK REFERENCE
 {sdk_reference}
@@ -113,6 +127,8 @@ Reply with JSON only:
   "recovery": "<python code that undoes it, or empty>",
   "continuation": "<python code that continues from the corrected failing step>",
   "full_script": "<the complete corrected script from the start, to save for future runs>"}}
+Only if you truly can't tell which of several real options the user means (the screen shows them), reply instead \
+with {{"clarify": {{"question": "...", "options": ["...", "..."]}}}}; the answer comes back as THE USER ANSWERED.
 
 AGENT SDK REFERENCE
 {sdk_reference}

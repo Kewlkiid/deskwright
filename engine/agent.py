@@ -103,11 +103,42 @@ class Agent:
             self.models.grounder.reset()  # every run starts in auto mode with a clean SAM failure count
         return ctx
 
+    def clarify(self, ctx: RunContext, question: str, options: list[str] | None = None) -> str:
+        """Settle an ambiguity with the user before acting (planner or repair step). Spoken when voice is on; the
+        answer can be spoken, typed or a tapped option."""
+        ctx.status(f"Asking: {question}")
+        ctx.log(f"clarify: {question} {options or ''}")
+        answer = self.host.ask_user(question, ctx.stop_event, options=options) if options else \
+            self.host.ask_user(question, ctx.stop_event)
+        ctx.check_stop()
+        ctx.log(f"clarified: {answer}")
+        return answer
+
     def write_script(self, ctx: RunContext, task: str) -> str:
         ref = sdk_reference()
         ctx.status("Writing the script…")
         shot = ctx.capture()
-        script = self.models.planner.generate_script(task, shot.image, ref, self._context_hint(task))
+        from .runner.healer import screen_labels
+
+        context = self._context_hint(task)
+        labels = screen_labels(ctx, shot)
+        if labels:
+            context += f"\n\nWHAT IS ON SCREEN in {ctx.scope_app or 'the front app'} (text and controls): " + " | ".join(labels)
+        script = self.models.planner.generate_script(task, shot.image, ref, context)
+        asked, told_to_decide = 0, False
+        while getattr(self.models.planner, "clarify", None):
+            q = self.models.planner.clarify
+            if asked >= 2:  # two questions are enough
+                if told_to_decide:
+                    break
+                told_to_decide = True
+                context += "\nYou've asked enough: decide from what you know and write the script."
+            else:
+                asked += 1
+                answer = self.clarify(ctx, q["question"], q.get("options"))
+                context += f"\nYOU ASKED: {q['question']}\nTHE USER ANSWERED: {answer}"
+                ctx.clarifications.append((q["question"], answer))
+            script = self.models.planner.generate_script(task, shot.image, ref, context)
         problems = validate(script, SDK_NAMES) + scope_problems(script) + header_problems(script)
         if problems:
             ctx.status("Fixing script problems…")

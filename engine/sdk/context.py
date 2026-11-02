@@ -28,7 +28,7 @@ REGION_CHANGE_MIN = 3  # changed pixels in the 24x24 signature of the target's s
 
 class Host(Protocol):
     def emit(self, type: str, **data: Any) -> None: ...
-    def ask_user(self, question: str, stop: threading.Event) -> str: ...
+    def ask_user(self, question: str, stop: threading.Event, options: list[str] | None = None) -> str: ...
     def confirm(self, summary: str, stop: threading.Event) -> bool: ...
     def before_capture(self) -> None: ...
     def after_capture(self) -> None: ...
@@ -46,7 +46,8 @@ class NullHost:
     def emit(self, type, **data):
         self.events.append((type, data))
 
-    def ask_user(self, question, stop):
+    def ask_user(self, question, stop, options=None):
+        self.questions = getattr(self, "questions", []) + [(question, options)]
         return self.answers.pop(0) if self.answers else ""
 
     def confirm(self, summary, stop):
@@ -119,7 +120,8 @@ class RunContext:
     # typed_target is the field text was just typed into (Enter there may send it).
     owed_confirm: str | None = None
     agent_tabs: set = field(default_factory=set)
-    cache_targets: set = field(default_factory=set)  # cache entries this run used or wrote (dropped if the goal fails)  # Chrome tab ids this run opened (open_url may reuse only these)
+    cache_targets: set = field(default_factory=set)
+    clarifications: list = field(default_factory=list)  # (question, answer) the user settled in this run  # cache entries this run used or wrote (dropped if the goal fails)  # Chrome tab ids this run opened (open_url may reuse only these)
     typed_target: str | None = None
     _window: tuple[str, float] = ("", 0.0)
 

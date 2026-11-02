@@ -199,7 +199,7 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
             on_screen = screen_labels(ctx, shot)
             fix = None
             rejection = ""
-            for _ in range(2):
+            for _ in range(3):
                 candidate = ctx.models.planner.fix_script(
                     task=ctx.task,
                     script=current,
@@ -214,6 +214,19 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
                     tried=tried[:-1] if len(tried) > 1 else [],
                     on_screen=on_screen,
                 )
+                q = candidate.get("clarify")
+                if q:
+                    # The repair step can't tell which of several real options is meant: ask, then fix with the answer.
+                    if len(ctx.clarifications) >= 2:
+                        user_hint = (user_hint + "\nDon't ask again: decide from what you know.").strip()
+                        continue
+                    ctx.status(f"Asking: {q['question']}")
+                    answer = ctx.host.ask_user(q["question"], ctx.stop_event, options=q.get("options") or None)
+                    ctx.check_stop()
+                    ctx.clarifications.append((q["question"], answer))
+                    ctx.log(f"clarify: {q['question']} -> {answer}")
+                    user_hint = (user_hint + f"\nYOU ASKED: {q['question']}\nTHE USER ANSWERED: {answer}").strip()
+                    continue
                 problems = validate(candidate["continuation"], SDK_NAMES, extra_names=user_vars(ns))
                 if not problems and candidate["continuation"].strip():
                     fix = candidate

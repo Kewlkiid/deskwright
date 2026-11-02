@@ -24,6 +24,22 @@ def _request_values(reply: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _clarify(reply: str) -> dict | None:
+    """A ```clarify block: the planner needs the user to settle an ambiguity before writing the script."""
+    m = re.search(r"```clarify\s*(\{.*?\})\s*```", reply, re.S)
+    if not m:
+        return None
+    try:
+        data = json.loads(m.group(1))
+    except ValueError:
+        return None
+    q = str(data.get("question") or "").strip()
+    if not q:
+        return None
+    opts = [str(o).strip() for o in (data.get("options") or []) if str(o).strip()][:6]
+    return {"question": q, "options": opts}
+
+
 def numbered(script: str, start: int = 1) -> str:
     return "\n".join(f"{i:>3}| {line}" for i, line in enumerate(script.splitlines(), start))
 
@@ -32,6 +48,7 @@ class Planner:
     def __init__(self, client: ModelClient):
         self.client = client
         self.request_inputs: dict = {}  # input values the last generate_script() found in the user's request
+        self.clarify: dict | None = None  # the question the last generate_script() asked instead of a script
 
     def _chat(self, system: str, content: list, max_tokens: int = 3000) -> str:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
@@ -57,6 +74,9 @@ class Planner:
         content.append(text_part(text))
         reply = self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference), content)
         self.request_inputs = _request_values(reply)
+        self.clarify = _clarify(reply)
+        if self.clarify and "```python" not in reply:
+            return ""  # a question instead of a script: the caller asks the user and plans again
         return extract_code(reply)
 
     def repair_validation(self, task: str, script: str, problems: list[str], sdk_reference: str) -> str:
@@ -108,6 +128,11 @@ class Planner:
             content.append(image_part(to_data_url(fit(screenshot, config.model_image_max)[0])))
         content.append(text_part(text))
         data = extract_json(self._chat(prompts.FIXER_SYSTEM.format(sdk_reference=sdk_reference), content, 4000))
+        clarify = data.get("clarify")
+        if isinstance(clarify, dict) and str(clarify.get("question") or "").strip():
+            return {"clarify": {"question": str(clarify["question"]).strip(),
+                                "options": [str(o) for o in (clarify.get("options") or [])][:6]},
+                    "explanation": "", "wrong_state": "", "recovery": "", "continuation": "", "full_script": ""}
         return {
             "explanation": str(data.get("explanation", "")),
             "wrong_state": str(data.get("wrong_state") or ""),

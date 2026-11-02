@@ -208,3 +208,53 @@ def test_a_result_that_misses_the_goal_is_repaired_once(screen, agent_factory):
     assert out["status"] == "succeeded" and fixes == ["goal_not_reached"]
     shown = [d["result"]["text"] for t, d in host.events if t == "result_ready"]
     assert shown[-1] == "Found it: 4.8 stars"  # the repaired run's answer came last
+
+
+def test_the_planner_can_ask_before_writing(screen, agent_factory):
+    agent, host = agent_factory(answers=["Control's #support"])
+    base = agent.models.planner
+    contexts = []
+
+    class Asking:
+        clarify = None
+
+        def __getattr__(self, n):
+            return getattr(base, n)
+
+        def generate_script(self, task, shot, ref, context=""):
+            contexts.append(context)
+            if len(contexts) == 1:
+                self.clarify = {"question": "Which #support?", "options": ["Control's #support", "HostWolf's #support"]}
+                return ""
+            self.clarify = None
+            return 'INPUTS = {}\nOUTPUTS = {}\nopen_app("Discord")\nshow("ok")'
+
+    agent.models.planner = Asking()
+    out = agent.run_task("read support")
+    assert out["status"] == "succeeded"
+    assert host.questions[0] == ("Which #support?", ["Control's #support", "HostWolf's #support"])
+    assert "THE USER ANSWERED: Control's #support" in contexts[1]
+
+
+def test_a_planner_that_keeps_asking_is_cut_off(screen, agent_factory):
+    agent, host = agent_factory(answers=["a", "b", "c"])
+    base = agent.models.planner
+    calls = []
+
+    class Nagging:
+        clarify = None
+
+        def __getattr__(self, n):
+            return getattr(base, n)
+
+        def generate_script(self, task, shot, ref, context=""):
+            calls.append(context)
+            if len(calls) <= 3:
+                self.clarify = {"question": f"Q{len(calls)}?", "options": []}
+                return ""
+            self.clarify = None
+            return 'INPUTS = {}\nOUTPUTS = {}\nopen_app("A")'
+
+    agent.models.planner = Nagging()
+    agent.run_task("vague")
+    assert len(host.questions) == 2 and "decide from what you know" in calls[-1]

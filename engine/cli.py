@@ -125,9 +125,11 @@ class TerminalHost:
         elif self.verbose and type not in ("element_found",):
             self._print(f"  [{type}] {json.dumps(data, default=str)[:200]}")
 
-    def ask_user(self, question, stop):
+    def ask_user(self, question, stop, options=None):
         from .sdk.errors import InputMissingError
 
+        if options:
+            question = f"{question} (" + " / ".join(str(o) for o in options) + ")"
         if self.events:
             answered, answer = self._await("ask_request", stop, question=question)
             if not answered:

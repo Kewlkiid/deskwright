@@ -192,7 +192,8 @@ class Narrator:
             first = (data.get("summary") or "").splitlines()[0] if data.get("summary") else "this step"
             s.say(f"I need your approval. {first}", important=True)
         elif type == "ask_user":
-            s.say(data.get("question", ""), important=True)
+            opts = data.get("options") or []
+            s.say(data.get("question", "") + (" " + ", or ".join(opts) + "?" if opts else ""), important=True)
         elif type == "teach_recording":
             if data.get("recording"):
                 s.say("Recording. Show me the task.", important=True)

@@ -136,7 +136,7 @@ export type ChatItem =
   | { id: string; kind: "error"; text: string }
   | { id: string; kind: "run"; runKey: string }
   | { id: string; kind: "result"; result: ResultItem }
-  | { id: string; kind: "question"; qid: string; question: string; answer?: string; closed?: boolean }
+  | { id: string; kind: "question"; qid: string; question: string; options?: string[]; answer?: string; closed?: boolean }
   | { id: string; kind: "confirm"; qid: string; summary: string; answer?: boolean; closed?: boolean }
   | { id: string; kind: "summary"; runKey: string }
   | { id: string; kind: "tasks" }

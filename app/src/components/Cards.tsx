@@ -66,6 +66,19 @@ export function QuestionCard({
   return (
     <div className="space-y-2">
       <div className="selectable whitespace-pre-wrap text-[14px] leading-relaxed">{item.question}</div>
+      {!done && item.options && item.options.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {item.options.map((o) => (
+            <button
+              key={o}
+              onClick={() => onAnswer(o)}
+              className="rounded-full border border-line px-3 py-1.5 text-[13px] hover:bg-surface"
+            >
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
       {done ? (
         <div className="text-[13px] text-fg-3">{item.answer ? `You answered: ${item.answer}` : "No longer needed"}</div>
       ) : (

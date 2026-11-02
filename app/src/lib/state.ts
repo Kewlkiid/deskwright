@@ -226,7 +226,10 @@ function onEvent(s: State, m: any): State {
     case "checkpoint":
       return updateRun(s, s.activeRun, (r) => ({ ...r, checkpoints: [...r.checkpoints, m.name] }));
     case "ask_user":
-      return { ...s, items: [...s.items, { id: uid(), kind: "question", qid: m.id, question: m.question }] };
+      return {
+        ...s,
+        items: [...s.items, { id: uid(), kind: "question", qid: m.id, question: m.question, options: m.options || undefined }],
+      };
     case "confirm_request":
       return { ...s, items: [...s.items, { id: uid(), kind: "confirm", qid: m.id, summary: m.summary }] };
     case "question_closed":
