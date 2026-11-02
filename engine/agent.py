@@ -54,9 +54,9 @@ class Agent:
     def busy(self) -> bool:
         return self._busy.locked()
 
-    def stop(self):
+    def stop(self, source: str = "esc or the stop button"):
         self.stop_event.set()
-        self.host.emit("status", text="Stopping…")
+        self.host.emit("status", text="Stopping…", source=source)  # the debug timeline records what stopped it
 
     # Planning --------------------------------------------------------------
     def _context_hint(self, task: str = "") -> str:
@@ -452,7 +452,7 @@ class Agent:
             return
         if action == "stop":
             if self._busy.locked():
-                self.stop()
+                self.stop(source=f"voice: heard “{text.strip()[:60]}”")
             return
         if action in ("task", "input") and wav:
             # Addressed to the agent, and the words matter: Muse Voice Transcribe for the exact wording. (Listening
