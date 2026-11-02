@@ -25,7 +25,7 @@ import { ScriptView } from "./components/ScriptView";
 // Engine events that drive the on-screen overlay (grounding box, clicks, verdicts).
 const OVERLAY_EVENTS = new Set([
   "run_started", "script_generated", "vision_scan", "sam_mask", "element_found", "vision_miss",
-  "pointer", "expect_met", "expect_failed", "line_failed", "line_rewritten", "detour", "confirm_request", "run_finished",
+  "pointer", "keys", "expect_met", "expect_failed", "line_failed", "line_rewritten", "detour", "confirm_request", "run_finished",
 ]);
 
 const TASKS_RE = /^(show |list |open )?(my )?(saved )?tasks\??$/i;

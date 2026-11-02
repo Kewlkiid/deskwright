@@ -163,6 +163,20 @@ def window_box(app: str) -> list[float] | None:
     return _frame(window) if window is not None else None
 
 
+def menu_title_box(app: str, title: str) -> list[float] | None:
+    """Where a menu-bar title ("File") is on screen (global logical), for showing the press."""
+    if AS is None:
+        return None
+    pid = _pid(app)
+    bar = _attr(AS.AXUIElementCreateApplication(pid), "AXMenuBar") if pid is not None else None
+    want = title.strip().lower().rstrip(".…")
+    for kid in (_attr(bar, "AXChildren") or []) if bar is not None else []:
+        t = (_attr(kid, "AXTitle") or "").strip().lower().rstrip(".…")
+        if t == want or (want and t.startswith(want)):
+            return _frame(kid)
+    return None
+
+
 def press_menu(app: str, path: list[str]) -> bool:
     """Press a menu-bar item by its titles, e.g. ["File", "Open…"]. Exact, no vision."""
     if AS is None:

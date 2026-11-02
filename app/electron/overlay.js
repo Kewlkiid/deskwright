@@ -57,6 +57,12 @@
     "Failed": ["Falló", "Échec", "Fehlgeschlagen", "Falhou"],
     "Declined": ["Rechazado", "Refusé", "Abgelehnt", "Recusado"],
     "{n} model calls": ["{n} llamadas al modelo", "{n} appels au modèle", "{n} Modellaufrufe", "{n} chamadas ao modelo"],
+    "Typing": ["Escribiendo", "Saisie", "Tippe", "Digitando"],
+    "Pressing": ["Pulsando", "Touche", "Drücke", "Pressionando"],
+    "Shortcut": ["Atajo", "Raccourci", "Kurzbefehl", "Atalho"],
+    "Scrolling": ["Desplazando", "Défilement", "Scrolle", "Rolando"],
+    "down": ["abajo", "vers le bas", "nach unten", "para baixo"],
+    "up": ["arriba", "vers le haut", "nach oben", "para cima"],
     "{n}% cached": ["{n}% en caché", "{n} % en cache", "{n} % aus dem Cache", "{n}% em cache"],
   };
   let lang = "en";
@@ -123,6 +129,37 @@
     setTimeout(() => { v.classList.remove("on"); setTimeout(() => v.remove(), 300); }, 2200);
   }
 
+  // Keys as they look on a Mac keyboard.
+  const KEYCAP = { cmd: "⌘", command: "⌘", shift: "⇧", option: "⌥", alt: "⌥", ctrl: "⌃", control: "⌃", enter: "↩",
+                   return: "↩", tab: "⇥", escape: "esc", esc: "esc", backspace: "⌫", delete: "⌦", space: "space",
+                   up: "↑", down: "↓", left: "←", right: "→", pageup: "⇞", pagedown: "⇟", home: "↖", end: "↘" };
+  const keycap = (k) => `<kbd>${esc(KEYCAP[String(k).toLowerCase()] || String(k).toUpperCase())}</kbd>`;
+  let typer = null;
+
+  function showKeys(e) {
+    clearInterval(typer);
+    if (e.kind === "type") {
+      // The typed text appears letter by letter, about as fast as it's typed.
+      setHud("#0d0d0d", `<b>${L("Typing")}</b><span class="sub typed"></span>`, true);
+      const out = hud.querySelector(".typed");
+      const text = short(e.text || "", 60);
+      let n = 0;
+      const step = Math.max(1, Math.ceil(text.length / 40));
+      typer = setInterval(() => {
+        n = Math.min(text.length, n + step);
+        out.textContent = text.slice(0, n);
+        if (n >= text.length) clearInterval(typer);
+      }, 22);
+    } else if (e.kind === "press") {
+      const times = e.times > 1 ? `<span class="sub">× ${e.times}</span>` : "";
+      setHud("#0d0d0d", `<b>${L("Pressing")}</b>${(e.keys || []).map(keycap).join("")}${times}`, true);
+    } else if (e.kind === "shortcut") {
+      setHud("#0d0d0d", `<b>${L("Shortcut")}</b>${(e.keys || []).map(keycap).join("")}`, true);
+    } else if (e.kind === "scroll") {
+      setHud("#0d0d0d", `<b>${L("Scrolling")}</b><span class="sub">${L(e.text === "up" ? "up" : "down")}</span>`, true);
+    }
+  }
+
   window.overlay = (e) => {
     alignStage();
     if (e.lang) lang = e.lang;
@@ -130,6 +167,9 @@
       case "run_started":
         glow.classList.add("on");
         setHud("#0d0d0d", `<b>${L("Writing the program")}</b><span class="sub">${esc(short(e.task, 56))}</span>`, true);
+        break;
+      case "keys":
+        showKeys(e);
         break;
       case "script_generated":
         if (!e.draft) setHud("#0d0d0d", `<b>${L("Running")}</b><span class="sub">${L("{n} lines", e.script.split("\n").length)}</span>`, true);
@@ -160,7 +200,7 @@
         scan.classList.remove("on");
         if (!e.box) break;
         // Elements found in a Chrome page look exactly like ones found on screen.
-        if (e.source === "dom" && !e.from_cache) {
+        if ((e.source === "dom" || e.source === "ax") && !e.from_cache) {
           newTarget("exact", e.box, `<i></i>${esc(short(e.target, 40))}`);
         } else if (e.from_cache) {
           newTarget("cached", e.box, `<i></i>${L("Cached")} <span class="muted">${L("0 model calls")} · ${esc(short(e.target, 32))}</span>`);

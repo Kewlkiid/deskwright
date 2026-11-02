@@ -89,12 +89,46 @@ def ax_elements(ctx: RunContext, shot: cap.Shot) -> list:
     return out
 
 
+TEXT_ROLES = {"AXTextField", "AXSearchField", "AXTextArea", "AXComboBox"}
+GENERIC_WORDS = {"button", "field", "icon", "text", "link", "menu", "item", "tab", "box", "area", "list", "row", "the",
+                 "and", "with", "blue", "grey", "gray", "white", "small", "large", "first", "top", "bottom"}
+
+
+def _cache_by_accessibility(ctx: RunContext, window: str, shot: cap.Shot, target: str, els: list):
+    """A cached spot whose pixels changed, confirmed by the app's element there: the same frame, and either a text
+    field (for a field-like target: its text is what changed) or a label sharing a word with the description."""
+    if not els:
+        return None
+    import json
+
+    from ..models.grounding import _iou
+
+    words = set(re.findall(r"[a-z0-9]{3,}", target.lower())) - GENERIC_WORDS
+    field = _replaces(target) or bool(DOCUMENT_WORDS.search(target))
+    for r in ctx.cache.entries(window, shot.image, target):
+        box = json.loads(r["box"])
+        el_box, role, label = max(els, key=lambda e: _iou(e[0], box))
+        if _iou(el_box, box) < 0.7:
+            continue
+        if (field and role in TEXT_ROLES) or words & set(re.findall(r"[a-z0-9]{3,}", label.lower())):
+            return ctx.cache.hit(r, shot.image, "accessibility")
+    return None
+
+
 def find(ctx: RunContext, target: str, action: str = "click", raise_missing: bool = True) -> Found | None:
     """Ground `target` on a fresh screenshot. Also settles the previous action's expectation."""
     shot = ctx.capture()
     window = ctx.cache_key()
     entry = ctx.cache.lookup(window, shot.image, target)
+    extra = None
+    if entry is None and ctx.cache.entries(window, shot.image, target):
+        # Known spot, but its pixels changed (a field holding other text, a new row beside a button): the app's own
+        # element at that spot can still vouch for it. The elements are needed for grounding anyway if not.
+        extra = ax_elements(ctx, shot)
+        entry = _cache_by_accessibility(ctx, window, shot, target, extra)
     if entry is not None:
+        if entry.how != "pixels":
+            ctx.log(f'cache hit for "{target}" confirmed by its {"core pixels" if entry.how == "core" else entry.how}')
         # Cached: no model looks at this screen, so verify the previous action by pixel diff.
         ctx.resolve_pending(shot)
         avg_t, avg_c = ctx.cache.avg_miss()
@@ -119,7 +153,8 @@ def find(ctx: RunContext, target: str, action: str = "click", raise_missing: boo
     grounder = getattr(ctx.models.grounder, "label", "SAM 3.1")
     ctx.status(f"Looking for {target}")
     ctx.emit("vision_scan", target=target, line=ctx.current_line, segment=ctx.segment, grounder=grounder)
-    extra = ax_elements(ctx, shot)
+    if extra is None:
+        extra = ax_elements(ctx, shot)
     try:
         if getattr(ctx.models.grounder, "accepts_extra", True) and extra:
             g = ctx.models.grounder.locate(shot.image, target, extra=extra)

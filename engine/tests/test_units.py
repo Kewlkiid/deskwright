@@ -521,3 +521,54 @@ def test_accessibility_press_only_for_pressable_elements(monkeypatch):
     assert _ax_element_at(ctx, Found([11, 10, 60, 41], (35, 25), shot, False)) is button
     assert _ax_element_at(ctx, Found([100, 100, 200, 130], (150, 115), shot, False)) is None  # text isn't pressable
     assert _ax_element_at(ctx, Found([300, 200, 350, 250], (325, 225), shot, False)) is None  # no element there
+
+
+def test_cache_core_matches_when_only_the_surroundings_change(tmp_path):
+    # A loose box: the button plus the rows above and below it. A new row changes the box, not the button.
+    cache = PositionCache(DB(tmp_path / "c.db"))
+    img = ui_image()
+    loose = [380, 220, 580, 430]
+    cache.put("App|Win", img, "Save button", loose, point=(480, 325))
+    changed = ui_image()
+    ImageDraw.Draw(changed).rectangle([380, 220, 580, 290], fill=(20, 20, 20))  # a new dark row above the button
+    hit = cache.lookup("App|Win", changed, "Save button")
+    assert hit and hit.how == "core" and hit.point == (480, 325)
+    assert cache.lookup("App|Win", changed, "Save button").how == "pixels"  # refreshed to the new view
+    assert cache.lookup("App|Win", ui_image(offset=300), "Save button") is None  # the button itself moved
+
+
+def test_cache_field_with_other_text_confirmed_by_accessibility(tmp_path):
+    from engine.sdk.actions import _cache_by_accessibility
+
+    cache = PositionCache(DB(tmp_path / "c.db"))
+    img = Image.new("RGB", (800, 600), (250, 250, 250))
+    ImageDraw.Draw(img).rectangle([100, 50, 400, 80], outline=(0, 0, 0))
+    cache.put("App", img, "search field at the top", [100, 50, 400, 80], point=(250, 65))
+    typed = img.copy()
+    ImageDraw.Draw(typed).rectangle([102, 52, 398, 78], fill=(30, 30, 30))  # it now holds other text
+    assert cache.lookup("App", typed, "search field at the top") is None
+
+    class Ctx:
+        pass
+
+    ctx = Ctx()
+    ctx.cache = cache
+    shot = Shot(image=typed, scale=1.0)
+    els = [([100, 50, 400, 80], "AXSearchField", ""), ([500, 50, 560, 80], "AXButton", "Go")]
+    hit = _cache_by_accessibility(ctx, "App", shot, "search field at the top", els)
+    assert hit and hit.how == "accessibility"
+    # A different element there (a button with an unrelated label) doesn't vouch for it.
+    assert _cache_by_accessibility(ctx, "App", shot, "search field at the top",
+                                   [([100, 50, 400, 80], "AXButton", "Share")]) is None
+
+
+def test_cache_shares_entries_between_rewordings_of_the_same_target(tmp_path):
+    from engine.cache.position_cache import similar_target
+
+    cache = PositionCache(DB(tmp_path / "c.db"))
+    img = ui_image()
+    cache.put("App", img, "blue Save button at the bottom of the dialog", [400, 300, 560, 350])
+    assert cache.lookup("App", img, "Save button at the bottom of the Save dialog")
+    assert cache.lookup("App", img, "Cancel button at the bottom of the dialog") is None
+    assert similar_target("'support' text channel in the list", "'general' text channel in the list") == 0
+    assert similar_target("search field at the top", "search button at the top") == 0

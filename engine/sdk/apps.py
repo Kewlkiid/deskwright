@@ -85,6 +85,14 @@ def menu(*path: str) -> None:
             return
         from ..screen import ax
 
+        # Same look as a click: the menu-bar title it opens gets the box and the pointer ripple.
+        box = ax.menu_title_box(app, path[0]) if path else None
+        if box:
+            point = [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2]
+            ctx.emit("element_found", target=" › ".join(path), verb="click", line=ctx.current_line,
+                     segment=ctx.segment, box=box, point=point, from_cache=False, source="ax")
+            ctx.sleep(config.show_delay)
+            ctx.emit("pointer", kind="click", point=point)
         if not ax.press_menu(app, list(path)):
             raise ElementNotFoundError(
                 f"No menu item {' > '.join(path)!r} in {app or 'the app'}'s menu bar",

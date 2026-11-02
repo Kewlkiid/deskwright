@@ -31,7 +31,7 @@ import uuid
 from datetime import datetime, timezone
 
 # Events left out of --events: UI plumbing, or too large and internal to be useful to another program.
-QUIET_EVENTS = {"pointer", "vision_scan", "vision_miss", "scope", "request_show", "request_hide", "suppress_esc",
+QUIET_EVENTS = {"pointer", "keys", "vision_scan", "vision_miss", "scope", "request_show", "request_hide", "suppress_esc",
                 "cache", "pong", "metrics", "browser", "element_found"}
 BULKY_FIELDS = {"script", "final_script", "history", "totals", "image", "screenshot", "trace"}
 

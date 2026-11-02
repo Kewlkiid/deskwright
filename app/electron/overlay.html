@@ -40,6 +40,15 @@
   #hud.busy .dot { animation: pulse 1.1s ease-in-out infinite; }
   #hud b { font-weight: 600; }
   #hud .sub { margin-left: 6px; color: #6b6b6b; overflow: hidden; text-overflow: ellipsis; }
+  /* Keyboard steps: keys as keycaps, typed text appearing as it's typed */
+  #hud kbd { display: inline-block; min-width: 20px; margin-left: 5px; padding: 1px 6px; border: 1px solid #dcdcdc;
+             border-bottom-width: 2px; border-radius: 6px; background: #fafafa; color: #222; font: 600 11.5px/16px
+             -apple-system, system-ui, sans-serif; text-align: center; animation: keyin .28s cubic-bezier(.2,.8,.2,1) both; }
+  #hud .typed { color: #222; white-space: pre; }
+  #hud .typed::after { content: ""; display: inline-block; width: 1.5px; height: 13px; margin-left: 1px; vertical-align: -2px;
+                       background: var(--spark); animation: caret 1s steps(1) infinite; }
+  @keyframes keyin { from { transform: translateY(3px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes caret { 50% { opacity: 0; } }
   @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
 
   /* Scan line while the vision model looks at the screen */

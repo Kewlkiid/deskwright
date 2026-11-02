@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS cache (
     expect TEXT,
     point TEXT,
     frame TEXT,
+    core_box TEXT,
+    core_sig BLOB,
     hits INTEGER DEFAULT 0,
     updated REAL
 );
@@ -107,6 +109,9 @@ class DB:
                 self.conn.execute("ALTER TABLE cache ADD COLUMN point TEXT")
             if "frame" not in cols:
                 self.conn.execute("ALTER TABLE cache ADD COLUMN frame TEXT")
+            if "core_box" not in cols:  # ...and the element's own pixels around the click point
+                self.conn.execute("ALTER TABLE cache ADD COLUMN core_box TEXT")
+                self.conn.execute("ALTER TABLE cache ADD COLUMN core_sig BLOB")
             # Which outside request (e.g. another program's task_request) a task was made for.
             task_cols = {r[1] for r in self.conn.execute("PRAGMA table_info(tasks)")}
             if "request_id" not in task_cols:

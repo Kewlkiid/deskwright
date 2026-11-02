@@ -104,6 +104,7 @@ def type_text(text: str) -> None:
         _before_raw(commits=False)
         keys_reach_app(current())
         current().status(f"Typing: {text[:40]}")
+        current().emit("keys", kind="type", text=text[:80])  # the overlay shows keyboard steps too
         for i in range(0, len(text), 40):
             run_input(inp.type_text, text[i : i + 40])
         restore_typed(current(), text)
@@ -117,6 +118,7 @@ def press(key: str, times: int = 1) -> None:
         _before_raw(f"Press {key}", sends=inp.norm_key(key) in ("enter", "return"))
         keys_reach_app(current(), key)
         current().status(f"Pressing: {key}")
+        current().emit("keys", kind="press", keys=[key], times=times)
         _announce_escape(key)
         run_input(inp.press, key, times)
         _after_raw(f"press({key!r}, times={times})")
@@ -128,6 +130,7 @@ def hotkey(*keys: str) -> None:
         _before_raw("Shortcut " + "+".join(keys), sends=any(inp.norm_key(k) in ("enter", "return") for k in keys))
         keys_reach_app(current(), *keys)
         current().status("Shortcut: " + "+".join(keys))
+        current().emit("keys", kind="shortcut", keys=list(keys))
         _announce_escape(*keys)
         run_input(inp.hotkey, *keys)
         current().invalidate_window()
@@ -143,6 +146,7 @@ def scroll(amount: int, pane: str = "") -> None:
 
         point_at_content(current(), only_if_outside=not pane, target=pane)
         current().status(f"Scrolling {'down' if amount < 0 else 'up'}")
+        current().emit("keys", kind="scroll", text="down" if amount < 0 else "up")
         run_input(inp.scroll, int(amount))
         _after_raw(f"scroll({amount})")
 
