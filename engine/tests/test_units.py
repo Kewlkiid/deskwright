@@ -502,3 +502,22 @@ def test_best_buy_the_store_is_not_a_purchase():
 
     assert not is_sensitive("location permission popup is closed and the Best Buy page is visible")
     assert is_sensitive("Buy now button") and is_sensitive("Place order")
+
+
+def test_accessibility_press_only_for_pressable_elements(monkeypatch):
+    from engine.screen.ax import AXElement
+    from engine.sdk import actions
+    from engine.sdk.actions import Found, _ax_element_at
+    from engine.sdk.context import RunContext
+    from engine.screen.capture import Shot
+
+    monkeypatch.setattr(actions.config, "fake_screen", False)
+    monkeypatch.setattr(actions.config, "dry_run", False)
+    ctx = RunContext(host=None, models=None, db=None, cache=None)
+    ctx.scope_app = "App"
+    shot = Shot(image=Image.new("RGB", (400, 300)))
+    button, row = AXElement("AXButton", "Save", [0, 0, 1, 1]), AXElement("AXStaticText", "Hello", [0, 0, 1, 1])
+    ctx.ax_last = [([10, 10, 60, 40], button), ([100, 100, 200, 130], row)]
+    assert _ax_element_at(ctx, Found([11, 10, 60, 41], (35, 25), shot, False)) is button
+    assert _ax_element_at(ctx, Found([100, 100, 200, 130], (150, 115), shot, False)) is None  # text isn't pressable
+    assert _ax_element_at(ctx, Found([300, 200, 350, 250], (325, 225), shot, False)) is None  # no element there

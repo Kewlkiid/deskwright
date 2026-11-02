@@ -76,11 +76,14 @@ def ax_elements(ctx: RunContext, shot: cap.Shot) -> list:
     except Exception:  # noqa: BLE001 - a bonus source; SAM and text still run
         return []
     w, h = shot.size
-    out = []
+    out, refs = [], []
     for e in els:
         b = shot.logical_to_image(e.box)
         if b[2] > 0 and b[3] > 0 and b[0] < w and b[1] < h:
-            out.append(([max(0, b[0]), max(0, b[1]), min(w, b[2]), min(h, b[3])], e.role, e.label))
+            box = [max(0, b[0]), max(0, b[1]), min(w, b[2]), min(h, b[3])]
+            out.append((box, e.role, e.label))
+            refs.append((box, e))
+    ctx.ax_last = refs  # so the click can press the element itself
     if out:
         ctx.log(f"{len(out)} accessibility elements in {ctx.scope_app}")
     return out
@@ -265,6 +268,45 @@ def _browser_pointer(ctx: RunContext, b: Browser, target: str, verb: str, expect
     return True
 
 
+PRESSABLE = {"AXButton", "AXLink", "AXCheckBox", "AXRadioButton", "AXTab", "AXMenuItem", "AXPopUpButton",
+             "AXMenuButton", "AXCell", "AXDisclosureTriangle", "AXToolbarButton", "AXSwitch"}
+
+
+def _ax_element_at(ctx: RunContext, f: Found):
+    """The app's own element behind the found box (same frame), when it's one that can be pressed."""
+    if config.fake_screen or ctx.dry_run or not ctx.scope_app:
+        return None
+    from ..models.grounding import _iou
+
+    refs = getattr(ctx, "ax_last", None)
+    if not refs or f.from_cache:
+        ax_elements(ctx, f.shot)  # a cached position: look up the app's elements on this screen
+        refs = getattr(ctx, "ax_last", None) or []
+    best = max(refs, key=lambda r: _iou(r[0], f.box), default=None)
+    if best is None or _iou(best[0], f.box) < 0.8 or best[1].role not in PRESSABLE:
+        return None
+    return best[1]
+
+
+def _press(ctx: RunContext, f: Found) -> bool:
+    """Press the element through Accessibility instead of a mouse click: exact, and the pointer animation already
+    ran. True only if the screen reacted; otherwise the caller clicks with the mouse."""
+    from ..screen import ax
+
+    el = _ax_element_at(ctx, f)
+    if el is None or "AXPress" not in ax.actions(el):
+        return False
+    before = ctx.capture().image
+    if not ax.perform(el, "AXPress"):
+        return False
+    ctx.settle(1.0)
+    if frame_diff(before, ctx.capture().image) < 0.3:
+        ctx.log(f"AXPress on {el.label[:30]!r} changed nothing: clicking instead")
+        return False
+    ctx.log(f"pressed {el.role[2:]} {el.label[:40]!r} via accessibility")
+    return True
+
+
 def _pointer_action(target: str, verb: str, expect: str | None, confirm: bool, button: str = "left",
                     clicks: int = 1, require_change: bool = True):
     ctx = current()
@@ -280,6 +322,8 @@ def _pointer_action(target: str, verb: str, expect: str | None, confirm: bool, b
         x, y = f.shot.to_logical(*f.point)
         if verb == "hover over":
             run_input(inp.move, x, y)
+        elif verb == "click" and _press(ctx, f):
+            pass  # pressed via accessibility (the overlay and pointer showed the click as usual)
         else:
             run_input(inp.click, x, y, button, clicks)
         ctx.metrics.steps += 1

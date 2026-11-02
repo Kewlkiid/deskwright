@@ -24,6 +24,15 @@ def _request_values(reply: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+MULTI_STEP = re.compile(r"\b(then|after that|afterwards|also|each|every|all|table|compare|and save|and send|"
+                        r"for each|list of|both)\b", re.I)
+
+
+def simple_request(task: str) -> bool:
+    """A short, single-goal request: the planner thinks less (much faster) for these."""
+    return len(task.split()) <= 22 and not MULTI_STEP.search(task)
+
+
 def _clarify(reply: str) -> dict | None:
     """A ```clarify block: the planner needs the user to settle an ambiguity before writing the script."""
     m = re.search(r"```clarify\s*(\{.*?\})\s*```", reply, re.S)
@@ -50,9 +59,10 @@ class Planner:
         self.request_inputs: dict = {}  # input values the last generate_script() found in the user's request
         self.clarify: dict | None = None  # the question the last generate_script() asked instead of a script
 
-    def _chat(self, system: str, content: list, max_tokens: int = 3000) -> str:
+    def _chat(self, system: str, content: list, max_tokens: int = 3000, effort: str | None = None) -> str:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
-        reply = self.client.chat("planner", config.planner_model, messages, max_tokens=max_tokens, temperature=0.2)
+        reply = self.client.chat("planner", config.planner_model, messages, max_tokens=max_tokens, temperature=0.2,
+                                 effort=effort)
         if "```" not in reply and "{" not in reply:
             # Muse Wonder occasionally answers with only the explanation sentence; ask once more for the code.
             messages += [
@@ -72,7 +82,8 @@ class Planner:
             text += f"\nCONTEXT:\n{context}\n"
         text += "\nThe image is the user's screen right now. Write the script."
         content.append(text_part(text))
-        reply = self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference), content)
+        reply = self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference), content,
+                           effort="low" if simple_request(task) else None)
         self.request_inputs = _request_values(reply)
         self.clarify = _clarify(reply)
         if self.clarify and "```python" not in reply:

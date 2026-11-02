@@ -121,7 +121,8 @@ class RunContext:
     owed_confirm: str | None = None
     agent_tabs: set = field(default_factory=set)
     cache_targets: set = field(default_factory=set)
-    clarifications: list = field(default_factory=list)  # (question, answer) the user settled in this run  # cache entries this run used or wrote (dropped if the goal fails)  # Chrome tab ids this run opened (open_url may reuse only these)
+    clarifications: list = field(default_factory=list)
+    ax_last: list = field(default_factory=list)  # [(box in shot pixels, ax.AXElement)] from the latest lookup  # (question, answer) the user settled in this run  # cache entries this run used or wrote (dropped if the goal fails)  # Chrome tab ids this run opened (open_url may reuse only these)
     typed_target: str | None = None
     _window: tuple[str, float] = ("", 0.0)
 

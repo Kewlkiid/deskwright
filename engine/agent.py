@@ -5,6 +5,7 @@ import re
 import threading
 from pathlib import Path
 import json
+import os
 import time
 import traceback
 
@@ -117,6 +118,7 @@ class Agent:
     def write_script(self, ctx: RunContext, task: str) -> str:
         ref = sdk_reference()
         ctx.status("Writing the script…")
+        warm_up_apps(task)
         shot = ctx.capture()
         from .runner.healer import screen_labels
 
@@ -692,3 +694,40 @@ def _uncovered_words(request: str, task: dict) -> list[str]:
         if w not in _STOP and w not in have and w.rstrip("s") not in have and w not in out:
             out.append(w)
     return out
+
+
+_installed: list[str] | None = None
+
+
+def installed_apps() -> list[str]:
+    global _installed
+    if _installed is None:
+        names = []
+        for folder in ("/Applications", "/System/Applications", "/System/Applications/Utilities"):
+            try:
+                names += [n[:-4] for n in os.listdir(folder) if n.endswith(".app")]
+            except OSError:
+                pass
+        _installed = sorted(set(names), key=len, reverse=True)  # "App Store" before "App"
+    return _installed
+
+
+def warm_up_apps(task: str):
+    """Start apps the request names, in the background and without taking focus, while the planner writes the
+    script: by the time the script opens one it is already running."""
+    import subprocess
+    import sys as _sys
+
+    if _sys.platform != "darwin" or config.fake_screen:
+        return
+    low = f" {task.lower()} "
+    aliases = {"chrome": "Google Chrome", "settings": "System Settings", "maps": "Maps", "discord": "Discord"}
+    wanted = {a for k, a in aliases.items() if f" {k} " in low or f" {k}," in low}
+    for name in installed_apps():
+        if len(name) > 3 and f" {name.lower()} " in low:
+            wanted.add(name)
+    for name in list(wanted)[:2]:
+        try:
+            subprocess.Popen(["open", "-g", "-a", name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except OSError:
+            pass
