@@ -9,7 +9,7 @@ import re
 from ..config import config
 from ..sdk import SDK_NAMES, build_namespace
 from ..sdk.context import RunContext
-from ..sdk.errors import TERMINAL_ERRORS, StoppedError
+from ..sdk.errors import TERMINAL_ERRORS, GoalNotReachedError, StoppedError
 from ..sdk.results import show
 from ..sdk.safety import needs_approval
 from . import detours, schema
@@ -116,12 +116,18 @@ def run_with_healing(ctx: RunContext, script: str, sdk_ref: str) -> dict:
     user_hint = ""
     last_fixed_key: str | None = None
     tried: list[str] = []  # failed attempts at the current step (reset when a fix gets past it)
+    goal_checked = False  # the finished result is checked against the request once per run
 
     while True:
         ctx.segment = segment
         try:
             execute(current, ns, ctx)
             flush_pending(ctx)
+            if not goal_checked:
+                goal_checked = True
+                missing = goal_missing(ctx)
+                if missing:
+                    raise GoalNotReachedError(f"The result doesn't answer the request: {missing}")
             if last_fixed_key is not None:
                 ctx.metrics.fixes_succeeded += 1
             return {"status": "succeeded", "final_script": full_script}
@@ -280,3 +286,32 @@ def screen_labels(ctx: RunContext, shot, limit: int = 70) -> list[str]:
             seen.add(k)
             out.append(t.strip()[:60])
     return out[:limit]
+
+
+def goal_missing(ctx: RunContext) -> str:
+    """When the run showed a result, ask whether it answers the request ("not found", a lookalike or empty values
+    don't). Returns what's missing, or "" when it's done or there's nothing to judge (a pure action task)."""
+    import json as _json
+
+    parts = []
+    for r in ctx.results:
+        if r.get("kind") == "table":
+            parts.append(f"Table {r.get('title') or ''}: columns {r.get('columns')}, {len(r.get('rows') or [])} rows, "
+                         f"first rows {_json.dumps((r.get('rows') or [])[:3])[:600]}")
+        else:
+            parts.append(f"{r.get('title') or ''} {r.get('text') or ''}".strip())
+    if ctx.outputs:
+        parts.append("Outputs: " + _json.dumps(ctx.outputs, default=str)[:1500])
+    if not parts or not hasattr(ctx.models.vision, "goal_done"):
+        return ""
+    try:
+        done, missing = ctx.models.vision.goal_done(ctx.task, "\n".join(parts))
+    except Exception:  # noqa: BLE001 - the run's own result stands
+        return ""
+    if done:
+        return ""
+    # Cached spots that led here may be wrong (e.g. the wrong server clicked): find them fresh next time.
+    for window, target in ctx.cache_targets:
+        ctx.cache.invalidate(window, target)
+    ctx.log(f"goal not reached: {missing}")
+    return missing or "the result doesn't answer the request"

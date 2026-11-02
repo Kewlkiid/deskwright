@@ -150,6 +150,11 @@ class Vision:
         except (TypeError, ValueError):
             return None
 
+    def goal_done(self, task: str, result: str) -> tuple[bool, str]:
+        """Did the run's report answer the request? (done, what's missing)."""
+        data = self._text_json(prompts.GOAL_PROMPT.format(task=task, result=result[:4000]))
+        return data.get("done") is not False, str(data.get("missing") or "")
+
     def ask_text(self, question: str, text: str, url: str = "") -> str | None:
         """Answer a question from page text; None when the text doesn't hold the answer."""
         data = self._text_json(prompts.ASK_TEXT_PROMPT.format(question=question, url=url, text=text[:14000]))

@@ -83,6 +83,9 @@ class FakeVision:
                 return i
         return None
 
+    def goal_done(self, task, result):
+        return True, ""
+
     def ask_text(self, question, text, url=""):
         _meter("vision", 0.7, 0.0004)
         return None

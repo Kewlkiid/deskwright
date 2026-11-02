@@ -222,6 +222,17 @@ Answer only from this text, exactly as written there. If the text doesn't contai
 something visual), answer null.
 Reply with JSON only: {{"answer": "..." | null}}"""
 
+GOAL_PROMPT = """A desktop agent was asked: "{task}"
+It finished and reported:
+<<<
+{result}
+>>>
+Does this report fully answer or complete the request? It does NOT if it says the thing wasn't found or isn't there, \
+if it describes a different item than the one named (a lookalike, e.g. "Todo List for Notion" for "Notion"), or if \
+values the request asked for are empty or "not shown". It DOES if it gives the asked-for information or confirms \
+the asked-for action happened.
+Reply with JSON only: {{"done": true|false, "missing": "<what is missing or wrong, one short sentence>"}}"""
+
 CHECK_TEXT_PROMPT = """A desktop agent needs to know whether a condition is true in the web page it is working in.
 CONDITION: "{condition}"
 

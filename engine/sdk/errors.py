@@ -104,6 +104,12 @@ class InputMissingError(AgentError):
 
 
 # Errors that end the run and are never sent to the fixer.
+class GoalNotReachedError(AgentError):
+    code = "goal_not_reached"
+    default_fix = ("The script ran, but its result doesn't answer the request. Take another route to the goal (another "
+                   "tab, section, search or menu) and show the real answer; say it isn't there only after that.")
+
+
 TERMINAL_ERRORS = (StoppedError, UserDeclinedError, InputMissingError)
 
 # Names exposed to generated scripts. TimeoutError is the SDK name for AgentTimeoutError.

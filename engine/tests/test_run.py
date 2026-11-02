@@ -184,3 +184,27 @@ def test_chat_can_run_a_saved_task_and_the_planner_sees_a_similar_one(screen, ag
     hint = agent._context_hint("create invoices for the new orders")
     assert "A similar task was saved before" in hint and "create invoices" in hint
     assert "similar task" not in agent._context_hint("open discord and say hi")
+
+
+def test_a_result_that_misses_the_goal_is_repaired_once(screen, agent_factory):
+    agent, host = agent_factory()
+    verdicts = [(False, "it says the app wasn't found; the other tab wasn't tried")]
+    agent.models.vision.goal_done = lambda task, result: verdicts.pop(0) if verdicts else (True, "")
+    base = agent.models.planner
+    fixes = []
+
+    class Planner:
+        def __getattr__(self, n):
+            return getattr(base, n)
+
+        def fix_script(self, **kw):
+            fixes.append(kw["error"]["code"])
+            return {"explanation": "try the other tab", "wrong_state": "", "recovery": "",
+                    "continuation": 'click("Other tab button")\nshow("Found it: 4.8 stars")',
+                    "full_script": 'open_app("Store")\nclick("Other tab button")\nshow("Found it: 4.8 stars")'}
+
+    agent.models.planner = Planner()
+    out = agent.run_task("rating", 'open_app("Store")\nshow("Not found in this list")')
+    assert out["status"] == "succeeded" and fixes == ["goal_not_reached"]
+    shown = [d["result"]["text"] for t, d in host.events if t == "result_ready"]
+    assert shown[-1] == "Found it: 4.8 stars"  # the repaired run's answer came last

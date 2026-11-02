@@ -53,6 +53,12 @@ def settle_previous(ctx: RunContext, shot: cap.Shot, browser: Browser | None = N
         ctx.resolve_pending(shot)
         return
     ctx.status(f"Checking: {p.expect}")
+    from .screen_text import confirms
+
+    if not browser and confirms(ctx, shot, p.expect):
+        ctx.log(f'"{p.expect}": its text is on screen (no model call)')
+        ctx.resolve_pending(shot, True, "seen in the screen's text")
+        return
     v = browser.check(ctx, p.expect) if browser else None
     if v is None:
         v = ctx.models.vision.check(shot.image, p.expect)
@@ -90,20 +96,35 @@ def find(ctx: RunContext, target: str, action: str = "click", raise_missing: boo
         ctx.resolve_pending(shot)
         avg_t, avg_c = ctx.cache.avg_miss()
         ctx.metrics.record_cache(True, saved_calls=2, saved_time=avg_t, saved_cost=avg_c)
+        ctx.cache_targets.add((window, target))
         ctx.emit("cache_hit", target=target, line=ctx.current_line, segment=ctx.segment, hits=entry.hits)
         # Click where the element was found, not the middle of its box: grid boxes can be wider than the element.
         return Found(entry.box, entry.point or cap.box_center(entry.box), shot, True, entry.expect or "")
 
     t0, c0 = ctx.metrics.model_time, ctx.metrics.cost
-    settle_previous(ctx, shot)
+    # Verifying the previous step and finding this element don't depend on each other: do both at once. If the
+    # previous step failed, its error wins and this lookup is discarded.
+    checking = None
+    if ctx.pending is not None and ctx.pending.expect and not config.fake_models:
+        from concurrent.futures import ThreadPoolExecutor
+
+        pool = ThreadPoolExecutor(max_workers=1)
+        checking = pool.submit(settle_previous, ctx, shot)
+        pool.shutdown(wait=False)
+    else:
+        settle_previous(ctx, shot)
     grounder = getattr(ctx.models.grounder, "label", "SAM 3.1")
     ctx.status(f"Looking for {target}")
     ctx.emit("vision_scan", target=target, line=ctx.current_line, segment=ctx.segment, grounder=grounder)
     extra = ax_elements(ctx, shot)
-    if getattr(ctx.models.grounder, "accepts_extra", True) and extra:
-        g = ctx.models.grounder.locate(shot.image, target, extra=extra)
-    else:
-        g = ctx.models.grounder.locate(shot.image, target)
+    try:
+        if getattr(ctx.models.grounder, "accepts_extra", True) and extra:
+            g = ctx.models.grounder.locate(shot.image, target, extra=extra)
+        else:
+            g = ctx.models.grounder.locate(shot.image, target)
+    finally:
+        if checking is not None:
+            checking.result()  # raises the previous step's failure, if it failed
     if g.found and ctx.in_panel(shot, g.point):
         g.found = False
         g.reason = "It is behind the agent's own panel on the right side of the screen."
@@ -129,6 +150,7 @@ def find(ctx: RunContext, target: str, action: str = "click", raise_missing: boo
     if g.label and g.label != grounder:
         ctx.log(f'found "{target}" with {g.label} after {grounder} missed')
     ctx.cache.put(window, shot.image, target, g.box, point=g.point)
+    ctx.cache_targets.add((window, target))
     ctx.cache.record_miss(ctx.metrics.model_time - t0, ctx.metrics.cost - c0)
     ctx.metrics.record_cache(False)
     return Found(g.box, g.point, shot, False, mask=g.mask)
