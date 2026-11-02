@@ -1,6 +1,5 @@
 """Speech to text. Meta: Muse Voice Transcribe on its own route (POST /v1/asr/transcribe: a multipart form with a
-JSON `request` part and the `audio` part), falling back to Muse Spark (audio in chat) if that fails. OpenRouter has no
-transcription endpoint, so there the audio goes to a chat model that accepts audio input."""
+JSON `request` part and the `audio` part), falling back to Muse Spark (audio in chat) if that fails."""
 from __future__ import annotations
 
 import base64
@@ -46,8 +45,6 @@ class Voice:
 
     def transcribe(self, audio: bytes, mime: str = "audio/webm") -> str:
         base = mime.split(";")[0]
-        if self.client.openrouter:
-            return self._via_chat(audio, base, config.voice_model)
         if not self.endpoint_missing:
             wav = audio if base == "audio/wav" else to_wav(audio)
             if wav:

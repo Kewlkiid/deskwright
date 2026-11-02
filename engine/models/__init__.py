@@ -1,4 +1,4 @@
-"""Model roles. `get_models()` returns real models (Meta API or OpenRouter) or offline fakes."""
+"""Model roles. `get_models()` returns real models (Meta API) or offline fakes."""
 from __future__ import annotations
 
 from dataclasses import dataclass

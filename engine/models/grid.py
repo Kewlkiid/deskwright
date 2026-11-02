@@ -1,5 +1,4 @@
-"""Grid grounding: the backup to SAM 3.1 (and the only method on OpenRouter, which doesn't host SAM). Works with
-any vision chat model: Muse Spark on the Meta API, Gemma 4 26B on OpenRouter (GRID_MODEL).
+"""Grid grounding: the backup to SAM 3.1. Works with any vision chat model: Muse Spark by default (GRID_MODEL).
 
 Vision chat models are poor at emitting exact pixel coordinates but good at reading labels. Two calls:
 1. a fine 24x16 grid labelled only along the edges (like a spreadsheet, so the screen stays visible): which cell
@@ -136,7 +135,7 @@ class GridGrounder:
         effort = config.grid_effort or "low"
         reply = self.client.chat("grounding", config.grid_model, messages, max_tokens=200, temperature=0.0,
                                  reasoning=reasoning, effort=effort)
-        if not reply.strip() and reasoning and not self.client.openrouter:
+        if not reply.strip() and reasoning:
             # Spark sometimes thinks until it runs out of tokens and answers nothing: ask once more.
             reply = self.client.chat("grounding", config.grid_model, messages, max_tokens=200, temperature=0.0,
                                      reasoning=reasoning, effort="low")

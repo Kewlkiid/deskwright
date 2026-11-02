@@ -104,9 +104,8 @@ class Chat:
                        "language the request is in. Write run_task instructions in English.")
         messages = [{"role": "system", "content": system}] + self.history
         t0 = time.time()
-        kwargs = {"tools": [RUN_TASK_TOOL, RUN_SAVED_TOOL], "max_tokens": 600 + config.reasoning_headroom, "temperature": 0.4}
-        if not self.client.openrouter:
-            kwargs["reasoning_effort"] = "low"
+        kwargs = {"tools": [RUN_TASK_TOOL, RUN_SAVED_TOOL], "max_tokens": 600 + config.reasoning_headroom,
+                  "temperature": 0.4, "reasoning_effort": "low"}
         resp = interruptible(lambda: self.client.client.chat.completions.create(
             model=config.chat_model, messages=messages, **kwargs))
         tin, tout, cost = self.client._cost(getattr(resp, "usage", None))

@@ -1,5 +1,4 @@
-"""Chooses the grounding method per element: SAM 3.1 first, the labelled grid (Muse Spark, or Gemma on OpenRouter)
-as the backup.
+"""Chooses the grounding method per element: SAM 3.1 first, the labelled grid (Muse Spark) as the backup.
 
   auto (default): try SAM (with on-screen text and Accessibility candidates); if it can't find the element or
                   errors, retry the same step with the grid, which snaps to the exact boxes SAM saw.

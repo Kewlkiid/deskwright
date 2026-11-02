@@ -24,10 +24,9 @@ class Config:
     base_url: str = field(default_factory=lambda: os.environ.get("MODEL_BASE_URL", "https://api.meta.ai/v1"))
     planner_model: str = field(default_factory=lambda: os.environ.get("PLANNER_MODEL", "muse-wonder-1.0"))
     vision_model: str = field(default_factory=lambda: os.environ.get("VISION_MODEL", "muse-spark-1.3"))
-    # SAM 3.1 finds elements first; empty disables it (e.g. on OpenRouter, which doesn't host SAM).
+    # SAM 3.1 finds elements first; empty disables it.
     grounding_model: str = field(default_factory=lambda: os.environ.get("GROUNDING_MODEL", "sam-3.1"))
-    # Backup grounding: labelled-grid prompting on this vision model. Defaults to the vision model (Muse Spark);
-    # on OpenRouter use google/gemma-4-26b-a4b-it, which is faster and more accurate at it.
+    # Backup grounding: labelled-grid prompting on this vision model. Defaults to the vision model (Muse Spark).
     grid_model: str = field(default_factory=lambda: os.environ.get("GRID_MODEL", "") or os.environ.get("VISION_MODEL", "muse-spark-1.3"))
     # Meta API reasoning_effort for grid passes (minimal|low|medium|...); empty = the model's default.
     grid_effort: str = field(default_factory=lambda: os.environ.get("GRID_EFFORT", ""))
@@ -62,8 +61,6 @@ class Config:
     # Reasoning models think before answering and those tokens count against max_tokens; this headroom is added
     # to every request so a long think never leaves an empty answer. Only tokens actually used are billed.
     reasoning_headroom: int = field(default_factory=lambda: int(os.environ.get("REASONING_HEADROOM", "4000")))
-    # Reasoning effort hint for providers that accept one (OpenRouter): low keeps vision steps fast.
-    reasoning_effort: str = field(default_factory=lambda: os.environ.get("REASONING_EFFORT", "low"))
     # Chrome extension bridge (extension/): DOM-first actions in Chrome, network capture, Chrome teach mode.
     browser_enabled: bool = field(default_factory=lambda: _flag("AGENT_BROWSER", "1"))
     browser_port: int = field(default_factory=lambda: int(os.environ.get("AGENT_BROWSER_PORT", "8777")))

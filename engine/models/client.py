@@ -107,17 +107,12 @@ class ModelClient:
             )
         self.cfg = cfg
         self.client = OpenAI(api_key=cfg.api_key, base_url=cfg.base_url, timeout=cfg.request_timeout, max_retries=0)
-        self.openrouter = "openrouter.ai" in cfg.base_url
 
     def _cost(self, usage) -> tuple[int, int, float]:
         if usage is None:
             return 0, 0, 0.0
         tin = getattr(usage, "prompt_tokens", 0) or 0
         tout = getattr(usage, "completion_tokens", 0) or 0
-        # OpenRouter reports the real per-call cost (it differs per model); otherwise estimate from token prices.
-        billed = (getattr(usage, "model_extra", None) or {}).get("cost")
-        if isinstance(billed, (int, float)):
-            return tin, tout, float(billed)
         cost = tin / 1e6 * self.cfg.price_in_per_m + tout / 1e6 * self.cfg.price_out_per_m
         return tin, tout, cost
 
@@ -142,13 +137,7 @@ class ModelClient:
         for attempt in range(attempts):
             t0 = time.time()
             try:
-                extra = None
-                if self.openrouter:
-                    extra = {"usage": {"include": True}}
-                    if reasoning and self.cfg.reasoning_effort:
-                        extra["reasoning"] = {"effort": self.cfg.reasoning_effort}
-                elif effort:
-                    extra = {"reasoning_effort": effort}  # Meta API: minimal|low|medium|high|xhigh|max
+                extra = {"reasoning_effort": effort} if effort else None  # minimal|low|medium|high|xhigh|max
                 resp = interruptible(lambda: self.client.chat.completions.create(
                     model=model,
                     messages=messages,
