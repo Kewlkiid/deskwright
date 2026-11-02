@@ -29,39 +29,39 @@
   const short = (s, n = 48) => (s && s.length > n ? s.slice(0, n - 1) + "…" : s || "");
 
   // The status bar's words in the app's language (each event carries it: e.lang). English text is the key.
-  // [Spanish, French, German, Portuguese, Chinese]
+  // [Spanish, French, German, Portuguese]
   const WORDS = {
-    "Writing the program": ["Escribiendo el programa", "Écriture du programme", "Schreibe das Programm", "Escrevendo o programa", "正在编写程序"],
-    "Running": ["Ejecutando", "Exécution", "Läuft", "Executando", "运行中"],
-    "{n} lines": ["{n} líneas", "{n} lignes", "{n} Zeilen", "{n} linhas", "{n} 行"],
-    "Finding": ["Buscando", "Recherche", "Suche", "Procurando", "查找中"],
-    "Cached": ["En caché", "En cache", "Im Cache", "Em cache", "已缓存"],
-    "0 model calls": ["0 llamadas al modelo", "0 appel au modèle", "0 Modellaufrufe", "0 chamadas ao modelo", "0 次模型调用"],
-    "Position cache": ["Caché de posiciones", "Cache de positions", "Positions-Cache", "Cache de posições", "位置缓存"],
-    "no model call": ["sin llamada al modelo", "aucun appel au modèle", "kein Modellaufruf", "sem chamada ao modelo", "无需模型调用"],
-    "Not found": ["No encontrado", "Introuvable", "Nicht gefunden", "Não encontrado", "未找到"],
-    "Clicking": ["Haciendo clic", "Clic", "Klicke", "Clicando", "点击中"],
-    "Typing into": ["Escribiendo en", "Saisie dans", "Tippe in", "Digitando em", "输入到"],
-    "Hovering": ["Señalando", "Survol", "Zeige auf", "Passando sobre", "悬停"],
-    "Dragging": ["Arrastrando", "Glisser", "Ziehe", "Arrastando", "拖动中"],
-    "Acting on": ["Actuando sobre", "Action sur", "Bediene", "Agindo em", "操作"],
-    "saw": ["visto", "vu", "gesehen", "visto", "看到"],
-    "Line {n} failed": ["Falló la línea {n}", "Échec ligne {n}", "Zeile {n} fehlgeschlagen", "Falha na linha {n}", "第 {n} 行失败"],
-    "Known way back": ["Camino de vuelta conocido", "Chemin de retour connu", "Bekannter Rückweg", "Caminho de volta conhecido", "已知返回路径"],
-    "Rewrote line {n}": ["Línea {n} reescrita", "Ligne {n} réécrite", "Zeile {n} neu geschrieben", "Linha {n} reescrita", "已重写第 {n} 行"],
-    "resuming": ["continuando", "reprise", "fahre fort", "continuando", "继续中"],
-    "Waiting for your approval": ["Esperando tu aprobación", "En attente de ta validation", "Warte auf deine Freigabe", "Aguardando sua aprovação", "等待你的批准"],
-    "in the Deskwright panel": ["en el panel de Deskwright", "dans le panneau Deskwright", "im Deskwright-Panel", "no painel do Deskwright", "在 Deskwright 面板中"],
-    "Done": ["Listo", "Terminé", "Fertig", "Pronto", "完成"],
-    "Stopped": ["Detenido", "Arrêté", "Gestoppt", "Parado", "已停止"],
-    "Failed": ["Falló", "Échec", "Fehlgeschlagen", "Falhou", "失败"],
-    "Declined": ["Rechazado", "Refusé", "Abgelehnt", "Recusado", "已拒绝"],
-    "{n} model calls": ["{n} llamadas al modelo", "{n} appels au modèle", "{n} Modellaufrufe", "{n} chamadas ao modelo", "{n} 次模型调用"],
-    "{n}% cached": ["{n}% en caché", "{n} % en cache", "{n} % aus dem Cache", "{n}% em cache", "{n}% 来自缓存"],
+    "Writing the program": ["Escribiendo el programa", "Écriture du programme", "Schreibe das Programm", "Escrevendo o programa"],
+    "Running": ["Ejecutando", "Exécution", "Läuft", "Executando"],
+    "{n} lines": ["{n} líneas", "{n} lignes", "{n} Zeilen", "{n} linhas"],
+    "Finding": ["Buscando", "Recherche", "Suche", "Procurando"],
+    "Cached": ["En caché", "En cache", "Im Cache", "Em cache"],
+    "0 model calls": ["0 llamadas al modelo", "0 appel au modèle", "0 Modellaufrufe", "0 chamadas ao modelo"],
+    "Position cache": ["Caché de posiciones", "Cache de positions", "Positions-Cache", "Cache de posições"],
+    "no model call": ["sin llamada al modelo", "aucun appel au modèle", "kein Modellaufruf", "sem chamada ao modelo"],
+    "Not found": ["No encontrado", "Introuvable", "Nicht gefunden", "Não encontrado"],
+    "Clicking": ["Haciendo clic", "Clic", "Klicke", "Clicando"],
+    "Typing into": ["Escribiendo en", "Saisie dans", "Tippe in", "Digitando em"],
+    "Hovering": ["Señalando", "Survol", "Zeige auf", "Passando sobre"],
+    "Dragging": ["Arrastrando", "Glisser", "Ziehe", "Arrastando"],
+    "Acting on": ["Actuando sobre", "Action sur", "Bediene", "Agindo em"],
+    "saw": ["visto", "vu", "gesehen", "visto"],
+    "Line {n} failed": ["Falló la línea {n}", "Échec ligne {n}", "Zeile {n} fehlgeschlagen", "Falha na linha {n}"],
+    "Known way back": ["Camino de vuelta conocido", "Chemin de retour connu", "Bekannter Rückweg", "Caminho de volta conhecido"],
+    "Rewrote line {n}": ["Línea {n} reescrita", "Ligne {n} réécrite", "Zeile {n} neu geschrieben", "Linha {n} reescrita"],
+    "resuming": ["continuando", "reprise", "fahre fort", "continuando"],
+    "Waiting for your approval": ["Esperando tu aprobación", "En attente de ta validation", "Warte auf deine Freigabe", "Aguardando sua aprovação"],
+    "in the Deskwright panel": ["en el panel de Deskwright", "dans le panneau Deskwright", "im Deskwright-Panel", "no painel do Deskwright"],
+    "Done": ["Listo", "Terminé", "Fertig", "Pronto"],
+    "Stopped": ["Detenido", "Arrêté", "Gestoppt", "Parado"],
+    "Failed": ["Falló", "Échec", "Fehlgeschlagen", "Falhou"],
+    "Declined": ["Rechazado", "Refusé", "Abgelehnt", "Recusado"],
+    "{n} model calls": ["{n} llamadas al modelo", "{n} appels au modèle", "{n} Modellaufrufe", "{n} chamadas ao modelo"],
+    "{n}% cached": ["{n}% en caché", "{n} % en cache", "{n} % aus dem Cache", "{n}% em cache"],
   };
   let lang = "en";
   const L = (text, n) => {
-    const i = ["es", "fr", "de", "pt", "zh"].indexOf(lang);
+    const i = ["es", "fr", "de", "pt"].indexOf(lang);
     const out = i >= 0 && WORDS[text] ? WORDS[text][i] : text;
     return n === undefined ? out : out.replace("{n}", n);
   };

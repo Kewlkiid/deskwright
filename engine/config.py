@@ -41,7 +41,7 @@ class Config:
     # Talking back in English (speaker.py): a Meta MMS-TTS checkpoint. Other languages use the one in engine/i18n.py
     # (mms-tts-spa, mms-tts-fra, mms-tts-deu, mms-tts-por).
     tts_model: str = field(default_factory=lambda: os.environ.get("TTS_MODEL", "facebook/mms-tts-eng"))
-    # The language Deskwright talks, listens and answers in (engine/i18n.py): en, es, fr, de, pt or zh. The app's
+    # The language Deskwright talks, listens and answers in (engine/i18n.py): en, es, fr, de or pt. The app's
     # language setting overrides it.
     language: str = field(default_factory=lambda: os.environ.get("DESKWRIGHT_LANGUAGE", "en"))
     voice_model: str = field(default_factory=lambda: os.environ.get("VOICE_MODEL", "muse-voice-transcribe-1.0"))

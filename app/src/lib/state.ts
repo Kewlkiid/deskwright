@@ -18,7 +18,7 @@ export interface State {
   teachStatus: string;
   thinking: boolean; // a message was sent and the chat hasn't answered yet
   speak: boolean; // talking back on
-  language: string; // en, es, fr, de, pt, zh (lib/i18n.ts, engine/i18n.py)
+  language: string; // en, es, fr, de, pt (lib/i18n.ts, engine/i18n.py)
   voiceState: string; // "off" | "loading" | "ready"
   speaking: boolean; // Deskwright is talking right now (the wake word stops listening meanwhile)
   autoRun: boolean;

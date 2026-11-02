@@ -24,8 +24,6 @@ def lang():
     ("fr", "tais-toi", ("hush", "")),
     ("de", "Deskwright, öffne den Kalender", ("task", "öffne den Kalender")),
     ("pt", "envia", ("send", "")),
-    ("zh", "代理打开日历", ("task", "打开日历")),
-    ("zh", "批准", ("approve", "")),
     ("es", "approve", ("approve", "")),  # English commands keep working
     ("en", "agents are cool", None),
 ])

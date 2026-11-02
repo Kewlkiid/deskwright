@@ -41,7 +41,7 @@ def name_pattern() -> str:
 
 def wake_pattern() -> re.Pattern:
     """A start word, optionally after a greeting: "agent", "deskwright", "hey agent", "ok deskwright"..."""
-    # The name ends where Latin letters do: Chinese runs straight on ("代理打开日历").
+    # The name ends where letters do, accented ones included ("agentes" isn't "agente").
     return re.compile(rf"^\W*(?:(?:hey|hi|ok|okay|yo)\W+)?{name_pattern()}(?![a-zà-ÿ])\W*", re.I)
 
 
@@ -97,9 +97,9 @@ def _commands(name: str) -> list[tuple[str, re.Pattern]]:
 
 
 def _lang_commands(name: str, code: str) -> list[tuple[str, re.Pattern]]:
-    """The same commands in another language (words from engine/i18n.py). Chinese has no spaces between words."""
+    """The same commands in another language (words from engine/i18n.py)."""
     w = i18n.info(code)["commands"]
-    sep = r"\W*" if code == "zh" else r"\W+"
+    sep = r"\W+"
     a = rf"{name}"
     opt = rf"(?:{a}{sep})?"
     tail = rf"(?:{sep}{name})?\W*$"

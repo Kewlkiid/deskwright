@@ -1,7 +1,7 @@
-"""The languages Deskwright speaks: English, Spanish, French, German, Portuguese and Chinese.
+"""The languages Deskwright speaks: English, Spanish, French, German and Portuguese.
 
-One table per language: what the models are told to answer in, the voice that talks back (a Meta MMS-TTS checkpoint;
-Chinese has none, so the Mac's own voice), the speech locale for on-device listening, the spoken lines the narrator
+One table per language: what the models are told to answer in, the voice that talks back (a Meta MMS-TTS
+checkpoint), the speech locale for on-device listening, the spoken lines the narrator
 uses, and the words of the voice commands. The app's own text is translated in the renderer (app/src/lib/i18n.ts).
 """
 from __future__ import annotations
@@ -185,39 +185,6 @@ LANGUAGES: dict[str, dict] = {
             "save": r"salva(?:r)?(?:\W+(?:isso|a))?(?:\W+(?:a\W+|como\W+)?tarefa)?|guarda(?:r)?\W+(?:a\W+)?tarefa",
             "listen_off": r"para\W+de\W+ouvir|pare\W+de\W+ouvir",
             "names": "agente",
-        },
-    },
-    "zh": {
-        "name": "Simplified Chinese",
-        "tts_model": "",  # MMS-TTS has no Mandarin checkpoint: the Mac's own Chinese voice talks instead
-        "say_voice": "Tingting",
-        "locale": "zh-CN",
-        "num_lang": "",  # Chinese voices read digits themselves
-        "lines": {
-            "dictation_hint": ("要在不把音频发出本机的情况下听懂中文指令，请在“系统设置 > 键盘 > 听写 > 语言”中添加中文。在此之前，请用英语发音说“Deskwright”。"),
-            "yes": "在呢？",
-            "clicking": "正在点击", "double_clicking": "正在双击", "right_clicking": "正在右键点击",
-            "typing_into": "正在输入", "pointing_at": "正在指向", "dragging": "正在拖动",
-            "opening": "正在打开{0}", "fixing": "有变化，正在修正。", "known_way": "这个我见过，正在返回。",
-            "approval": "需要你的批准。{0}", "this_step": "这一步", "or": "或者",
-            "recording": "正在录制，请演示任务。", "got_it": "明白了，正在整理步骤。",
-            "done": "完成了。{0}", "stopped": "已停止。", "declined": "好的，我不会做。",
-            "failed": "没能完成。{0}",
-        },
-        "commands": {
-            "approve": r"批准|同意|是的|是|好的|好|可以|行|做吧|确认|没问题|继续",
-            "decline": r"拒绝|不要|不|不用了|算了|别做",
-            "send": r"发送|发出去|发吧|提交|回车",
-            "stop": r"停止|停下|停|取消|别做了|中止|全部停止",
-            "hush": r"别说了|安静|闭嘴|够了",
-            "close": r"发送|好了|就这样",
-            "input": r"(?:输入|打字)",
-            "teach": r"教学模式|我来教你|让我教你",
-            "teach_stop": r"(?:我)?(?:教完了|录完了|演示完了)",
-            "teach_cancel": r"取消(?:教学|录制|演示)",
-            "save": r"保存(?:任务|这个|一下)?",
-            "listen_off": r"停止监听|别听了",
-            "names": "代理",
         },
     },
 }

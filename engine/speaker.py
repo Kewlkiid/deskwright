@@ -1,8 +1,8 @@
 """Talking back: Deskwright says what it's doing and reads chat replies aloud, in the app's language.
 
 Voice: Meta MMS-TTS (Massively Multilingual Speech, facebook/mms-tts-eng/-spa/-fra/-deu/-por: a 36M VITS model on
-this Mac's CPU, about 0.2 s per short sentence). Chinese has no MMS voice, so the Mac's own Chinese voice speaks. Sentences are made and played one at a time, so speech starts quickly and can be cut between
-them. If MMS-TTS can't load, the Mac's own `say` is used instead.
+this Mac's CPU, about 0.2 s per short sentence). Sentences are made and played one at a time, so speech starts
+quickly and can be cut between them. If MMS-TTS can't load, the Mac's own `say` is used instead.
 
 Narration never lags behind the run: a new step replaces a step that hasn't been spoken yet, and important lines
 (approvals, questions, results, replies) cut in. While it speaks, the app pauses wake-word listening so the
