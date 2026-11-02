@@ -1,7 +1,8 @@
 """Talking back: Deskwright says what it's doing and reads chat replies aloud.
 
-Voice: Kyutai Pocket TTS (on this Mac's CPU, streamed to the speakers chunk by chunk, so speech starts within a few
-hundred ms). Meta has no text-to-speech model. If Pocket TTS can't load, the Mac's own `say` is used instead.
+Voice: Meta MMS-TTS (Massively Multilingual Speech, facebook/mms-tts-eng: a 36M VITS model on this Mac's CPU, about
+0.2 s per short sentence). Sentences are made and played one at a time, so speech starts quickly and can be cut between
+them. If MMS-TTS can't load, the Mac's own `say` is used instead.
 
 Narration never lags behind the run: a new step replaces a step that hasn't been spoken yet, and important lines
 (approvals, questions, results, replies) cut in. While it speaks, the app pauses wake-word listening so the
@@ -29,6 +30,31 @@ def clean(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+_ONES = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen "
+         "seventeen eighteen nineteen").split()
+_TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def number_words(n: int) -> str:
+    """12 -> 'twelve', 2025 -> 'two thousand twenty five'."""
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        return _TENS[n // 10] + ("" if n % 10 == 0 else " " + _ONES[n % 10])
+    for size, name in ((10**9, "billion"), (10**6, "million"), (1000, "thousand"), (100, "hundred")):
+        if n >= size:
+            rest = n % size
+            return number_words(n // size) + " " + name + ("" if rest == 0 else " " + number_words(rest))
+    return str(n)
+
+
+def speakable(text: str) -> str:
+    """Digits and symbols as words: MMS-TTS was trained on letters only."""
+    text = re.sub(r"(?<=\d),(?=\d{3})", "", text).replace("%", " percent").replace("&", " and ")
+    text = re.sub(r"(\d+)\.(\d+)", lambda m: f"{m.group(1)} point {' '.join(m.group(2))}", text)
+    return re.sub(r"\d+", lambda m: number_words(int(m.group())) if len(m.group()) <= 12 else " ".join(m.group()), text)
+
+
 def short_target(target: str) -> str:
     """'circular server icon with a white letter C in the far-left sidebar' -> 'circular server icon'."""
     t = re.sub(r"[\"“”]|(?<![A-Za-z])['‘’]|['‘’](?![A-Za-z])", "", clean(target)).strip()  # quotes, not apostrophes
@@ -43,12 +69,12 @@ class Speaker:
         self.emit = emit  # to the app only (never back through the narrator)
         self.enabled = False
         self.state = "off"  # off | loading | ready | unavailable
-        self.backend = ""  # "Pocket TTS" or "macOS voice"
+        self.backend = ""  # "Meta MMS-TTS" or "macOS voice"
         self._items: deque = deque()
         self._cv = threading.Condition()
         self._cut = threading.Event()  # stop the current utterance
         self._model = None
-        self._voice = None
+        self._tok = None
         self._loading = False
         self.speaking = False
         self._recent: deque = deque(maxlen=3)  # what it said lately: the mic hears that too
@@ -74,12 +100,17 @@ class Speaker:
 
     def _load(self):
         try:
-            from pocket_tts import TTSModel
+            import torch
+            from transformers import AutoTokenizer, VitsModel
 
-            model = TTSModel.load_model()
-            self._voice = model.get_state_for_audio_prompt(config.tts_voice)
+            tok = AutoTokenizer.from_pretrained(config.tts_model)
+            model = VitsModel.from_pretrained(config.tts_model).eval()
+            model.noise_scale = 0.9  # livelier pitch and energy than the default 0.667
+            with torch.inference_mode():
+                model(**tok("ready", return_tensors="pt"))  # warm up, so the first line is quick too
+            self._tok = tok
             self._model = model
-            self.backend = "Pocket TTS"
+            self.backend = "Meta MMS-TTS"
         except Exception:  # noqa: BLE001 - not installed, no weights offline...: the Mac's voice still works
             self.backend = "macOS voice"
         self._loading = False
@@ -125,7 +156,7 @@ class Speaker:
             self.emit("speaking", on=True)
             try:
                 if self._model is not None:
-                    stream = self._play_pocket(text, stream)
+                    stream = self._play_mms(text, stream)
                 else:
                     self._play_say(text)
             except Exception:  # noqa: BLE001 - a missing audio device mustn't take the engine down
@@ -137,17 +168,27 @@ class Speaker:
                 time.sleep(0.25)  # the room's echo dies down
                 self.emit("speaking", on=False)
 
-    def _play_pocket(self, text: str, stream):
+    def _play_mms(self, text: str, stream):
         import numpy as np
         import sounddevice as sd
+        import torch
 
+        rate = self._model.config.sampling_rate
         if stream is None:
-            stream = sd.OutputStream(samplerate=self._model.sample_rate, channels=1, dtype="float32")
+            stream = sd.OutputStream(samplerate=rate, channels=1, dtype="float32")
             stream.start()
-        for chunk in self._model.generate_audio_stream(self._voice, text, stop=self._cut):
+        for sentence in re.split(r"(?<=[.!?;:])\s+", text):
+            inputs = self._tok(speakable(sentence), return_tensors="pt")
             if self._cut.is_set():
                 break
-            stream.write(np.ascontiguousarray(chunk.numpy().reshape(-1, 1), dtype=np.float32))
+            if inputs.input_ids.shape[-1] < 2:
+                continue  # nothing it can say
+            with torch.inference_mode():
+                wav = self._model(**inputs).waveform[0].numpy()
+            for i in range(0, len(wav), rate // 10):  # 0.1 s at a time, so a cut is quick
+                if self._cut.is_set():
+                    return stream
+                stream.write(np.ascontiguousarray(wav[i:i + rate // 10].reshape(-1, 1)))
         return stream
 
     def _play_say(self, text: str):

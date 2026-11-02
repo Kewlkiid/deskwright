@@ -38,8 +38,9 @@ class Config:
     wake_word: str = field(default_factory=lambda: os.environ.get("WAKE_WORD", "agent,deskwright"))
     # Conversation turns (models/chat.py): quick replies, and the decision to take control. Defaults to the vision model.
     chat_model: str = field(default_factory=lambda: os.environ.get("CHAT_MODEL", "") or os.environ.get("VISION_MODEL", "muse-spark-1.3"))
-    # Talking back (speaker.py): a Pocket TTS voice name (alba, anna, charles, eve, george, jane, mary, paul...).
-    tts_voice: str = field(default_factory=lambda: os.environ.get("TTS_VOICE", "alba"))
+    # Talking back (speaker.py): a Meta MMS-TTS checkpoint, one per language: facebook/mms-tts-<ISO 639-3 code>
+    # (mms-tts-eng, mms-tts-spa, mms-tts-fra, mms-tts-deu...).
+    tts_model: str = field(default_factory=lambda: os.environ.get("TTS_MODEL", "facebook/mms-tts-eng"))
     voice_model: str = field(default_factory=lambda: os.environ.get("VOICE_MODEL", "muse-voice-transcribe-1.0"))
     fake_models: bool = field(default_factory=lambda: _flag("AGENT_FAKE_MODELS"))
     # Synthetic screen and no real input at all: UI development and tests without screen permissions.
