@@ -383,12 +383,14 @@ def ax_candidates(extra: list, phrase: str, size: tuple[int, int], limit: int = 
     if not extra:
         return []
     quoted = [q.strip().lower() for q in re.findall(r"['\"“‘]([^'\"”’]{2,})['\"”’]", phrase)]
-    want = _words(phrase)
+    want = list(dict.fromkeys(_words(phrase)))  # each word once ("server ... server sidebar")
     roles = set()
     for pat, rs in ROLE_WORDS:
         if re.search(pat, phrase, re.I):
             roles.update(rs)
     w, h = size
+    # A lone capital in the target ("C server icon") is often an icon showing a name's first letter: "Control".
+    initials = {m.lower() for m in re.findall(r"(?<![\w'])([A-Z])(?![\w'])", phrase.replace("'", " "))}
     scored = []
     for box, role, label in extra:
         if box[2] <= 0 or box[3] <= 0 or box[0] >= w or box[1] >= h:
@@ -397,6 +399,9 @@ def ax_candidates(extra: list, phrase: str, size: tuple[int, int], limit: int = 
         have = _words(label or "")
         score = sum(3 for q in quoted if q.strip("# ") and q.strip("# ") in low)
         score += sum(1 for x in want if any(y.strip("#") == x.strip("#") for y in have))
+        name = (label or "").split(",")[-1].strip().lower()  # "Unread messages, Control" -> "control"
+        if initials and name[:1] in initials:
+            score += 2
         if score >= 1 and role in roles:
             score += 0.5
         if score >= 1:
@@ -404,9 +409,9 @@ def ax_candidates(extra: list, phrase: str, size: tuple[int, int], limit: int = 
     scored.sort(key=lambda s: (-s[0], -s[1]))  # best score, then the smaller element (a button over its row)
     hits = [b for _, _, b in scored]
     hits = (in_zone(hits, phrase, size) or hits)[:limit]
-    if len(hits) < 2 and roles:
-        # The words don't match any label ("C server icon" vs "Control"): offer the elements of the right kind in the
-        # described area, with their labels, and let the picker match by meaning.
+    if roles:
+        # The words may not match the right label at all ("C server icon" vs "Control"): also offer the elements of
+        # the right kind in the described area, with their labels, and let the picker match by meaning.
         zoned = [clamp_box(list(b), size) for b, role, label in extra if role in roles and label
                  and b[2] > 0 and b[3] > 0 and b[0] < w and b[1] < h]
         zoned = in_zone(zoned, phrase, size) if zone_box(phrase, size) is not None else []
