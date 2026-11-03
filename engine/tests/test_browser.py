@@ -386,3 +386,38 @@ def test_typing_never_targets_a_link():
         {"index": 2, "tag": "input", "category": "input", "accessible_name": "Search Wikipedia", "selector": "#q"},
     ]
     assert [e["index"] for e in candidates(entries, "Search Wikipedia field", "type into")] == [2]
+
+
+def test_cached_button_on_a_different_card_is_found_again(screen, chrome, agent_factory, monkeypatch):
+    # Every card has an "Add to Cart": the cached selector points at the first card, which is now an ad.
+    target = "yellow Add to Cart button on the product card for JBL Tune 520BT Wireless Headphones"
+    cards = ["JBL Tune 520BT Wireless On-Ear Headphones - Blue $39.99", "Sony WH-1000XM5 Headphones $329.99"]
+    chrome.page = [entry(0, "div", "structural", text=cards[0], selector="#grid > div:nth-of-type(1)"),
+                   entry(1, "button", "button", "Add to Cart", text="Add to Cart", selector="#grid > div:nth-of-type(1) > button"),
+                   entry(2, "div", "structural", text=cards[1], selector="#grid > div:nth-of-type(2)"),
+                   entry(3, "button", "button", "Add to Cart", text="Add to Cart", selector="#grid > div:nth-of-type(2) > button")]
+    picks = []
+
+    def pick(self, target, verb, lines, url):
+        picks.append(lines)
+        return next(i for i, l in enumerate(lines) if "JBL Tune" in l)
+    from engine.models.fake import FakeVision
+    monkeypatch.setattr(FakeVision, "pick_element", pick)
+    agent, _ = agent_factory()
+    out = agent.run_task("one", f'click("{target}")')
+    assert out["status"] == "succeeded", out
+    assert chrome.page_calls("click")[-1][2]["selector"] == "#grid > div:nth-of-type(1) > button"
+    assert all('inside "' in l for l in picks[0] if "Add to Cart" in l)  # look-alikes come with their card's text
+
+    chrome.page[0]["text"] = "Sponsored JBL Flip 6 Portable Bluetooth Speaker - Black $99.99"  # an ad took that spot
+    chrome.page[2]["text"] = cards[0]
+    out = agent.run_task("two", f'click("{target}")')
+    assert out["status"] == "succeeded", out
+    assert chrome.page_calls("click")[-1][2]["selector"] == "#grid > div:nth-of-type(2) > button"
+
+
+def test_identity_words_skip_looks_places_and_the_elements_own_name():
+    assert match.identity_words("yellow Add to Cart button on the product card for JBL Tune 520BT", "Add to Cart") == \
+        ["jbl", "tune", "520bt"]
+    assert match.identity_words("Save button", "Save") == []
+    assert match.identity_words("magnifying glass search icon in the top-right of the blue Best Buy header", "Search") == []

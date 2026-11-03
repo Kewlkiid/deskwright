@@ -92,6 +92,22 @@ def score(e: dict, target: str, verb: str = "click") -> float:
     return max(0.0, min(1.2, best + _kind_bonus(e, target, verb))) if best else 0.0
 
 
+# Words that say where an element sits ("the product card for ..."), not which item it belongs to.
+PLACE = {"product", "card", "row", "item", "listing", "result", "results", "tile", "entry", "line"}
+
+
+def identity_words(target: str, name: str) -> list[str]:
+    """Words after the card or row the target names, beyond the element's own name: "Add to Cart button on the
+    product card for JBL Tune 520BT" -> jbl, tune, 520bt. Look-alike elements (every card's "Add to Cart") are told
+    apart only by these."""
+    ws = words(target)
+    at = max((i for i, w in enumerate(ws) if w in PLACE), default=None)
+    if at is None:
+        return []  # no card or row named ("search icon in the Best Buy header"): nothing to tell look-alikes apart by
+    own = set(words(name))
+    return [w for w in dict.fromkeys(ws[at + 1:]) if w not in FILLER and w not in PLACE and w not in own]
+
+
 def ranked(entries: list[dict], target: str, verb: str = "click") -> list[tuple[float, dict]]:
     out = [(score(e, target, verb), e) for e in entries]
     out.sort(key=lambda p: (-p[0], p[1].get("offscreen", False)))

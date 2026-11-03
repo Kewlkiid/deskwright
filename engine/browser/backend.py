@@ -90,6 +90,10 @@ class Browser:
         cached = ctx.cache.browser_lookup(page, target)
         if cached:
             probe = self.page("probe", selector=cached["selector"], name=cached["name"])
+            if probe.get("found") and not self.belongs(cached["selector"], cached["name"], target):
+                # Same selector and name, but now inside something else (an ad moved the real results down).
+                ctx.log(f'cached "{target}" now sits on a different item; finding it again')
+                probe = {"found": False}
             if probe.get("found"):
                 ctx.cache.browser_hit(page, target)
                 ctx.metrics.record_cache(True, saved_calls=1)
@@ -107,6 +111,16 @@ class Browser:
             if cands:
                 ctx.status(f"Choosing {target} from the page's elements")
                 lines = [match.describe_line(i, e) for i, e in enumerate(cands)]
+                # Look-alikes (one "Add to Cart" per card) differ only by what they sit in: show that.
+                seen: dict[str, int] = {}
+                for e in cands:
+                    n = match.norm(e.get("label") or e.get("accessible_name") or e.get("text"))
+                    seen[n] = seen.get(n, 0) + 1
+                everything = self.map_entries() if max(seen.values(), default=0) > 1 else []
+                for i, e in enumerate(cands):
+                    n = match.norm(e.get("label") or e.get("accessible_name") or e.get("text"))
+                    if n and seen[n] > 1 and (around := self.context_text(e["selector"], n, everything)):
+                        lines[i] += f', inside "{around[:90]}"'
                 i = ctx.models.vision.pick_element(target, verb, lines, self.url)
                 if i is not None and 0 <= i < len(cands):
                     pick, via = cands[i], "model"
@@ -118,6 +132,48 @@ class Browser:
         if pick.get("category") != "static":
             ctx.cache.browser_put(page, target, pick["selector"], name)
         return Element(pick["selector"], name, pick.get("rect") or {}, index=pick.get("index"), via=via, entry=pick)
+
+    def context_text(self, selector: str, name: str = "", entries: list[dict] | None = None) -> str:
+        """The text of what the element sits in (its card or row), from the page map's elements under the nearest of
+        its two closest ancestors, stopping before one that holds several elements of the same name (a whole grid).
+        "" when the selector isn't a path."""
+        parts = selector.split(" > ")
+        if len(parts) < 2:
+            return ""
+        if entries is None:
+            entries = self.map_entries()
+        text, own = "", match.norm(name)
+        for k in (1, 2):
+            if len(parts) - k < 1:
+                break
+            anc = " > ".join(parts[:-k])
+            t = " ".join(str(e.get("text") or e.get("accessible_name") or e.get("label") or "") for e in entries
+                         if e.get("selector") == anc or str(e.get("selector", "")).startswith(anc + " > "))
+            if own and match.norm(t).count(own) > 1:
+                break
+            text = " ".join(t.split())
+            if len(match.words(text)) >= 4:
+                break
+        return text
+
+    def map_entries(self) -> list[dict]:
+        """Every element on the page, controls and text, scrolled out of view or not."""
+        try:
+            return (self.page("get_map", layer="interactive", offscreen=True)["elements"]
+                    + self.page("get_map", layer="static", offscreen=True)["elements"])
+        except (BrowserError, KeyError):
+            return []
+
+    def belongs(self, selector: str, name: str, target: str) -> bool:
+        """Does the element still sit in the item the target names? Unknown (no path, little text around) counts as
+        yes; only a clear mismatch (most of the target's naming words missing from its card) is no."""
+        want = match.identity_words(target, name)
+        if not want:
+            return True
+        around = set(match.words(self.context_text(selector, name)))
+        if len(around) < 4:
+            return True
+        return sum(1 for w in want if w in around) >= 0.6 * len(want)
 
     # Acting -----------------------------------------------------------------
     def reveal(self, el: Element) -> dict:
