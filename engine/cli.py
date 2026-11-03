@@ -24,6 +24,7 @@ import argparse
 import json
 import os
 import queue
+import re
 import sys
 import threading
 import time
@@ -371,7 +372,9 @@ def cmd_run(argv: list[str], prog: str = "engine.cli run") -> int:
             task_text, script, task_id = t["description"] or t["name"], t["script"], t["id"]
         elif args.script:
             with open(args.script, encoding="utf-8") as fh:
-                script = fh.read()
+                # A plain Python file that starts with `from deskwright import *` is a script too: blank that line
+                # (keeping line numbers) since scripts can't import.
+                script = re.sub(r"(?m)^[ \t]*(from deskwright import \*|import deskwright)[ \t]*$", "", fh.read())
             task_text = args.task or args.script
         if script is not None:
             declared, _ = schema_of(script)
