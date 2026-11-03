@@ -64,14 +64,27 @@ def app_in_front(ctx, keys: bool = False) -> None:
     except ImportError:
         return
 
+    from ..screen import ax
+
     def front() -> str:
+        # The topmost ordinary window's owner, read live. NSWorkspace's frontmostApplication goes stale in a
+        # process without a running event loop (it kept naming an app the user had long since left).
+        try:
+            import Quartz as Q
+
+            for w in Q.CGWindowListCopyWindowInfo(Q.kCGWindowListOptionOnScreenOnly | Q.kCGWindowListExcludeDesktopElements, 0) or []:
+                b = w.get("kCGWindowBounds") or {}
+                if w.get("kCGWindowLayer") == 0 and w.get("kCGWindowAlpha", 1) > 0 and b.get("Width", 0) > 80 \
+                        and b.get("Height", 0) > 80 and w.get("kCGWindowOwnerName") not in OWN_APPS:
+                    return str(w.get("kCGWindowOwnerName") or "")
+        except Exception:  # noqa: BLE001
+            pass
         app = NSWorkspace.sharedWorkspace().frontmostApplication()
         return str(app.localizedName() or "") if app is not None else ""
 
     now = front()
     if not now or now == ctx.scope_app or now in OWN_APPS:
         return
-    from ..screen import ax
     from ..screen.windows import open_app
 
     ctx.log(f"{now} came in front of {ctx.scope_app}: bringing {ctx.scope_app} back")

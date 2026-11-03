@@ -43,6 +43,7 @@ def test_other_app_in_front_is_sent_back(monkeypatch):
             return types.SimpleNamespace(frontmostApplication=lambda: App())
 
     monkeypatch.setitem(sys.modules, "AppKit", types.SimpleNamespace(NSWorkspace=WS))
+    monkeypatch.setitem(sys.modules, "Quartz", types.SimpleNamespace())  # no live window list: fall back to NSWorkspace
     monkeypatch.setattr(raw.config, "fake_screen", False)
     import engine.screen.windows as windows
     from engine.screen import ax as axmod
