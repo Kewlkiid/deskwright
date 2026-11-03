@@ -40,11 +40,6 @@ class Config:
     # Talking back in English (speaker.py): a Meta MMS-TTS checkpoint. Other languages use the one in engine/i18n.py
     # (mms-tts-spa, mms-tts-fra, mms-tts-deu, mms-tts-por).
     tts_model: str = field(default_factory=lambda: os.environ.get("TTS_MODEL", "facebook/mms-tts-eng"))
-    # "pocket": English is spoken by Kyutai Pocket TTS (TTS_VOICE) instead, for demo recordings. It's third-party,
-    # not part of the Meta build: install it separately (engine/.venv/bin/pip install pocket-tts). Other languages
-    # and a missing install stay on MMS-TTS.
-    tts_engine: str = field(default_factory=lambda: os.environ.get("TTS_ENGINE", "mms"))
-    tts_voice: str = field(default_factory=lambda: os.environ.get("TTS_VOICE", "alba"))
     # Recordings: append every line Deskwright speaks, with its time, to this JSON-lines file (empty = off).
     speech_log: str = field(default_factory=lambda: os.environ.get("SPEECH_LOG", ""))
     # The language Deskwright talks, listens and answers in (engine/i18n.py): en, es, fr, de or pt. The app's

@@ -74,35 +74,14 @@ def test_planner_told_the_language(lang):
     assert "German" in language_line()
 
 
-@pytest.mark.parametrize("engine,code,pocket_ok,expected", [
-    ("pocket", "en", True, "Pocket TTS"),
-    ("pocket", "es", True, "Meta MMS-TTS"),  # Pocket speaks English only
-    ("mms", "en", True, "Meta MMS-TTS"),  # the default: Meta
-    ("pocket", "en", False, "Meta MMS-TTS"),  # not installed: back to Meta
-])
-def test_which_voice_speaks(monkeypatch, lang, engine, code, pocket_ok, expected):
+@pytest.mark.parametrize("code", ["en", "es"])
+def test_which_voice_speaks(monkeypatch, lang, code):
     import sys
     import types
 
     from engine.speaker import Speaker
 
-    monkeypatch.setattr(config, "tts_engine", engine)
     lang(code)
-
-    class Fake:
-        sample_rate = 24000
-
-        def get_state_for_audio_prompt(self, voice):
-            return {}
-
-    class TTSModel:
-        @staticmethod
-        def load_model():
-            if not pocket_ok:
-                raise RuntimeError("no weights")
-            return Fake()
-
-    monkeypatch.setitem(sys.modules, "pocket_tts", types.SimpleNamespace(TTSModel=TTSModel))
 
     class Vits:
         @staticmethod
@@ -124,4 +103,4 @@ def test_which_voice_speaks(monkeypatch, lang, engine, code, pocket_ok, expected
     s = Speaker(lambda *a, **k: None)
     s._lang = code
     s._load()
-    assert s.backend == expected
+    assert s.backend == "Meta MMS-TTS"

@@ -3,7 +3,6 @@
 Voice: Meta MMS-TTS (Massively Multilingual Speech, facebook/mms-tts-eng/-spa/-fra/-deu/-por: a 36M VITS model on
 this Mac's CPU, about 0.2 s per short sentence). Sentences are made and played one at a time, so speech starts
 quickly and can be cut between them. If MMS-TTS can't load, the Mac's own `say` is used instead.
-With TTS_ENGINE=pocket (demo recordings), English is spoken by Kyutai Pocket TTS, streamed chunk by chunk.
 
 Narration never lags behind the run: a new step replaces a step that hasn't been spoken yet, and important lines
 (approvals, questions, results, replies) cut in. While it speaks, the app pauses wake-word listening so the
@@ -87,7 +86,6 @@ class Speaker:
         self._cut = threading.Event()  # stop the current utterance
         self._model = None
         self._tok = None
-        self._voice = None  # Pocket TTS voice state
         self._loading = False
         self._lang = i18n.lang()  # the language the loaded voice speaks
         self.speaking = False
@@ -125,10 +123,6 @@ class Speaker:
         self.emit("voice_status", state=state, backend=self.backend)
 
     def _load(self):
-        if config.tts_engine == "pocket" and self._lang == "en" and self._load_pocket():
-            self._loading = False
-            self._status("ready" if self.enabled else "off")
-            return
         name = config.tts_model if self._lang == "en" else i18n.info(self._lang)["tts_model"]
         try:
             if not name:
@@ -148,19 +142,6 @@ class Speaker:
             self.backend = "macOS voice"
         self._loading = False
         self._status("ready" if self.enabled else "off")
-
-    def _load_pocket(self) -> bool:
-        try:
-            from pocket_tts import TTSModel
-
-            model = TTSModel.load_model()
-            self._voice = model.get_state_for_audio_prompt(config.tts_voice)
-        except Exception:  # noqa: BLE001 - not installed or no weights: MMS-TTS speaks instead
-            return False
-        self._tok = None
-        self._model = model
-        self.backend = "Pocket TTS"
-        return True
 
     def say(self, text: str, important: bool = False):
         text = clean(text)
@@ -209,9 +190,7 @@ class Speaker:
                 except OSError:
                     pass
             try:
-                if self.backend == "Pocket TTS" and self._model is not None:
-                    stream = self._play_pocket(text, stream)
-                elif self._model is not None:
+                if self._model is not None:
                     stream = self._play_mms(text, stream)
                 else:
                     self._play_say(text)
@@ -226,7 +205,7 @@ class Speaker:
 
     @staticmethod
     def _stream(stream, rate: int):
-        """The output stream, reopened when the voice's sample rate differs (Pocket 24 kHz, MMS 16 kHz)."""
+        """The output stream, reopened when the voice's sample rate differs."""
         import sounddevice as sd
 
         if stream is not None and int(stream.samplerate) != int(rate):
@@ -235,16 +214,6 @@ class Speaker:
         if stream is None:
             stream = sd.OutputStream(samplerate=rate, channels=1, dtype="float32")
             stream.start()
-        return stream
-
-    def _play_pocket(self, text: str, stream):
-        import numpy as np
-
-        stream = self._stream(stream, self._model.sample_rate)
-        for chunk in self._model.generate_audio_stream(self._voice, text, stop=self._cut):
-            if self._cut.is_set():
-                break
-            stream.write(np.ascontiguousarray(chunk.numpy().reshape(-1, 1), dtype=np.float32))
         return stream
 
     def _play_mms(self, text: str, stream):
