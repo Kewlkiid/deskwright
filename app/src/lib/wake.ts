@@ -103,8 +103,12 @@ export function useWakeWord(send: (msg: Record<string, unknown>) => void, speaki
           const rms = Math.sqrt(sum / x.length);
           // Background = the quieter end of the last few seconds, so it follows the room up as well as down (a fan
           // or music starting would otherwise read as one endless sentence).
-          levels.push(rms);
-          if (levels.length * frameS > 4) levels.shift();
+          // Only between utterances: while someone is speaking, their own voice must not become the "background"
+          // (a long sentence with no pauses would otherwise read as quiet after a few seconds and be cut off).
+          if (!take) {
+            levels.push(rms);
+            if (levels.length * frameS > 4) levels.shift();
+          }
           const floor = [...levels].sort((a, b) => a - b)[Math.floor(levels.length * 0.2)] ?? 0.01;
           const loud = rms > Math.max(0.02, floor * 2.5);
           if (!take) {
