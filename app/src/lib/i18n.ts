@@ -80,6 +80,7 @@ const D: Record<string, [string, string, string, string]> = {
   "Save": ["Guardar", "Enregistrer", "Speichern", "Salvar"],
   "Cancel": ["Cancelar", "Annuler", "Abbrechen", "Cancelar"],
   "Run": ["Ejecutar", "Exécuter", "Ausführen", "Executar"],
+  "Teach": ["Enseñar", "Montrer", "Beibringen", "Ensinar"],
   "Save as task": ["Guardar como tarea", "Enregistrer comme tâche", "Als Aufgabe speichern", "Salvar como tarefa"],
   "or say “start”": ["o di “empieza”", "ou dis « commence »", "oder sag „start“", "ou diga “começar”"],
 

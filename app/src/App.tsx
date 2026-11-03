@@ -2,7 +2,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   BarChart3, GraduationCap, KeyRound, LayoutList, ListChecks, Mic, MoreHorizontal, PanelRightClose, Power, ShieldOff,
-  Languages, SquarePen, Volume2,
+  Languages, Play, SquarePen, Volume2,
 } from "lucide-react";
 import { engine } from "./lib/engine";
 import { getLang, LANGUAGES, setLang, t, tStatus } from "./lib/i18n";
@@ -483,7 +483,7 @@ export default function App() {
       {/* Conversation */}
       <div ref={scroller} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 4)} className="scroll-y min-h-0 flex-1">
         {empty ? (
-          <div className="flex min-h-full flex-col px-5 pb-6">
+          <div className="flex min-h-full flex-col px-5 pb-2">
             <div className="flex flex-1 flex-col items-center justify-center pb-4 pt-6 text-center">
               <h1 className="font-serif text-[28px] font-normal leading-tight tracking-tight">{t("What should I do?")}</h1>
               <p className="mt-2 max-w-[300px] text-[13.5px] leading-relaxed text-fg-2">
@@ -493,6 +493,36 @@ export default function App() {
             <div className="space-y-4">
               <PermissionsCard />
             </div>
+            {/* Teach, then the saved tasks (newest first) with a Run button each, in one row that scrolls sideways.
+                Hidden while a demonstration records: the recording bar has its own Finish. */}
+            {!s.recording && (
+            <div className="scroll-x bare -mx-5 mt-4 flex items-center gap-2 overflow-x-auto px-3">
+              <button
+                onClick={toggleTeach}
+                className="flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-fg px-3.5 text-[12.5px] font-medium text-white hover:bg-[#2b2b2b]"
+              >
+                <GraduationCap className="h-3.5 w-3.5" strokeWidth={1.75} /> {t("Teach")}
+              </button>
+              {[...s.tasks]
+                .sort((a, b) => b.updated - a.updated)
+                .map((task) => (
+                  <div
+                    key={task.id}
+                    className="flex h-8 shrink-0 items-center gap-2 rounded-full border border-line pl-3 pr-1 text-[12.5px]"
+                  >
+                    <span className="max-w-[160px] truncate" title={task.description || task.name}>{task.name}</span>
+                    <button
+                      disabled={s.running}
+                      onClick={() => runSaved(task.id)}
+                      title={t("Run")}
+                      className="flex h-6 items-center gap-1 rounded-full bg-surface-2 px-2.5 text-[11.5px] font-medium hover:bg-line disabled:opacity-30"
+                    >
+                      <Play className="h-2.5 w-2.5 fill-current" /> {t("Run")}
+                    </button>
+                  </div>
+                ))}
+            </div>
+            )}
           </div>
         ) : (
           <div className="space-y-6 px-4 pb-6 pt-3">

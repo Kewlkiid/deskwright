@@ -65,6 +65,11 @@ input,
   background-color: rgba(0, 0, 0, 0.14);
 }
 
+/* A sideways row with no visible bar (scrolls with the trackpad or wheel). */
+.scroll-x.bare::-webkit-scrollbar {
+  display: none;
+}
+
 /* "Working..." text shimmer on status lines. */
 .shimmer {
   background: linear-gradient(90deg, #8f8f8f 0%, #8f8f8f 40%, #0d0d0d 50%, #8f8f8f 60%, #8f8f8f 100%);
