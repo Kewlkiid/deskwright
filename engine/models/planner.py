@@ -83,7 +83,7 @@ class Planner:
             text += f"\nCONTEXT:\n{context}\n"
         text += "\nThe image is the user's screen right now. Write the script."
         content.append(text_part(text))
-        reply = self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference), content,
+        reply = self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference, never_open=config.never_open), content,
                            effort="low" if simple_request(task) else None)
         self.request_inputs = _request_values(reply)
         self.clarify = _clarify(reply)
@@ -98,7 +98,7 @@ class Planner:
                 "Problems:\n- " + "\n- ".join(problems) + "\n\nRewrite it to follow the rules."
             )
         ]
-        reply = self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference), content)
+        reply = self._chat(prompts.PLANNER_SYSTEM.format(sdk_reference=sdk_reference, never_open=config.never_open), content)
         self.request_inputs = _request_values(reply) or self.request_inputs  # the values may only come now
         return extract_code(reply)
 
@@ -139,7 +139,7 @@ class Planner:
         if screenshot is not None:
             content.append(image_part(to_data_url(fit(screenshot, config.model_image_max)[0])))
         content.append(text_part(text))
-        system = prompts.FIXER_SYSTEM.format(sdk_reference=sdk_reference)
+        system = prompts.FIXER_SYSTEM.format(sdk_reference=sdk_reference, never_open=config.never_open)
         try:
             data = extract_json(self._chat(system, content, 4000))
         except ModelError:

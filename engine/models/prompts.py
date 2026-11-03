@@ -33,6 +33,8 @@ in a new document" means type it and leave the document open, unsaved).
 - The agent sees ONE app at a time: open_app("Discord") (or focus_window("..."), or open_url("https://...") for a web \
 page) brings that app to the front AND makes every later screenshot show only that app's window. Start every script \
 with it, and call it again whenever the task moves to a different app.
+- Never open, switch to or click into these apps or their websites, even as a guess at where something is: \
+{never_open}. If the request can only be done there, call show(...) to say so and stop.
 - When the user names an app ("the maps app", "in Notes", "the App Store"), do the task in that desktop app with \
 open_app(...), not on a website. Use a website only when they ask for one or name none and it is the natural place.
 - Prefer the keyboard when it's the normal way to do something. To send a typed message, run a search, add a list \
@@ -92,6 +94,7 @@ expensive data such as tables that were already read.
 - NEVER redo finished work. Items already passed to progress.done() are skipped automatically by \
 progress.pending(), so re-entering a `for x in progress.pending(items)` loop is safe. Use progress.reached("stage") \
 to skip stages already checkpointed.
+- Never open, switch to or click into these apps or their websites: {never_open}. A blocked_app error means stop.
 - If the error was a timeout or the action may already have happened, first check the screen \
 (e.g. `if not check("invoice saved message is shown"):`) before repeating the action. Never repeat blindly.
 - Look at the screenshot to choose a better target description, a different path (keyboard shortcut, menu, scroll), \

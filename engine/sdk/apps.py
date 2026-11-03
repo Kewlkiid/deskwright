@@ -21,6 +21,10 @@ def open_app(name: str) -> None:
     ctx = current()
     with ACTION_LOCK:
         ctx.check_stop()
+        if windows.blocked_app(name):
+            from .errors import BlockedAppError
+
+            raise BlockedAppError(f"{name} is on the never-open list, so Deskwright won't open it.")
         ctx.status(f"Opening app: {name}")
         ctx.pending = None
         if ctx.dry_run:
@@ -58,6 +62,10 @@ def focus_window(title: str) -> None:
     ctx = current()
     with ACTION_LOCK:
         ctx.check_stop()
+        if windows.blocked_app(title):
+            from .errors import BlockedAppError
+
+            raise BlockedAppError(f"{title} is on the never-open list, so Deskwright won't switch to it.")
         ctx.status(f"Focusing window: {title}")
         ctx.pending = None
         if ctx.dry_run:

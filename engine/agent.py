@@ -807,7 +807,9 @@ def warm_up_apps(task: str) -> str | None:
 
     if _sys.platform != "darwin" or config.fake_screen:
         return None
-    wanted = named_apps(task)
+    from .screen.windows import blocked_app
+
+    wanted = [a for a in named_apps(task) if not blocked_app(a)]  # never-open apps aren't even started
     running = running_apps()
     already = next((a for a in wanted if a in running), None)
     for name in wanted:

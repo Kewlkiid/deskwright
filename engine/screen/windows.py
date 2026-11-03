@@ -75,7 +75,17 @@ def window_key() -> str:
     return f"{w.get('app', '')}|{w.get('title', '')}".strip("|")
 
 
+def blocked_app(name: str) -> bool:
+    """True when `name` (an app name, window title or URL) is on the never-open list (config.never_open)."""
+    from ..config import config
+
+    text = (name or "").lower()
+    return any(b and (b in text) for b in (w.strip().lower() for w in config.never_open.split(",")))
+
+
 def open_app(name: str) -> None:
+    if blocked_app(name):
+        raise PermissionError(f"{name} is on the never-open list")
     if PLATFORM == "darwin":
         res = subprocess.run(["open", "-a", name], capture_output=True, text=True, timeout=10)
         if res.returncode != 0:

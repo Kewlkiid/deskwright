@@ -77,6 +77,12 @@ class UserDeclinedError(AgentError):
     default_retryable = False
 
 
+class BlockedAppError(AgentError):
+    code = "blocked_app"
+    default_fix = "That app is on the user's never-open list. Do not open, click or reach it any other way; stop."
+    default_retryable = False
+
+
 class StoppedError(AgentError):
     code = "stopped"
     default_fix = "The user stopped the run."
@@ -120,6 +126,7 @@ SCRIPT_ERRORS = {
     "NoChangeError": NoChangeError,
     "FieldChangedError": FieldChangedError,
     "WindowLostError": WindowLostError,
+    "BlockedAppError": BlockedAppError,
     "TimeoutError": AgentTimeoutError,
     "UserDeclinedError": UserDeclinedError,
     "StoppedError": StoppedError,

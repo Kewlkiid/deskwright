@@ -13,6 +13,12 @@ def open_url(url: str, new_tab: bool = False) -> None:
     ctx = current()
     with ACTION_LOCK:
         ctx.check_stop()
+        from ..screen.windows import blocked_app
+
+        if blocked_app(url):
+            from .errors import BlockedAppError
+
+            raise BlockedAppError(f"{url} is on the never-open list, so Deskwright won't open it.")
         ctx.status(f"Opening {url}")
         bridge = get_bridge()
         if bridge is not None and bridge.connected:

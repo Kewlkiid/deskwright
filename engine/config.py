@@ -35,6 +35,9 @@ class Config:
     # Start words, comma-separated: "agent, ...", "deskwright, ...", "hey agent, ..." start a task while the voice
     # button is on (models/wake.py).
     wake_word: str = field(default_factory=lambda: os.environ.get("WAKE_WORD", "agent,deskwright"))
+    # Apps Deskwright must never open, switch to or launch in the background, whatever a request or script says
+    # (comma-separated app names; matched case-insensitively, also as a website name like slack.com).
+    never_open: str = field(default_factory=lambda: os.environ.get("NEVER_OPEN", "Slack"))
     # Conversation turns (models/chat.py): quick replies, and the decision to take control. Defaults to the vision model.
     chat_model: str = field(default_factory=lambda: os.environ.get("CHAT_MODEL", "") or os.environ.get("VISION_MODEL", "muse-spark-1.3"))
     # Talking back in English (speaker.py): a Meta MMS-TTS checkpoint. Other languages use the one in engine/i18n.py
