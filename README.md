@@ -11,6 +11,20 @@
   <a href="https://kewlkiid.github.io/deskwright/demo.mp4"><b>▶ Click for the full 3-minute demo with sound</b></a>
 </p>
 
+## At a glance
+
+- **Problem statement:** Push the Frontier. Deskwright gives a computer a new capability: it turns a spoken request
+  into a program that drives any Mac app through the screen, and repairs that program when the app changes.
+- **Meta models:** Muse Wonder writes and repairs the programs, Muse Spark sees and verifies the screen, SAM 3.1
+  finds elements, Muse Voice Transcribe hears requests, and MMS-TTS (open weights) talks back.
+- **Agentic:** Deskwright plans a task as a program, acts in real apps, verifies every step against the screen,
+  rewrites its own code from the failing line when something breaks, and asks before anything consequential. Repeat
+  runs of saved tasks finish with up to 11× fewer model calls.
+- **Built during the hackathon:** everything in this repository, built Oct 29 – Nov 3, 2026. See
+  [Built during the hackathon](#built-during-the-hackathon).
+- **Demo:** [3-minute video](https://kewlkiid.github.io/deskwright/demo.mp4).
+- **Headline numbers:** repeat runs of saved tasks were 3–4× faster and 3–12× cheaper than first runs.
+
 ---
 
 ## What is Deskwright?
@@ -41,6 +55,8 @@ write the program for it.
   before anything consequential. People who can't use a keyboard or mouse can use any app on their Mac.
 - **Automation without APIs.** Most software people use every day has no API. Deskwright turns any app into
   something you can script, and keeps that script working when the app changes.
+- **Automation that fixes itself.** Scripts usually break the day a site moves a button. When a step fails,
+  Deskwright rewrites the program from that line, finishes the run and saves the fix, so the next run just works.
 - **Show it once.** Do a task while it watches and it compiles your demonstration into a reusable program, with the
   values you typed turned into inputs.
 
@@ -97,8 +113,8 @@ flowchart LR
 3. **Safe to run.** Before anything runs, the program is parsed and checked: only SDK calls and safe built-ins are
    allowed. It then runs one statement at a time in a restricted namespace, and each line reports when it starts
    and passes.
-4. **Grounding.** In Chrome, the [extension](extension/) gives Deskwright the page's DOM, so it clicks real
-   elements. Everywhere else, SAM 3.1 boxes the candidates, on-device OCR and macOS Accessibility add exact text
+4. **Grounding.** In Chrome, the [extension](extension/) gives Deskwright the page's DOM, so it can find elements
+   more easily and click the real element, not a spot on the screen. Everywhere else, SAM 3.1 boxes the candidates, on-device OCR and macOS Accessibility add exact text
    and controls, and Muse Spark picks the one the line means. If SAM finds nothing, a labelled-grid pass with Muse
    Spark is the backup.
 5. **Every step is verified.** Actions carry an `expect=` that Muse Spark checks against the new screen. A click
@@ -109,8 +125,14 @@ flowchart LR
    is saved as the task's next version, so the next run doesn't need the fix.
 7. **The cache.** Element positions are remembered with a fingerprint of the pixels, and only reused when a fresh
    crop of the screen still matches. Passed checks are remembered with a screen signature. A repeat run skips most
-   model calls; in our runs the app reports second runs of the same task at **1.2–2.4× faster** and up to **48%
-   cheaper** than the first.
+   model calls.
+
+   | Task | First run | Repeat run | Fewer calls | Faster | Cheaper |
+   |------|-----------|------------|-------------|--------|---------|
+   | Check the weather and put it in my calendar | 23 calls · 1:36 · $0.115 | 2 calls · 0:25 · $0.010 | 11.5× | 3.8× | 11.5× |
+   | Find the best headphones on the store and save them | 27 calls · 3:13 · $0.133 | 8 calls · 0:45 · $0.026 | 3.4× | 4.3× | 5.2× |
+   | Post my intro in the Discord introductions channel | 13 calls · 1:56 · $0.060 | 5 calls · 0:37 · $0.021 | 2.6× | 3.2× | 2.9× |
+   | Add tomorrow's homework to Reminders | 15 calls · 1:50 · $0.084 | 5 calls · 0:37 · $0.030 | 3.0× | 3.0× | 2.8× |
 8. **Teach mode.** Press **Teach**, do the task once, press **Finish**. Deskwright records the screen, your clicks
    and keystrokes (and the DOM steps in Chrome), describes each step, and Muse Wonder compiles it into a program
    whose typed values become inputs.
@@ -129,12 +151,12 @@ flowchart LR
 
 ## Example: a program Deskwright wrote
 
-This is the saved "best buy headphones" task after it repaired itself on a redesigned store (abridged). Every
+This is the saved "best buy headphones" task after it repaired itself on a redesigned store (abridged and tidied). Every
 target is plain English; `progress.reached` lets a resumed run skip stages it already finished.
 
 ```python
 INPUTS = {"search_term": "str: product category to search for, e.g. wireless headphones"}
-OUTPUTS = {"product_name": "str: name of the cheapest product added to the cart", "price": "...", "cart_total": "..."}
+OUTPUTS = {"product_name": "str: name of the cheapest product added to the cart", "price": "str: its price", "cart_total": "str: the cart total"}
 
 query = inp("search_term")
 if not progress.reached("Find cheapest headphones"):
@@ -143,12 +165,15 @@ if not progress.reached("Find cheapest headphones"):
     type_into("search field in the header", query, expect="search field shows the search term")
     press("enter")
     wait_for("search results are shown", timeout=20)
-    product_name = ask("What is the name of the first product in the search results sorted by price low to high?")
+    click("Sort by dropdown above the search results", expect="sort options are listed")
+    click("Price Low to High option", expect="results are sorted by price, lowest first")
+    product_name = ask("What is the name of the first product in the search results?")
+    price = ask(f"What is the price of {product_name}?")
     checkpoint("Find cheapest headphones")
 scroll_until(f"product card for {product_name}")
 click(f"blue product title link '{product_name}' in the search results", expect="product detail page is shown")
 click("blue Add to Bag button on the right side of the product detail page", expect="shopping cart icon in the top-right header shows 1 item")
-output(product_name=product_name, cart_total=ask("What is the exact Total amount in the Order Summary?"))
+output(product_name=product_name, price=price, cart_total=ask("What is the exact Total amount in the Order Summary?"))
 ```
 
 ## Use it from code
@@ -226,9 +251,11 @@ engine/.venv/bin/python -m pytest engine/tests      # 163 tests, offline (fake m
 
 ## Built during the hackathon
 
-Deskwright was built for the **Meta Global AI Developer Hackathon** (building period Oct 27 – Nov 4, 2026). Work
-started on Oct 29; this repository was created on Oct 31, so its first commit holds those first two days of work,
-and everything since is in the commit history. Built during the event:
+Deskwright was built for the **Meta Global AI Developer Hackathon**.
+
+**All of Deskwright was built during the hackathon, from scratch.** No code, design or assets come from an earlier
+project; the only code not written during the event is the open-source libraries it imports. That covers everything
+below:
 
 - The self-programming agent loop: chat → Muse Wonder program → validated, line-by-line execution
 - Grounding that combines SAM 3.1, on-device OCR and macOS Accessibility, with Muse Spark choosing and verifying
@@ -237,3 +264,7 @@ and everything since is in the commit history. Built during the event:
 - Teach mode, including Chrome DOM recording
 - Voice: wake word, Muse Voice Transcribe, MMS-TTS talk-back, five languages
 - The Electron side panel, the Chrome extension, the CLI and the Python interface
+
+## License
+
+[MIT](LICENSE) © 2026 Kewlkiid
