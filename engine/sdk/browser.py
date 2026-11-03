@@ -4,6 +4,23 @@ from __future__ import annotations
 from .context import ACTION_LOCK, current
 
 
+def _blank_tab_in_front() -> bool:
+    """True when Chrome's front tab is an empty new-tab page (e.g. Chrome was just started), so it can be used.
+    Read through Accessibility (the window title), not AppleScript, which would pop up an automation permission."""
+    try:
+        from ..screen import ax
+        import ApplicationServices as AS
+
+        pid = ax._pid("Google Chrome")
+        if pid is None:
+            return False
+        win = ax._attr(AS.AXUIElementCreateApplication(pid), "AXFocusedWindow")
+        title = (ax._attr(win, "AXTitle") or "") if win is not None else ""
+    except Exception:  # noqa: BLE001
+        return False
+    return title.split(" - ")[0].strip() in ("New Tab", "Untitled")
+
+
 def open_url(url: str, new_tab: bool = False) -> None:
     """Open a URL in Google Chrome and wait for the page to load. Opens a new tab, except that a tab this run
     already opened is reused (new_tab=True always opens another). Never navigates away from one of the user's tabs.
@@ -38,7 +55,8 @@ def open_url(url: str, new_tab: bool = False) -> None:
             open_app("Google Chrome")
             if new_tab or not ctx.agent_tabs:  # without the extension, every run's first page gets its own tab
                 ctx.agent_tabs.add(-1)
-                hotkey("cmd", "t")
+                if new_tab or not _blank_tab_in_front():  # Chrome just started: use its empty tab, don't add another
+                    hotkey("cmd", "t")
             hotkey("cmd", "l")
             type_text(url)
             press("enter")
