@@ -88,6 +88,23 @@ def test_cache_hit_and_patch_mismatch(tmp_path):
     assert cache.lookup("Other|Win", img, "Save button") is None
 
 
+def test_check_cache_needs_the_same_screen(tmp_path):
+    cache = PositionCache(DB(tmp_path / "c.db"))
+    page = Image.new("RGB", (800, 500), "white")
+    ImageDraw.Draw(page).rectangle((100, 100, 700, 400), fill="navy")
+    assert not cache.check_lookup("Weather", "results are shown", page)
+    cache.check_put("Weather", "results are shown", page)
+    assert cache.check_lookup("Weather", "Results  are shown", page)  # same words, any spacing or case
+    assert not cache.check_lookup("Weather", "a dialog is open", page)  # another condition
+    assert not cache.check_lookup("Notes", "results are shown", page)  # another app
+    other = Image.new("RGB", (800, 500), "white")
+    ImageDraw.Draw(other).rectangle((100, 100, 700, 250), fill="navy")
+    assert not cache.check_lookup("Weather", "results are shown", other)  # half the view is different
+    nudged = page.copy()
+    ImageDraw.Draw(nudged).text((20, 20), "61", fill="black")  # a small detail changed
+    assert cache.check_lookup("Weather", "results are shown", nudged)
+
+
 def test_row_lookup_is_forgiving():
     r = Row({"Customer Name": "Acme", "Amount ($)": "12"})
     assert r["customer_name"] == "Acme"

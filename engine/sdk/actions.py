@@ -59,9 +59,16 @@ def settle_previous(ctx: RunContext, shot: cap.Shot, browser: Browser | None = N
         ctx.log(f'"{p.expect}": its text is on screen (no model call)')
         ctx.resolve_pending(shot, True, "seen in the screen's text")
         return
+    if ctx.cache.check_lookup(ctx.cache_key(), p.expect, shot.image):
+        ctx.log(f'"{p.expect}": same screen as when it was true before (no model call)')
+        ctx.metrics.record_cache(True, saved_calls=1)
+        ctx.resolve_pending(shot, True, "the screen looks as it did when this was true before")
+        return
     v = browser.check(ctx, p.expect) if browser else None
     if v is None:
         v = ctx.models.vision.check(shot.image, p.expect)
+    if v["result"]:
+        ctx.cache.check_put(ctx.cache_key(), p.expect, shot.image)
     ctx.resolve_pending(shot, v["result"], v["reason"])
 
 

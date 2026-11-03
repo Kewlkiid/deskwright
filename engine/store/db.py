@@ -79,6 +79,13 @@ CREATE TABLE IF NOT EXISTS browser_cache (
     updated REAL,
     PRIMARY KEY (page, target)
 );
+CREATE TABLE IF NOT EXISTS check_cache (
+    window TEXT,
+    condition TEXT,
+    sig BLOB,
+    hits INTEGER DEFAULT 0,
+    updated REAL
+);
 CREATE TABLE IF NOT EXISTS cache_stats (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     miss_count INTEGER DEFAULT 0,

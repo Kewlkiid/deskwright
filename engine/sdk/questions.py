@@ -47,6 +47,15 @@ def _check(ctx: RunContext, condition: str, shot: cap.Shot | None = None) -> dic
     if ctx.pending is None and key in ctx.check_cache:
         ctx.metrics.record_cache(True, saved_calls=1)
         return ctx.check_cache[key]
+    if ctx.cache.check_lookup(ctx.cache_key(), condition, shot.image):
+        # True before on a screen that looked just like this one (an earlier run): no model call. The previous
+        # action is then judged by whether the screen changed, as after a cached click.
+        ctx.resolve_pending(shot)
+        r = {"result": True, "reason": "the screen looks as it did when this was true before"}
+        ctx.metrics.record_cache(True, saved_calls=1)
+        ctx.log(f'check "{condition}": same screen as when it was true before (no model call)')
+        ctx.check_cache[key] = r
+        return r
     b = browser_for(ctx)
     if b:
         settle_previous(ctx, shot, b)
@@ -67,6 +76,8 @@ def _check(ctx: RunContext, condition: str, shot: cap.Shot | None = None) -> dic
     r = ctx.models.vision.check(shot.image, condition, _prev(ctx))
     ctx.resolve_pending(shot, r.get("prev_expect_met"), r.get("observation", ""))
     ctx.check_cache[key] = r
+    if r.get("result"):
+        ctx.cache.check_put(ctx.cache_key(), condition, shot.image)
     return r
 
 

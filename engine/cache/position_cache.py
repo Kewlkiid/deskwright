@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from PIL import Image
 
 from ..screen.capture import Box
-from ..screen.fingerprint import hamming, patch_hash, screen_hash, sig_diff, signature
+from ..screen.fingerprint import hamming, patch_hash, screen_hash, sig_changed_pixels, sig_diff, signature
 from ..store.db import DB
 
 # Loose: the screen may differ a little (typed text, a new row) and still be the same view.
@@ -32,6 +32,18 @@ FRAME_TOLERANCE = 4
 PATCH_SIG_MAX_DIFF = 12.0
 PATCH_HASH_MAX_DIST = 10
 CORE_SIG_MAX_DIFF = 10.0  # the core alone is small: a bit stricter
+# Checks: the whole screen at 96x60, and under 1% of it changed counts as the same screen.
+CHECK_SIZE = (96, 60)
+CHECK_SAME = 57
+CHECK_KEEP = 4
+
+
+def check_sig(img: Image.Image) -> bytes:
+    return img.convert("L").resize(CHECK_SIZE, Image.BILINEAR).tobytes()
+
+
+def norm_check(condition: str) -> str:
+    return " ".join(condition.lower().split())
 
 
 def core_box(box: Box, point: tuple[float, float] | None) -> Box:
@@ -210,6 +222,28 @@ class PositionCache:
     def clear(self):
         self.db.execute("DELETE FROM cache")
         self.db.execute("DELETE FROM browser_cache")
+        self.db.execute("DELETE FROM check_cache")
+
+    # Checks ("the page is loaded", "search results are shown"): a condition the models said was true is true again
+    # when the screen looks the same as it did then, so a rerun doesn't ask again. Only yes answers are kept.
+    def check_lookup(self, window: str, condition: str, img: Image.Image) -> bool:
+        sig = check_sig(img)
+        for r in self.db.query("SELECT rowid, sig FROM check_cache WHERE window = ? AND condition = ?",
+                               (window, norm_check(condition))):
+            if sig_changed_pixels(sig, r["sig"]) <= CHECK_SAME:
+                self.db.execute("UPDATE check_cache SET hits = hits + 1, updated = ? WHERE rowid = ?",
+                                (time.time(), r["rowid"]))
+                return True
+        return False
+
+    def check_put(self, window: str, condition: str, img: Image.Image):
+        key = (window, norm_check(condition))
+        self.db.execute("INSERT INTO check_cache (window, condition, sig, hits, updated) VALUES (?, ?, ?, 0, ?)",
+                        (*key, check_sig(img), time.time()))
+        # A few looks per condition (light and dark, a window moved): drop the oldest beyond that.
+        self.db.execute("DELETE FROM check_cache WHERE window = ? AND condition = ? AND rowid NOT IN (SELECT rowid "
+                        "FROM check_cache WHERE window = ? AND condition = ? ORDER BY updated DESC LIMIT ?)",
+                        (*key, *key, CHECK_KEEP))
 
     # Browser steps: page + description -> CSS selector and the element's name, re-checked in the live DOM.
     def browser_lookup(self, page: str, target: str) -> dict | None:

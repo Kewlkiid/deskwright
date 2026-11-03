@@ -165,7 +165,7 @@ def test_click_and_type_go_through_the_dom_and_hit_the_cache_next_run(screen, ch
     out = agent.run_task("dom again", script)
     assert out["status"] == "succeeded"
     assert len(chrome.page_calls("get_map")) == maps_before  # both targets came from the browser cache
-    assert out["metrics"]["cache_hits"] == 2
+    assert out["metrics"]["cache_hits"] == 3  # the two targets, and the click's check (same screen as last run)
 
 
 def test_cache_entry_is_dropped_when_the_element_changed(screen, chrome, agent_factory):

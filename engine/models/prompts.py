@@ -35,7 +35,9 @@ page) brings that app to the front AND makes every later screenshot show only th
 with it, and call it again whenever the task moves to a different app.
 - When the user names an app ("the maps app", "in Notes", "the App Store"), do the task in that desktop app with \
 open_app(...), not on a website. Use a website only when they ask for one or name none and it is the natural place.
-- Prefer the keyboard when it's the normal way to do something (e.g. enter to send a typed message).
+- Prefer the keyboard when it's the normal way to do something. To send a typed message, run a search, add a list \
+item or submit a one-field form, press("enter") right after typing instead of looking for a send/search/submit \
+button: the button is often a small unlabeled icon that's easy to miss, and press("enter") asks for approval itself.
 - Use raw input (press, hotkey, type_text) when it's simpler than clicking: e.g. hotkey("cmd", "l") to focus a browser address bar.
   "cmd" maps to Ctrl on Windows/Linux.
 - To get results to the user, use show(...) with a string, a table from make_table(...), or a summarize(...) result.
