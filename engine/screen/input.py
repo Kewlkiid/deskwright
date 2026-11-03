@@ -59,7 +59,27 @@ def move(x: float, y: float, duration: float = TWEEN_SECONDS):
 
 def click(x: float, y: float, button: str = "left", clicks: int = 1):
     move(x, y)
+    if IS_MAC and clicks > 1:
+        _mac_multi_click(x, y, button, clicks)
+        return
     pg().click(x=x, y=y, button=button, clicks=clicks, interval=0.08)
+
+
+def _mac_multi_click(x: float, y: float, button: str, clicks: int):
+    """A real double (or triple) click. macOS apps tell a double-click by the click count each mouse event carries;
+    separate single clicks (what pyautogui sends) all say "1", so Calendar, Finder and others never see one."""
+    import Quartz as Q
+
+    down, up, btn = {
+        "right": (Q.kCGEventRightMouseDown, Q.kCGEventRightMouseUp, Q.kCGMouseButtonRight),
+    }.get(button, (Q.kCGEventLeftMouseDown, Q.kCGEventLeftMouseUp, Q.kCGMouseButtonLeft))
+    for n in range(1, clicks + 1):
+        for kind in (down, up):
+            e = Q.CGEventCreateMouseEvent(None, kind, (x, y), btn)
+            Q.CGEventSetIntegerValueField(e, Q.kCGMouseEventClickState, n)
+            Q.CGEventPost(Q.kCGHIDEventTap, e)
+            time.sleep(0.02)
+        time.sleep(0.05)
 
 
 def drag(x1: float, y1: float, x2: float, y2: float, duration: float = 0.6):
