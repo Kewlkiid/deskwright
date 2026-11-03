@@ -789,7 +789,7 @@
     const tag = el.tagName.toLowerCase();
     if (tag === 'input' && (el.type === 'checkbox' || el.type === 'radio')) return { value: el.checked, ...info(el) };
     if ('value' in el && ['input', 'textarea', 'select'].includes(tag)) return { value: el.value, ...info(el) };
-    return { value: (el.innerText || el.textContent || '').trim(), ...info(el) };
+    return { ...info(el), value: (el.innerText || el.textContent || '').trim() };  // info's own value (null) must not win
   }
 
   // Is the element at `selector` still there, visible, and still the same element (same name)?
