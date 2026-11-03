@@ -19,12 +19,11 @@
   finds elements, Muse Voice Transcribe hears requests, and MMS-TTS (open weights) talks back.
 - **Agentic:** Deskwright plans a task as a program, acts in real apps, verifies every step against the screen,
   rewrites its own code from the failing line when something breaks, and asks before anything consequential. Repeat
-  runs of saved tasks finish with up to 11.5× fewer model calls.
+  runs reuse cached positions and checks, so they skip most model calls.
 - **Built during the hackathon:** everything in this repository, built Oct 29 – Nov 3, 2026. See
   [Built during the hackathon](#built-during-the-hackathon).
 - **Demo:** [3-minute video](https://kewlkiid.github.io/deskwright/demo.mp4).
-- **Headline numbers:** repeat runs of saved tasks needed up to 11.5× fewer model calls and were up to 4.3× faster
-  and 11.5× cheaper than first runs (see [the table](#how-it-works)).
+- **Headline numbers:** on four real tasks, repeat runs were 3–4× faster and up to 11.5× cheaper than first runs.
 
 ---
 
