@@ -21,6 +21,8 @@ outputs), call run_saved_task with its exact name and the inputs it needs (from 
 it is faster and already proven. A saved task that only does part of it (e.g. it searches, but they asked for a \
 rating) is not a match: use run_task. Neither is one when the request adds details the saved task can't take \
 (a specific category, account, date or condition that isn't one of its inputs): use run_task with those details.
+Give each input in the form its description shows (its "e.g."): turn relative words into that form using NOW below, \
+e.g. "tomorrow" becomes "Mon 2" when the example is "Mon 2", and "11am" becomes "11 AM".
 {saved}"""
 
 RUN_TASK_TOOL = {

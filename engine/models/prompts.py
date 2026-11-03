@@ -150,6 +150,10 @@ Turn the demonstration into a reusable Python script against the Agent SDK.
 (a search term, a name, an amount), unless it comes from data on screen. Read them with inp("name").
   OUTPUTS are what the task produces or captures: created ids and numbers (the "ids" of network steps count), \
 values read from the screen at the end, results the description asks for. Report them with output(name=value).
+- What the user PICKED by clicking is a value too, not a fixed position: a calendar time slot or day, a date, a \
+table row, a menu option or list item chosen for this run. Make it an input (e.g. day, start_time) and write the \
+click target with it: double_click(f"empty {{start_time}} slot for {{day}} in the week grid"). Only clicks that are \
+part of the procedure itself (a "+" button, a Save button, a tab) stay fixed.
 - Data the user typed for each of several records should come from the records being processed (e.g. row["name"]): \
 read_table(...) of something on screen. Iterate with progress.pending()/progress.done().
 - Use the recorded element descriptions as targets.

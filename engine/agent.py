@@ -471,7 +471,7 @@ class Agent:
                 return
             if action[0] == "saved":
                 t = self.find_task_by_name(action[1])
-                extra = _uncovered_words(text, t) if t else []
+                extra = _uncovered_words(text, t, action[2] if len(action) > 2 else None) if t else []
                 if t and len(extra) >= 2:
                     # The request adds details the saved task doesn't handle ("the one under the Control category"):
                     # write a fresh task; the planner still sees the saved script as a starting point.
@@ -690,6 +690,8 @@ class Agent:
         if problems:
             self.host.emit("error", message="Can't save: " + "; ".join(problems))
             return None
+        if not description.strip():
+            description = describe_script(name, script)  # a taught task has no request: describe it from its steps
         # A taught task that answers a pending outside request gets that request's id, so the asker can find it.
         req = self.teach_request if source == "teach" else None
         task_id = self.db.save_task(name, script, description, source, request_id=(req or {}).get("request_id"))
@@ -736,14 +738,30 @@ that this these those from into onto about which who when where how why do does 
 repeat same once more time like before usual same""".split())
 
 
-def _uncovered_words(request: str, task: dict) -> list[str]:
-    """Meaningful words of the request that the saved task's name, description and inputs don't mention."""
+def describe_script(name: str, script: str) -> str:
+    """A one-line description of a task from its own code: the step comments and the inputs, e.g. "calendar event:
+    create a new calendar event at that time; type the event title (inputs: day, start_time, event_title)". Lets a
+    later request ("add X to my calendar tomorrow at 2pm") be matched to it."""
+    import re as _re
+
+    from .runner.schema import parse_header
+
+    steps = [_re.sub(r"^Step \d+:\s*", "", m.strip()) for m in _re.findall(r"^\s*#\s*(.+)$", script, _re.M)]
+    inputs = list(parse_header(script)["inputs"])
+    text = f"{name}: " + "; ".join(steps[:6]) if steps else name
+    return text + (f" (inputs: {', '.join(inputs)})" if inputs else "")
+
+
+def _uncovered_words(request: str, task: dict, inputs: dict | None = None) -> list[str]:
+    """Meaningful words of the request that the saved task's name, description and inputs don't mention. Words that
+    are values for the task's inputs ("Record the voiceover", "tomorrow", "2pm") are what a rerun is for: covered."""
     import re as _re
 
     from .runner.schema import parse_header
 
     covered = " ".join([task.get("name") or "", task.get("description") or ""] +
-                       list(parse_header(task.get("script") or "")["inputs"])).lower()
+                       list(parse_header(task.get("script") or "")["inputs"]) +
+                       [str(v) for v in (inputs or {}).values()]).lower()
     have = set(_re.findall(r"[a-z0-9]{3,}", covered))
     out = []
     for w in _re.findall(r"[a-z0-9]{3,}", (request or "").lower()):

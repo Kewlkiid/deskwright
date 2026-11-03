@@ -42,6 +42,28 @@ def as_question(text: str, typ: str = "str") -> str:
     return q
 
 
+def _calendar_day(value: str, desc: str) -> str:
+    """'today' / 'tomorrow' / a weekday name -> the day as calendars label it ("Mon 2") when the input's example looks
+    like that. Other values pass through unchanged."""
+    import datetime
+
+    if not re.search(r"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\w* \d{1,2}\b", desc):
+        return value
+    word = value.strip().lower()
+    today = datetime.date.today()
+    if word == "today":
+        d = today
+    elif word == "tomorrow":
+        d = today + datetime.timedelta(days=1)
+    else:
+        names = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        hit = next((i for i, n in enumerate(names) if word in (n, n[:3])), None)
+        if hit is None:
+            return value
+        d = today + datetime.timedelta(days=(hit - today.weekday()) % 7 or 7)
+    return f"{d:%a} {d.day}"
+
+
 def inp(name: str):
     """Value of the task input `name` (declared in INPUTS). It comes from whoever started the task (the CLI's
     --input, another program); if nothing was passed, the user is asked, using the input's description."""
@@ -56,6 +78,8 @@ def inp(name: str):
         question = as_question(text or name.replace("_", " "), typ)
         value = ctx.host.ask_user(question, ctx.stop_event)
         ctx.check_stop()
+    if isinstance(value, str) and re.search(r"\b(day|date)\b", name + " " + desc, re.I):
+        value = _calendar_day(value, desc)
     if desc:
         try:
             value = coerce(value, desc)

@@ -86,11 +86,18 @@ class Recorder:
             try:
                 ev["window"] = window_key()
                 if ev["type"] == "click":
-                    shot = cap.grab()
-                    path = self.dir / "clicks" / f"{len(self.events):04d}.jpg"
-                    shot.image.save(path, quality=90)
-                    ev["before"] = str(path)
-                    ev["scale"] = shot.scale
+                    # The screen as it was just BEFORE the click: the last periodic frame taken before it. Grabbing now
+                    # would be a moment late and show the result (a double-click's new event instead of the empty slot).
+                    earlier = [p for ts, p in self.frames if ts < ev["t"] - 0.03]
+                    if earlier:
+                        ev["before"] = earlier[-1]
+                        ev["scale"] = self.scale
+                    else:
+                        shot = cap.grab()
+                        path = self.dir / "clicks" / f"{len(self.events):04d}.jpg"
+                        shot.image.save(path, quality=90)
+                        ev["before"] = str(path)
+                        ev["scale"] = shot.scale
             except Exception:
                 pass
             self.events.append(ev)

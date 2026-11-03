@@ -54,3 +54,33 @@ def test_list_comes_from_config(monkeypatch):
 
     monkeypatch.setattr(config, "never_open", "Slack, Messages")
     assert windows.blocked_app("Messages") and windows.blocked_app("Slack")
+
+
+def test_input_values_dont_count_as_extra_details():
+    # Rerunning a taught task with new values must not be treated as "the request adds details": those are inputs.
+    task = {"name": "calendar event", "description": "Team standup tomorrow at 10am",
+            "script": 'INPUTS = {"event_title": "str: title", "day": "str: day", "start_time": "str: time"}\nOUTPUTS = {}\n'}
+    req = "add record the voice over tomorrow at 2 PM to my calendar"
+    assert len(agent._uncovered_words(req, task)) >= 2  # without the parsed inputs: looks like extra details
+    extra = agent._uncovered_words(req, task, {"event_title": "record the voice over", "day": "tomorrow",
+                                               "start_time": "2 PM"})
+    assert len(extra) < 2  # the saved task runs (a fresh program is written only from 2 extra words up)
+
+
+def test_taught_tasks_get_a_description_from_their_steps():
+    script = ('INPUTS = {"day": "str: day", "start_time": "str: time", "event_title": "str: title"}\nOUTPUTS = {}\n'
+              'open_app("Calendar")\n# Step 1: create a new calendar event at that time\ndouble_click("slot")\n'
+              '# Step 2: type the event title\ntype_text("x")\n')
+    d = agent.describe_script("calendar event", script)
+    assert "create a new calendar event" in d and "day, start_time, event_title" in d
+
+
+def test_relative_days_become_calendar_labels():
+    import datetime
+
+    from engine.sdk.task_io import _calendar_day
+
+    t = datetime.date.today() + datetime.timedelta(days=1)
+    assert _calendar_day("tomorrow", "str: the day, e.g. Mon 2") == f"{t:%a} {t.day}"
+    assert _calendar_day("Mon 2", "str: the day, e.g. Mon 2") == "Mon 2"
+    assert _calendar_day("tomorrow", "str: a note") == "tomorrow"  # only when the input looks like a calendar day
