@@ -94,10 +94,18 @@
     $("toast").classList.add("show");
     setTimeout(() => $("form").classList.remove("open"), 900);
   };
-  $("rename").onclick = () => { $("save").textContent = "Submit invoice"; $("save").style.background = "#16a34a"; };
-  $("move").onclick = () => { document.querySelector("main").style.gridTemplateColumns = "380px 1fr";
-    document.querySelector("main").prepend(document.querySelector("aside")); };
-  $("reset").onclick = () => location.reload();
+  // Breakage stays across reloads until Reset, so a saved task meets it on its next run.
+  const broken = JSON.parse(localStorage.getItem("broken") || "{}");
+  const breakers = {
+    rename: () => { $("save").textContent = "Submit invoice"; $("save").style.background = "#16a34a"; },
+    move: () => { document.querySelector("main").style.gridTemplateColumns = "380px 1fr";
+      document.querySelector("main").prepend(document.querySelector("aside")); },
+  };
+  for (const [id, apply] of Object.entries(breakers)) {
+    if (broken[id]) apply();
+    $(id).onclick = () => { apply(); broken[id] = true; localStorage.setItem("broken", JSON.stringify(broken)); };
+  }
+  $("reset").onclick = () => { localStorage.removeItem("broken"); location.reload(); };
 </script>
 </body>
 </html>
