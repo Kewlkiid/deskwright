@@ -120,6 +120,17 @@ export function ScriptView({
   useEffect(() => setText(draftScript), [draftScript]);
   const isDraft = run.draft && run.status === "draft";
   const script = editing ? text : draftScript;
+  // While it runs, the box follows the current (or failing) line. Once the run is over it ends on the last line,
+  // so a run that recovered doesn't reopen on the line that failed along the way.
+  const box = useRef<HTMLDivElement>(null);
+  const over = !["running", "draft", "pending", "confirm", "ask"].includes(String(run.status));
+  useEffect(() => {
+    if (!over) return;
+    const end = () => box.current && (box.current.scrollTop = box.current.scrollHeight);
+    end();
+    const later = setTimeout(end, 700); // after the lines' own smooth scrolls have settled
+    return () => clearTimeout(later);
+  }, [over, run.segments.length]);
 
   if (!run.segments.length) {
     return (
@@ -169,7 +180,7 @@ export function ScriptView({
           className="h-60 w-full resize-none bg-white px-4 py-3 font-mono text-[12px] leading-[22px] text-fg outline-none"
         />
       ) : (
-        <div className="scroll-y max-h-[320px] py-1.5">
+        <div ref={box} className="scroll-y max-h-[320px] py-1.5">
           <AnimatePresence initial={false}>
             {run.segments.map((seg) => (
               <motion.div key={seg.id} initial={seg.id > 0 ? { opacity: 0 } : false} animate={{ opacity: 1 }}>
