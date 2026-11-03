@@ -26,27 +26,6 @@
   #glow.on { opacity: 1; animation: breathe 3.2s ease-in-out infinite; }
   @keyframes breathe { 0%, 100% { opacity: .6; } 50% { opacity: 1; } }
 
-  /* Status pill */
-  #hud {
-    position: fixed; top: 14px; left: 50%; transform: translate(-50%, -8px); opacity: 0;
-    display: flex; align-items: center; gap: 8px; padding: 7px 14px 7px 11px;
-    background: rgba(255, 255, 255, .96); color: var(--ink); border-radius: 999px;
-    box-shadow: 0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.12); border: 1px solid rgba(0,0,0,.06);
-    font-size: 13px; letter-spacing: -.005em; white-space: nowrap; max-width: 70vw;
-    transition: opacity .25s var(--ease), transform .25s var(--ease);
-  }
-  #hud.on { opacity: 1; transform: translate(-50%, 0); }
-  #hud .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--spark); flex: none; }
-  #hud.busy .dot { animation: pulse 1.1s ease-in-out infinite; }
-  #hud b { font-weight: 600; }
-  #hud .sub { margin-left: 6px; color: #6b6b6b; overflow: hidden; text-overflow: ellipsis; }
-  /* Keyboard steps: keys as keycaps, typed text appearing as it's typed */
-  #hud kbd { display: inline-block; min-width: 20px; margin-left: 5px; padding: 1px 6px; border: 1px solid #dcdcdc;
-             border-bottom-width: 2px; border-radius: 6px; background: #fafafa; color: #222; font: 600 11.5px/16px
-             -apple-system, system-ui, sans-serif; text-align: center; animation: keyin .28s cubic-bezier(.2,.8,.2,1) both; }
-  #hud .typed { color: #222; white-space: pre; }
-  #hud .typed::after { content: ""; display: inline-block; width: 1.5px; height: 13px; margin-left: 1px; vertical-align: -2px;
-                       background: var(--spark); animation: caret 1s steps(1) infinite; }
   /* Teach by demonstration: 3, 2, 1 in the middle of the screen before recording starts */
   #countdown { position: fixed; left: 50%; top: 50%; width: 168px; height: 168px; margin: -84px 0 0 -84px;
                border-radius: 50%; background: rgba(13,13,13,.78); color: #fff; display: flex; flex-direction: column;
@@ -57,9 +36,6 @@
   #countdown .n.tick { animation: tick .9s cubic-bezier(.2,.8,.2,1) both; }
   #countdown .label { margin-top: 6px; font: 500 12.5px -apple-system, system-ui, sans-serif; opacity: .8; }
   @keyframes tick { from { transform: scale(1.35); opacity: 0; } 25% { opacity: 1; } to { transform: scale(1); opacity: 1; } }
-  @keyframes keyin { from { transform: translateY(3px) scale(.9); opacity: 0; } to { transform: none; opacity: 1; } }
-  @keyframes caret { 50% { opacity: 0; } }
-  @keyframes pulse { 50% { opacity: .35; transform: scale(.8); } }
 
   /* Scan line while the vision model looks at the screen */
   #scan {
@@ -124,7 +100,6 @@
 <div id="stage">
   <div id="scan"></div>
 </div>
-<div id="hud"><span class="dot"></span><span class="txt"></span></div>
 <div id="countdown"><span class="n"></span><span class="label"></span></div>
 <script src="overlay.js"></script>
 </body>

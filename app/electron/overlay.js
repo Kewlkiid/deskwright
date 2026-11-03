@@ -1,10 +1,8 @@
 // On-screen overlay: the element being found -> click, cache hits and verdict chips. Same look on screen and in Chrome.
   const stage = document.getElementById("stage");
-  const hud = document.getElementById("hud");
   const scan = document.getElementById("scan");
   let panelLeft = window.innerWidth;
   let target = null;      // { box, mask, tag, reticle }
-  let hudTimer = null;
   let clearTimer = null;
 
   const glow = document.getElementById("glow");
@@ -74,15 +72,6 @@
     return n === undefined ? out : out.replace("{n}", n);
   };
 
-  function setHud(color, html, busy = false, ttl = 0) {
-    clearTimeout(hudTimer);
-    hud.querySelector(".dot").style.background = color;
-    hud.querySelector(".txt").innerHTML = html;
-    hud.classList.toggle("busy", busy);
-    hud.classList.add("on");
-    if (ttl) hudTimer = setTimeout(() => hud.classList.remove("on"), ttl);
-  }
-
   function place(el, b) {
     el.style.left = b[0] + "px";
     el.style.top = b[1] + "px";
@@ -131,37 +120,6 @@
     setTimeout(() => { v.classList.remove("on"); setTimeout(() => v.remove(), 300); }, 2200);
   }
 
-  // Keys as they look on a Mac keyboard.
-  const KEYCAP = { cmd: "⌘", command: "⌘", shift: "⇧", option: "⌥", alt: "⌥", ctrl: "⌃", control: "⌃", enter: "↩",
-                   return: "↩", tab: "⇥", escape: "esc", esc: "esc", backspace: "⌫", delete: "⌦", space: "space",
-                   up: "↑", down: "↓", left: "←", right: "→", pageup: "⇞", pagedown: "⇟", home: "↖", end: "↘" };
-  const keycap = (k) => `<kbd>${esc(KEYCAP[String(k).toLowerCase()] || String(k).toUpperCase())}</kbd>`;
-  let typer = null;
-
-  function showKeys(e) {
-    clearInterval(typer);
-    if (e.kind === "type") {
-      // The typed text appears letter by letter, about as fast as it's typed.
-      setHud("#0d0d0d", `<b>${L("Typing")}</b><span class="sub typed"></span>`, true);
-      const out = hud.querySelector(".typed");
-      const text = short(e.text || "", 60);
-      let n = 0;
-      const step = Math.max(1, Math.ceil(text.length / 40));
-      typer = setInterval(() => {
-        n = Math.min(text.length, n + step);
-        out.textContent = text.slice(0, n);
-        if (n >= text.length) clearInterval(typer);
-      }, 22);
-    } else if (e.kind === "press") {
-      const times = e.times > 1 ? `<span class="sub">× ${e.times}</span>` : "";
-      setHud("#0d0d0d", `<b>${L("Pressing")}</b>${(e.keys || []).map(keycap).join("")}${times}`, true);
-    } else if (e.kind === "shortcut") {
-      setHud("#0d0d0d", `<b>${L("Shortcut")}</b>${(e.keys || []).map(keycap).join("")}`, true);
-    } else if (e.kind === "scroll") {
-      setHud("#0d0d0d", `<b>${L("Scrolling")}</b><span class="sub">${L(e.text === "up" ? "up" : "down")}</span>`, true);
-    }
-  }
-
   const cd = document.getElementById("countdown");
   let cdTimer = null;
   function countdown(seconds) {
@@ -196,20 +154,12 @@
     switch (e.type) {
       case "run_started":
         glow.classList.add("on");
-        setHud("#0d0d0d", `<b>${L("Writing the program")}</b><span class="sub">${esc(short(e.task, 56))}</span>`, true);
-        break;
-      case "keys":
-        showKeys(e);
         break;
       case "countdown":
         countdown(e.seconds);
         break;
-      case "script_generated":
-        if (!e.draft) setHud("#0d0d0d", `<b>${L("Running")}</b><span class="sub">${L("{n} lines", e.script.split("\n").length)}</span>`, true);
-        break;
       case "vision_scan":
         scan.classList.add("on");
-        setHud("var(--spark)", `<b>${L("Finding")}</b><span class="sub">“${esc(short(e.target))}”</span>`, true);
         break;
       case "sam_mask": {
         scan.classList.remove("on");
@@ -237,20 +187,15 @@
           newTarget("exact", e.box, `<i></i>${esc(short(e.target, 40))}`);
         } else if (e.from_cache) {
           newTarget("cached", e.box, `<i></i>${L("Cached")} <span class="muted">${L("0 model calls")} · ${esc(short(e.target, 32))}</span>`);
-          setHud("var(--cache)", `<b>${L("Position cache")}</b><span class="sub">“${esc(short(e.target))}” · ${L("no model call")}</span>`, true);
         } else if (!target) {
           newTarget("exact", e.box, `<i></i>${esc(short(e.target, 40))}`);
         }
         break;
       case "vision_miss":
         scan.classList.remove("on");
-        setHud("var(--bad)", `<b>${L("Not found")}</b><span class="sub">“${esc(short(e.target))}”</span>`, false);
         break;
       case "pointer": {
         const [x, y] = e.point;
-        const verb = L({ click: "Clicking", type: "Typing into", hover: "Hovering", drag: "Dragging" }[e.kind] || "Acting on");
-        const label = target?.tag?.querySelector(".muted")?.textContent || "";
-        setHud("#0d0d0d", `<b>${verb}</b><span class="sub">${esc(short(label.replace(/^[^·]*· /, "")))}</span>`, true);
         const r = document.createElement("div");
         r.className = "reticle";
         r.style.left = x + "px";
@@ -279,28 +224,11 @@
         break;
       case "line_failed":
         scan.classList.remove("on");
-        setHud("var(--bad)", `<b>${L("Line {n} failed", e.line)}</b><span class="sub">${esc(short(e.error?.message, 56))}</span>`);
         break;
-      case "detour":
-        setHud("#b45309", `<b>${L("Known way back")}</b><span class="sub">${esc(short(e.when, 50))}</span>`, true);
-        break;
-      case "line_rewritten":
-        setHud("#b45309", `<b>${L("Rewrote line {n}", e.failed_line)}</b><span class="sub">${L("resuming")}</span>`, true);
-        break;
-      case "confirm_request":
-        setHud("#b45309", `<b>${L("Waiting for your approval")}</b><span class="sub">${L("in the Deskwright panel")}</span>`, true);
-        break;
-      case "run_finished": {
+      case "run_finished":
         glow.classList.remove("on");
         scan.classList.remove("on");
         clearTarget();
-        const m = e.metrics || {};
-        const ok = e.status === "succeeded";
-        const bits = [`${(m.elapsed || 0).toFixed(1)}s`, L("{n} model calls", m.model_calls || 0)];
-        if (m.cache_hits) bits.push(L("{n}% cached", Math.round((m.cache_hit_rate || 0) * 100)));
-        const word = ok ? "Done" : e.status[0].toUpperCase() + e.status.slice(1);
-        setHud(ok ? "var(--ok)" : "var(--bad)", `<b>${L(word)}</b><span class="sub">${bits.join(" · ")}</span>`, false, 5000);
         break;
-      }
     }
   };
